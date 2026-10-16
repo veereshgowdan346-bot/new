@@ -24,5 +24,6 @@ dist-ssr
 *.sw?
 __pycache__/
 *.pyc
-server/chintu_memory.db
+server/*.db
+*.db
 server/logs/

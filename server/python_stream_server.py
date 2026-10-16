@@ -11,7 +11,7 @@ import os
 import time
 import urllib.parse
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Set
 
 import sys
 import os
@@ -147,6 +147,9 @@ market_feed_status: Dict[str, Any] = {
 # Authoritative In-Memory Active Position Book
 active_positions: Dict[str, Dict[str, Any]] = {}
 
+# Active In-Flight Exit Locks (Prevents concurrent duplicate square-offs)
+in_flight_exits: Set[str] = set()
+
 # Broker Capabilities Registry
 BROKER_CAPABILITIES: Dict[str, Dict[str, Any]] = {
     "angel_one": {
@@ -211,7 +214,8 @@ ANGEL_SYMBOL_MAP: Dict[str, Dict[str, Any]] = {
     "SILVER (XAGUSD)": {"tradingsymbol": "SILVER24DECFUT", "symboltoken": "243100", "exchange": "MCX", "lotsize": 300, "segment": "MCX Commodity"},
     "BTCUSDT": {"tradingsymbol": "BTCUSDT-PERP", "symboltoken": "999901", "exchange": "BINANCE", "lotsize": 1, "segment": "Crypto Perpetual"},
     "ETHUSDT": {"tradingsymbol": "ETHUSDT-PERP", "symboltoken": "999902", "exchange": "BINANCE", "lotsize": 5, "segment": "Crypto Perpetual"},
-    "MIDCPNIFTY": {"tradingsymbol": "MIDCPNIFTY24OCTFUT", "symboltoken": "45120", "exchange": "NFO", "lotsize": 75, "segment": "NSE F&O Options"}
+    "MIDCPNIFTY": {"tradingsymbol": "MIDCPNIFTY24OCTFUT", "symboltoken": "45120", "exchange": "NFO", "lotsize": 75, "segment": "NSE F&O Options"},
+    "SENSEX": {"tradingsymbol": "SENSEX24OCTFUT", "symboltoken": "51240", "exchange": "BFO", "lotsize": 10, "segment": "BSE Derivatives"}
 }
 
 
@@ -310,43 +314,97 @@ def place_live_angel_order(
     variety: str = "NORMAL",
     ordertype: Optional[str] = None,
     producttype: Optional[str] = None,
-    duration: str = "DAY"
+    duration: str = "DAY",
+    is_emergency_exit: bool = False
 ) -> Dict[str, Any]:
     """
-    Executes actual Angel One SmartConnect.placeOrder() logic with full parameter mapping,
+    Executes Angel One SmartConnect.placeOrder() logic with full parameter mapping,
     millisecond peer-permission mesh handshake, and automated RMS circuit breaker validation.
+    
+    Safety Rules Enforced:
+    - Risk-reducing emergency exits bypass peer consensus quorum vetoes.
+    - Entry-only circuit breakers and capital limits block new entries, not risk-reducing exits.
+    - Symbol and quantity parameters are strictly validated.
+    - Live orders strictly require authenticated broker connection.
     """
-    spec = ANGEL_SYMBOL_MAP.get(symbol_name, {
-        "tradingsymbol": f"{symbol_name.replace(' ', '')}-EQ",
+    # 0. Strict Parameter Validation
+    clean_symbol = str(symbol_name or "").strip()
+    if not clean_symbol:
+        return {
+            "success": False,
+            "orderId": "VALIDATION-ERR-SYMBOL",
+            "mode": "VALIDATION_FAILED",
+            "error": "Symbol identifier must be a non-empty string.",
+            "broker": "RMS Validation Gate"
+        }
+
+    if not isinstance(qty, int) or qty <= 0:
+        return {
+            "success": False,
+            "orderId": "VALIDATION-ERR-QTY",
+            "mode": "VALIDATION_FAILED",
+            "error": f"Invalid order quantity {qty}. Must be a positive integer greater than zero.",
+            "broker": "RMS Validation Gate"
+        }
+
+    spec = ANGEL_SYMBOL_MAP.get(clean_symbol, {
+        "tradingsymbol": f"{clean_symbol.replace(' ', '')}-EQ",
         "symboltoken": "9999",
         "exchange": "NSE",
         "lotsize": qty or 1
     })
 
-    effective_qty = qty if qty > 0 else spec.get("lotsize", 1)
+    effective_qty = qty
     effective_price = float(price) if price > 0 else 0.0
     est_value = (effective_price if effective_price > 0 else 100.0) * effective_qty
 
-    # 1. Peer-Permission Mesh Handshake Check (Quorum > 66%)
-    quorum = evaluate_peer_mesh_quorum(bot_name, action)
-    if not quorum["approved"]:
-        err_msg = f"Consensus Mesh Veto: Quorum denied ({quorum['quorum_ratio']} approvals from peers). Order aborted."
-        print(f"[Peer Quorum Abort]: {err_msg}")
-        return {
-            "success": False,
-            "orderId": "CONSENSUS-VETO",
-            "mode": "QUORUM_DENIED",
-            "error": err_msg,
-            "exchange": spec["exchange"],
-            "broker": "Consensus Mesh Engine",
-            "consensus": quorum["quorum_ratio"]
+    # 1. RMS Circuit Breaker Validation (Entry vs Exit)
+    if rms_state.get("circuit_breaker_active"):
+        if is_emergency_exit:
+            print(f"[RMS Notice]: Permitting risk-reducing emergency exit for {clean_symbol} while circuit breaker is active.")
+        else:
+            err_msg = "RMS Circuit Breaker is ACTIVE. Live new entry order routing is emergency blocked."
+            print(f"[RMS Emergency Reject]: {err_msg}")
+            return {
+                "success": False,
+                "orderId": "RMS-REJECTED-BREAKER",
+                "mode": "RMS_BLOCKED",
+                "error": err_msg,
+                "exchange": spec["exchange"],
+                "broker": "RMS Guard Engine"
+            }
+
+    # 2. Peer-Permission Mesh Handshake Check
+    if is_emergency_exit:
+        # Peer quorum must never veto a legitimate emergency exit
+        quorum = {
+            "approved": True,
+            "quorum_ratio": "EMERGENCY_BYPASS",
+            "approvals": 3,
+            "total_peers": 3,
+            "peer_votes": []
         }
+        print(f"[Emergency Exit]: Bypassing peer consensus quorum for risk-reducing exit on {clean_symbol}.")
+    else:
+        quorum = evaluate_peer_mesh_quorum(bot_name, action)
+        if not quorum["approved"]:
+            err_msg = f"Consensus Mesh Veto: Quorum denied ({quorum['quorum_ratio']} approvals from peers). Order aborted."
+            print(f"[Peer Quorum Abort]: {err_msg}")
+            return {
+                "success": False,
+                "orderId": "CONSENSUS-VETO",
+                "mode": "QUORUM_DENIED",
+                "error": err_msg,
+                "exchange": spec["exchange"],
+                "broker": "Consensus Mesh Engine",
+                "consensus": quorum["quorum_ratio"]
+            }
 
     is_angel_live = broker_state["angel_one"].get("connected") and active_smart_connect.get("instance") is not None
 
-    # 2. Fail-Closed Market Data Safety Check: Live execution requires verified authentic exchange feed
+    # 3. Fail-Closed Market Data Safety Check & Broker Connection Check
     if execution_mode == "LIVE":
-        if not market_feed_status.get("is_authentic_exchange_feed", False):
+        if not is_emergency_exit and not market_feed_status.get("is_authentic_exchange_feed", False):
             err_msg = "Live order blocked: Fail-Closed Protection active. Market feed is currently synthetic/simulated. Live execution requires verified exchange feed."
             print(f"[Market Feed Safety Gate]: {err_msg}")
             return {
@@ -360,7 +418,7 @@ def place_live_angel_order(
             }
 
         if not is_angel_live:
-            err_msg = "Live order blocked: No active authenticated broker connection found."
+            err_msg = f"Live {'emergency exit' if is_emergency_exit else 'order'} blocked: No active authenticated broker connection found."
             print(f"[Broker Gateway Reject]: {err_msg}")
             return {
                 "success": False,
@@ -372,50 +430,38 @@ def place_live_angel_order(
                 "consensus": quorum["quorum_ratio"]
             }
 
-    # 3. RMS Circuit Breaker Validation
-    if rms_state.get("circuit_breaker_active"):
-        err_msg = "RMS Circuit Breaker is ACTIVE. Live order routing is emergency blocked."
-        print(f"[RMS Emergency Reject]: {err_msg}")
-        return {
-            "success": False,
-            "orderId": "RMS-REJECTED-BREAKER",
-            "mode": "RMS_BLOCKED",
-            "error": err_msg,
-            "exchange": spec["exchange"],
-            "broker": "RMS Guard Engine",
-            "consensus": quorum["quorum_ratio"]
-        }
+    # 4. RMS Capital Limit Validation (Only applies to new risk-taking entries)
+    if not is_emergency_exit:
+        max_cap = float(rms_state.get("max_capital_per_bot", 50000.0) or 0)
+        if max_cap > 0 and est_value > max_cap:
+            err_msg = f"Order value INR {est_value:,.2f} exceeds Max Capital Per Bot limit (INR {max_cap:,.2f})."
+            print(f"[RMS Capital Limit Reject]: {err_msg}")
+            return {
+                "success": False,
+                "orderId": "RMS-REJECTED-CAPITAL",
+                "mode": "RMS_CAPITAL_EXCEEDED",
+                "error": err_msg,
+                "exchange": spec["exchange"],
+                "broker": "RMS Guard Engine",
+                "consensus": quorum["quorum_ratio"]
+            }
 
-    # 4. RMS Capital Limit Validation (from ₹1 upwards)
-    max_cap = float(rms_state.get("max_capital_per_bot", 50000.0) or 0)
-    if max_cap > 0 and est_value > max_cap:
-        err_msg = f"Order value INR {est_value:,.2f} exceeds Max Capital Per Bot limit (INR {max_cap:,.2f})."
-        print(f"[RMS Capital Limit Reject]: {err_msg}")
-        return {
-            "success": False,
-            "orderId": "RMS-REJECTED-CAPITAL",
-            "mode": "RMS_CAPITAL_EXCEEDED",
-            "error": err_msg,
-            "exchange": spec["exchange"],
-            "broker": "RMS Guard Engine",
-            "consensus": quorum["quorum_ratio"]
-        }
-
-    # 5. RMS Daily Loss Limit Check
-    max_loss = float(rms_state.get("max_daily_loss", 15000.0) or 0)
-    if rms_state.get("realized_daily_pnl", 0.0) <= -abs(max_loss) and max_loss > 0:
-        rms_state["circuit_breaker_active"] = True
-        memory_db.log_rms_event("DAILY_LOSS_LIMIT_REACHED", max_loss, abs(rms_state["realized_daily_pnl"]), "CIRCUIT_BREAKER_TRIPPED")
-        err_msg = f"Daily loss limit of INR {max_loss:,.2f} reached. Emergency Circuit Breaker armed."
-        print(f"[RMS Daily Loss Breached]: {err_msg}")
-        return {
-            "success": False,
-            "orderId": "RMS-DAILY-LOSS-LIMIT",
-            "mode": "RMS_BLOCKED",
-            "error": err_msg,
-            "exchange": spec["exchange"],
-            "broker": "RMS Guard Engine"
-        }
+    # 5. RMS Daily Loss Limit Check (Only blocks new risk-taking entries)
+    if not is_emergency_exit:
+        max_loss = float(rms_state.get("max_daily_loss", 15000.0) or 0)
+        if rms_state.get("realized_daily_pnl", 0.0) <= -abs(max_loss) and max_loss > 0:
+            rms_state["circuit_breaker_active"] = True
+            memory_db.log_rms_event("DAILY_LOSS_LIMIT_REACHED", max_loss, abs(rms_state["realized_daily_pnl"]), "CIRCUIT_BREAKER_TRIPPED")
+            err_msg = f"Daily loss limit of INR {max_loss:,.2f} reached. Emergency Circuit Breaker armed."
+            print(f"[RMS Daily Loss Breached]: {err_msg}")
+            return {
+                "success": False,
+                "orderId": "RMS-DAILY-LOSS-LIMIT",
+                "mode": "RMS_BLOCKED",
+                "error": err_msg,
+                "exchange": spec["exchange"],
+                "broker": "RMS Guard Engine"
+            }
 
     # Full SmartAPI Parameter Mapping
     resolved_ordertype = ordertype or ("MARKET" if effective_price <= 0 else "LIMIT")
@@ -444,6 +490,17 @@ def place_live_angel_order(
         try:
             print(f"[SmartAPI Order Routing]: Dispatching live {order_params['transactiontype']} {order_params['quantity']}x {order_params['tradingsymbol']} ({spec['exchange']}) to Angel One...")
             res = active_smart_connect["instance"].placeOrder(order_params)
+            # Inspect broker response for rejected status
+            if isinstance(res, dict) and res.get("status") is False:
+                error_reason = res.get("message") or "Broker order rejected by exchange."
+                print(f"[SmartAPI Rejected]: {error_reason}")
+                return {
+                    "success": False,
+                    "orderId": "BROKER-REJECTED",
+                    "mode": "LIVE_REJECTED",
+                    "error": error_reason,
+                    "details": order_params
+                }
             order_id = res if isinstance(res, str) else res.get("data", {}).get("orderid", f"AO{random.randint(10000000, 99999999)}")
             print(f"[SmartAPI Success]: Order confirmed by Angel One Exchange Engine. OrderID: {order_id}")
             return {
@@ -456,12 +513,12 @@ def place_live_angel_order(
                 "details": order_params
             }
         except Exception as e:
-            print(f"[SmartAPI Live Order Exception]: {e}. Falling back to validated execution response.")
+            print(f"[SmartAPI Live Order Exception]: {e}")
             fallback_id = f"AO-ERR-{random.randint(1000000, 9999999)}"
             return {
                 "success": False,
                 "orderId": fallback_id,
-                "mode": "LIVE_FALLBACK",
+                "mode": "LIVE_EXCEPTION",
                 "error": str(e),
                 "consensus": quorum["quorum_ratio"],
                 "details": order_params
@@ -480,20 +537,34 @@ def place_live_angel_order(
     }
 
 
-def calculate_closing_order(position: Dict[str, Any]) -> Dict[str, Any]:
+def calculate_closing_order(position: Dict[str, Any], requested_qty: Optional[int] = None) -> Dict[str, Any]:
     """
     Computes exact reverse closing order according to Indian exchange conventions:
     - Long (BUY / positive qty) -> SELL
     - Short (SELL / negative qty) -> BUY
+    Validates instrument identifier and quantity limits.
     """
     pos_type = str(position.get("type") or position.get("action") or "BUY").upper()
-    qty = abs(int(position.get("qty", 1)))
+    total_qty = abs(int(position.get("qty", 1)))
     closing_action = "SELL" if pos_type in ["BUY", "LONG"] else "BUY"
-    
+
+    if requested_qty is not None:
+        if not isinstance(requested_qty, int) or requested_qty <= 0:
+            raise ValueError(f"Invalid requested exit quantity {requested_qty}. Must be a positive integer.")
+        if requested_qty > total_qty:
+            raise ValueError(f"Requested exit quantity {requested_qty} exceeds open position quantity {total_qty}.")
+        closing_qty = requested_qty
+    else:
+        closing_qty = total_qty
+
+    symbol = position.get("symbol", "NIFTY 50")
+    if not symbol or not str(symbol).strip():
+        raise ValueError("Position is missing a valid symbol identifier.")
+
     return {
-        "symbol": position.get("symbol", "NIFTY 50"),
+        "symbol": str(symbol).strip(),
         "action": closing_action,
-        "qty": qty,
+        "qty": closing_qty,
         "price": float(position.get("ltp") or position.get("avgPrice") or 0.0),
         "bot": position.get("bot", "System / Manual"),
         "segment": position.get("segment", "NSE F&O Options"),
@@ -592,6 +663,7 @@ class OrderPlacePayload(BaseModel):
     variety: Optional[str] = "NORMAL"
     ordertype: Optional[str] = None
     producttype: Optional[str] = None
+    is_exit: Optional[bool] = False
 
 class TestAlertPayload(BaseModel):
     phone: str
@@ -671,6 +743,7 @@ class SquareOffPayload(BaseModel):
     id: Optional[str] = None
     symbol: Optional[str] = None
     bot: Optional[str] = None
+    qty: Optional[int] = None
 
 class MarketFeedStatusPayload(BaseModel):
     is_authentic_exchange_feed: Optional[bool] = None
@@ -1808,14 +1881,15 @@ async def square_off_position(payload: SquareOffPayload):
     """
     Authoritative single-position square-off endpoint:
     Calculates closing order (BUY -> SELL, SELL -> BUY),
-    routes through execution engine, deducts regulatory charges,
-    records to SQLite trade_memory, and removes from active book.
+    routes through execution engine as risk-reducing emergency exit,
+    deducts regulatory charges, records to SQLite trade_memory,
+    and removes/reduces from active book only on confirmed broker execution.
     """
     target_pos = None
     target_key = None
 
     pos_id = payload.positionId or payload.id
-    for key, p in active_positions.items():
+    for key, p in list(active_positions.items()):
         if (pos_id and p.get("id") == pos_id) or \
            (payload.symbol and payload.symbol.lower() in p.get("symbol", "").lower() and \
             (not payload.bot or payload.bot.lower() in p.get("bot", "").lower())):
@@ -1826,122 +1900,47 @@ async def square_off_position(payload: SquareOffPayload):
     if not target_pos or not target_key:
         return {"status": "error", "message": f"Position '{pos_id or payload.symbol}' not found in active book."}
 
-    closing_spec = calculate_closing_order(target_pos)
-    order_res = place_live_angel_order(
-        symbol_name=closing_spec["symbol"],
-        action=closing_spec["action"],
-        qty=closing_spec["qty"],
-        price=closing_spec["price"],
-        bot_name=closing_spec["bot"]
-    )
-
-    if not order_res.get("success"):
+    exit_lock_key = target_pos.get("id") or target_key
+    if exit_lock_key in in_flight_exits:
         return {
             "status": "error",
-            "message": f"Square off order rejected: {order_res.get('error', 'Execution failure')}",
-            "order_result": order_res
+            "message": f"Square-off order for position '{exit_lock_key}' is already in flight. Duplicate order prevented."
         }
 
-    entry_price = float(target_pos.get("avgPrice", 0.0))
-    exit_price = float(closing_spec["price"])
-    qty = int(closing_spec["qty"])
-    pos_type = str(target_pos.get("type", "BUY")).upper()
-    raw_gross = (exit_price - entry_price) * qty if pos_type in ["BUY", "LONG"] else (entry_price - exit_price) * qty
-
-    deductions = calculate_trade_deductions(
-        price=exit_price,
-        qty=qty,
-        action=closing_spec["action"],
-        segment=target_pos.get("segment", "NSE F&O Options"),
-        gross_pnl=raw_gross
-    )
-
-    now = datetime.now()
-    time_ms = now.strftime("%H:%M:%S") + f".{now.microsecond // 1000:03d}"
-
-    trade_record = {
-        "id": int(time.time() * 1000),
-        "time": time_ms,
-        "bot": target_pos.get("bot", "System Square-Off"),
-        "symbol": target_pos.get("symbol"),
-        "segment": target_pos.get("segment", "NSE F&O Options"),
-        "action": closing_spec["action"],
-        "price": exit_price,
-        "qty": qty,
-        "pnl": f"{'+' if deductions['net_pnl'] >= 0 else '-'}₹{abs(deductions['net_pnl']):,.2f}",
-        "grossPnl": deductions["gross_pnl"],
-        "totalCharges": deductions["total_charges"],
-        "netPnl": deductions["net_pnl"],
-        "charges": deductions,
-        "isPositive": deductions["net_pnl"] >= 0,
-        "orderId": order_res.get("orderId", f"SQO_{int(time.time()*1000)}"),
-        "exchange": order_res.get("exchange", "NSE"),
-        "mode": order_res.get("mode", execution_mode),
-        "broker": order_res.get("broker", "SmartAPI"),
-        "post_trade_analysis": f"Square-off completed. Closed {qty}x {target_pos.get('symbol')} ({pos_type}) @ ₹{exit_price:,.2f}. Realized Net PnL: ₹{deductions['net_pnl']:,.2f} after ₹{deductions['total_charges']} charges."
-    }
-
-    del active_positions[target_key]
+    in_flight_exits.add(exit_lock_key)
     try:
-        memory_db.log_trade(trade_record)
-    except Exception as e:
-        print(f"[Memory DB Square-Off Log Error]: {e}")
-
-    ws_event = json.dumps({
-        "type": "POSITION_SQUARED_OFF",
-        "positionId": target_pos.get("id"),
-        "symbol": target_pos.get("symbol"),
-        "trade": trade_record
-    })
-    for ws in connected_websockets:
         try:
-            await ws.send_text(ws_event)
-        except Exception:
-            pass
+            closing_spec = calculate_closing_order(target_pos, requested_qty=payload.qty)
+        except ValueError as err_val:
+            return {"status": "error", "message": f"Validation error: {str(err_val)}"}
 
-    return {
-        "status": "success",
-        "message": f"Successfully squared off position in {target_pos.get('symbol')} ({closing_spec['action']} {qty}x).",
-        "closed_position": target_pos,
-        "trade": trade_record
-    }
-
-@app.post("/api/positions/square-off-all")
-async def square_off_all_positions():
-    """
-    Authoritative square-off-all endpoint:
-    Iterates through all open positions in active book and closes each one.
-    """
-    if not active_positions:
-        return {"status": "success", "message": "No active positions to square off.", "squared_count": 0, "results": []}
-
-    squared_results = []
-    keys_to_square = list(active_positions.keys())
-
-    for key in keys_to_square:
-        if key not in active_positions:
-            continue
-        pos = active_positions[key]
-        closing_spec = calculate_closing_order(pos)
         order_res = place_live_angel_order(
             symbol_name=closing_spec["symbol"],
             action=closing_spec["action"],
             qty=closing_spec["qty"],
             price=closing_spec["price"],
-            bot_name=closing_spec["bot"]
+            bot_name=closing_spec["bot"],
+            is_emergency_exit=True
         )
 
-        entry_price = float(pos.get("avgPrice", 0.0))
+        if not order_res.get("success"):
+            return {
+                "status": "error",
+                "message": f"Square off order rejected by broker: {order_res.get('error', 'Execution failure')}",
+                "order_result": order_res
+            }
+
+        entry_price = float(target_pos.get("avgPrice", 0.0))
         exit_price = float(closing_spec["price"])
         qty = int(closing_spec["qty"])
-        pos_type = str(pos.get("type", "BUY")).upper()
+        pos_type = str(target_pos.get("type", "BUY")).upper()
         raw_gross = (exit_price - entry_price) * qty if pos_type in ["BUY", "LONG"] else (entry_price - exit_price) * qty
 
         deductions = calculate_trade_deductions(
             price=exit_price,
             qty=qty,
             action=closing_spec["action"],
-            segment=pos.get("segment", "NSE F&O Options"),
+            segment=target_pos.get("segment", "NSE F&O Options"),
             gross_pnl=raw_gross
         )
 
@@ -1949,11 +1948,11 @@ async def square_off_all_positions():
         time_ms = now.strftime("%H:%M:%S") + f".{now.microsecond // 1000:03d}"
 
         trade_record = {
-            "id": int(time.time() * 1000) + random.randint(1, 999),
+            "id": int(time.time() * 1000),
             "time": time_ms,
-            "bot": pos.get("bot", "Mass Square-Off"),
-            "symbol": pos.get("symbol"),
-            "segment": pos.get("segment", "NSE F&O Options"),
+            "bot": target_pos.get("bot", "System Square-Off"),
+            "symbol": target_pos.get("symbol"),
+            "segment": target_pos.get("segment", "NSE F&O Options"),
             "action": closing_spec["action"],
             "price": exit_price,
             "qty": qty,
@@ -1963,23 +1962,170 @@ async def square_off_all_positions():
             "netPnl": deductions["net_pnl"],
             "charges": deductions,
             "isPositive": deductions["net_pnl"] >= 0,
-            "orderId": order_res.get("orderId", f"SQO_ALL_{int(time.time()*1000)}"),
+            "orderId": order_res.get("orderId", f"SQO_{int(time.time()*1000)}"),
             "exchange": order_res.get("exchange", "NSE"),
             "mode": order_res.get("mode", execution_mode),
-            "broker": order_res.get("broker", "SmartAPI")
+            "broker": order_res.get("broker", "SmartAPI"),
+            "post_trade_analysis": f"Square-off completed. Closed {qty}x {target_pos.get('symbol')} ({pos_type}) @ ₹{exit_price:,.2f}. Realized Net PnL: ₹{deductions['net_pnl']:,.2f} after ₹{deductions['total_charges']} charges."
         }
 
-        del active_positions[key]
+        # Handle full vs partial close in active book
+        current_open_qty = target_pos.get("qty", qty)
+        if qty >= current_open_qty:
+            if target_key in active_positions:
+                del active_positions[target_key]
+        else:
+            target_pos["qty"] -= qty
+
         try:
             memory_db.log_trade(trade_record)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Memory DB Square-Off Log Error]: {e}")
 
-        squared_results.append(trade_record)
+        ws_event = json.dumps({
+            "type": "POSITION_SQUARED_OFF",
+            "positionId": target_pos.get("id"),
+            "symbol": target_pos.get("symbol"),
+            "trade": trade_record
+        })
+        for ws in connected_websockets:
+            try:
+                await ws.send_text(ws_event)
+            except Exception:
+                pass
+
+        return {
+            "status": "success",
+            "message": f"Successfully squared off position in {target_pos.get('symbol')} ({closing_spec['action']} {qty}x).",
+            "closed_position": target_pos,
+            "trade": trade_record
+        }
+    finally:
+        in_flight_exits.discard(exit_lock_key)
+
+@app.post("/api/positions/square-off-all")
+async def square_off_all_positions():
+    """
+    Authoritative square-off-all endpoint:
+    Iterates through all verified open positions in active book,
+    executes risk-reducing emergency exits per position, handles partial failures,
+    and reports exact per-instrument status.
+    """
+    if not active_positions:
+        return {"status": "success", "message": "No active positions to square off.", "squared_count": 0, "failed_count": 0, "results": []}
+
+    squared_results = []
+    keys_to_square = list(active_positions.keys())
+    success_count = 0
+    failure_count = 0
+
+    for key in keys_to_square:
+        if key not in active_positions:
+            continue
+        pos = active_positions[key]
+        exit_lock_key = pos.get("id") or key
+        if exit_lock_key in in_flight_exits:
+            squared_results.append({
+                "symbol": pos.get("symbol"),
+                "bot": pos.get("bot"),
+                "success": False,
+                "error": "Exit order already in flight"
+            })
+            failure_count += 1
+            continue
+
+        in_flight_exits.add(exit_lock_key)
+        try:
+            try:
+                closing_spec = calculate_closing_order(pos)
+            except ValueError as val_err:
+                squared_results.append({
+                    "symbol": pos.get("symbol"),
+                    "bot": pos.get("bot"),
+                    "success": False,
+                    "error": f"Invalid order parameters: {str(val_err)}"
+                })
+                failure_count += 1
+                continue
+
+            order_res = place_live_angel_order(
+                symbol_name=closing_spec["symbol"],
+                action=closing_spec["action"],
+                qty=closing_spec["qty"],
+                price=closing_spec["price"],
+                bot_name=closing_spec["bot"],
+                is_emergency_exit=True
+            )
+
+            if not order_res.get("success"):
+                squared_results.append({
+                    "symbol": pos.get("symbol"),
+                    "bot": pos.get("bot"),
+                    "success": False,
+                    "error": order_res.get("error", "Broker execution failed"),
+                    "order_result": order_res
+                })
+                failure_count += 1
+                continue
+
+            entry_price = float(pos.get("avgPrice", 0.0))
+            exit_price = float(closing_spec["price"])
+            qty = int(closing_spec["qty"])
+            pos_type = str(pos.get("type", "BUY")).upper()
+            raw_gross = (exit_price - entry_price) * qty if pos_type in ["BUY", "LONG"] else (entry_price - exit_price) * qty
+
+            deductions = calculate_trade_deductions(
+                price=exit_price,
+                qty=qty,
+                action=closing_spec["action"],
+                segment=pos.get("segment", "NSE F&O Options"),
+                gross_pnl=raw_gross
+            )
+
+            now = datetime.now()
+            time_ms = now.strftime("%H:%M:%S") + f".{now.microsecond // 1000:03d}"
+
+            trade_record = {
+                "id": int(time.time() * 1000) + random.randint(1, 999),
+                "time": time_ms,
+                "bot": pos.get("bot", "Mass Square-Off"),
+                "symbol": pos.get("symbol"),
+                "segment": pos.get("segment", "NSE F&O Options"),
+                "action": closing_spec["action"],
+                "price": exit_price,
+                "qty": qty,
+                "pnl": f"{'+' if deductions['net_pnl'] >= 0 else '-'}₹{abs(deductions['net_pnl']):,.2f}",
+                "grossPnl": deductions["gross_pnl"],
+                "totalCharges": deductions["total_charges"],
+                "netPnl": deductions["net_pnl"],
+                "charges": deductions,
+                "isPositive": deductions["net_pnl"] >= 0,
+                "orderId": order_res.get("orderId", f"SQO_ALL_{int(time.time()*1000)}"),
+                "exchange": order_res.get("exchange", "NSE"),
+                "mode": order_res.get("mode", execution_mode),
+                "broker": order_res.get("broker", "SmartAPI")
+            }
+
+            del active_positions[key]
+            try:
+                memory_db.log_trade(trade_record)
+            except Exception:
+                pass
+
+            squared_results.append({
+                "symbol": pos.get("symbol"),
+                "bot": pos.get("bot"),
+                "success": True,
+                "trade": trade_record
+            })
+            success_count += 1
+        finally:
+            in_flight_exits.discard(exit_lock_key)
 
     mass_event = json.dumps({
         "type": "ALL_POSITIONS_SQUARED_OFF",
-        "count": len(squared_results)
+        "count": success_count,
+        "failed": failure_count
     })
     for ws in connected_websockets:
         try:
@@ -1987,10 +2133,12 @@ async def square_off_all_positions():
         except Exception:
             pass
 
+    overall_status = "success" if failure_count == 0 else ("partial_success" if success_count > 0 else "error")
     return {
-        "status": "success",
-        "message": f"Successfully squared off all {len(squared_results)} positions.",
-        "squared_count": len(squared_results),
+        "status": overall_status,
+        "message": f"Square-off all completed: {success_count} succeeded, {failure_count} failed.",
+        "squared_count": success_count,
+        "failed_count": failure_count,
         "results": squared_results
     }
 
@@ -2015,7 +2163,8 @@ async def place_order_api(payload: OrderPlacePayload):
         bot_name=payload.bot,
         variety=payload.variety or "NORMAL",
         ordertype=payload.ordertype,
-        producttype=payload.producttype
+        producttype=payload.producttype,
+        is_emergency_exit=bool(payload.is_exit)
     )
 
     if not order_result.get("success"):
