@@ -1901,6 +1901,22 @@ async def on_startup():
         )
         asyncio.create_task(send_telegram_message(init_confirm, chat_id=telegram_state["chat_id"]))
 
+    # Start autonomous BotScheduler for 14 canonical bots
+    try:
+        from server.bot_scheduler import bot_scheduler
+        bot_scheduler.start()
+    except Exception as e:
+        print(f"[BotScheduler Startup Error]: {e}")
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    try:
+        from server.bot_scheduler import bot_scheduler
+        bot_scheduler.stop()
+    except Exception as e:
+        print(f"[BotScheduler Shutdown Error]: {e}")
+
 
 # Standard Endpoints
 @app.get("/api/health")
@@ -3039,6 +3055,50 @@ async def update_bot_performance_memory_api(payload: BotPerformanceUpdatePayload
     bot_id = updates.pop("bot_id")
     success = memory_db.update_bot_performance(bot_id, updates)
     return {"status": "success" if success else "error"}
+
+
+# =========================================================
+# CANONICAL BOT REGISTRY, SCHEDULER & HIGHEST PROFIT (PHASE 5)
+# =========================================================
+
+class BotEvaluatePayload(BaseModel):
+    bot_id: Optional[int] = None
+    execute_paper: bool = True
+
+
+@app.get("/api/bots/registry")
+async def get_bot_registry_api():
+    """Returns the authoritative canonical registry of all 14 bots."""
+    from server.bot_registry import get_all_canonical_bots
+    return {"status": "success", "bots": get_all_canonical_bots()}
+
+
+@app.get("/api/bots/status")
+async def get_bot_status_api():
+    """Returns execution and worker statuses for all 14 bots."""
+    from server.bot_scheduler import bot_scheduler
+    statuses = bot_scheduler.get_all_statuses()
+    return {"status": "success", "bots": statuses}
+
+
+@app.post("/api/bots/evaluate")
+async def evaluate_bot_api(payload: BotEvaluatePayload):
+    """Evaluates strategy rules for a specific bot or all bots."""
+    from server.bot_scheduler import bot_scheduler
+    if payload.bot_id is not None:
+        result = bot_scheduler.evaluate_bot(payload.bot_id, execute_paper=payload.execute_paper)
+        return {"status": "success", "evaluation": result}
+    else:
+        results = bot_scheduler.evaluate_all(execute_paper=payload.execute_paper)
+        return {"status": "success", "evaluations": results}
+
+
+@app.get("/api/bots/highest-profit")
+async def get_highest_profit_bot_api():
+    """Returns the data-backed highest profit bot based strictly on trade_memory."""
+    from server.highest_profit_bot import get_highest_profit_bot
+    result = get_highest_profit_bot()
+    return {"status": "success", **result}
 
 @app.get("/api/rms/status")
 async def get_rms_status_api():

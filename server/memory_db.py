@@ -194,32 +194,22 @@ def init_db():
 
     conn.commit()
 
-    # Seed baseline bot performance if table is empty
-    cursor.execute("SELECT COUNT(*) as count FROM bot_performance_memory")
-    if cursor.fetchone()["count"] == 0:
-        initial_bots = [
-            (1, "Scalper Bot", "NIFTY 50", 78.0, 48, 37, 11, 12450.00, 0.92, "RUNNING", 0.0),
-            (2, "Breakout Bot", "BANKNIFTY", 74.0, 42, 31, 11, 18200.00, 0.88, "RUNNING", 0.0),
-            (3, "Mean Reversion Bot", "RELIANCE", 69.0, 36, 25, 11, 6400.00, 0.82, "RUNNING", 0.0),
-            (4, "VWAP Momentum Bot", "TATA MOTORS", 72.0, 38, 27, 11, 8900.00, 0.85, "RUNNING", 0.0),
-            (5, "Gold Scalper", "GOLD (XAUUSD)", 70.0, 29, 20, 9, 11300.00, 0.89, "RUNNING", 0.0),
-            (6, "Trend Hunter", "HDFC BANK", 67.0, 28, 19, 9, 5100.00, 0.80, "RUNNING", 0.0),
-            (7, "Gap Fill Specialist", "INFY", 68.0, 25, 17, 8, 4300.00, 0.79, "RUNNING", 0.0),
-            (8, "Crude Oil Bot", "CRUDE OIL", 66.0, 31, 20, 11, 9400.00, 0.81, "RUNNING", 0.0),
-            (9, "Currency Arbiter", "USDINR", 75.0, 52, 39, 13, 3800.00, 0.87, "RUNNING", 0.0),
-            (10, "Option Chain Scalper", "NIFTY OPTIONS", 71.0, 45, 32, 13, 21500.00, 0.91, "RUNNING", 0.0),
-            (11, "Pivot Point Wizard", "MIDCPNIFTY", 68.0, 30, 20, 10, 5600.00, 0.80, "RUNNING", 0.0),
-            (12, "Silver Momentum", "SILVER (XAGUSD)", 67.0, 24, 16, 8, 7200.00, 0.78, "RUNNING", 0.0),
-            (13, "Crypto Arbitrage", "BTCUSDT", 65.0, 40, 26, 14, 14100.00, 0.76, "RUNNING", 0.0),
-            (14, "Ethereum Scalper", "ETHUSDT", 64.0, 34, 22, 12, 8800.00, 0.75, "RUNNING", 0.0)
-        ]
+    # Seed or synchronize canonical bot performance definitions
+    try:
+        from server.bot_registry import CANONICAL_BOT_REGISTRY
         now_str = datetime.now().isoformat()
-        cursor.executemany("""
-        INSERT INTO bot_performance_memory 
-        (bot_id, bot_name, target_asset, win_rate, total_trades, winning_trades, losing_trades, pnl, regime_score, status, allocated_capital, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, [(b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8], b[9], b[10], now_str) for b in initial_bots])
+        for b_id, bot_cfg in CANONICAL_BOT_REGISTRY.items():
+            cursor.execute("""
+            INSERT INTO bot_performance_memory 
+            (bot_id, bot_name, target_asset, win_rate, total_trades, winning_trades, losing_trades, pnl, regime_score, status, allocated_capital, updated_at)
+            VALUES (?, ?, ?, 0.0, 0, 0, 0, 0.0, 0.80, ?, 0.0, ?)
+            ON CONFLICT(bot_id) DO UPDATE SET
+                bot_name = excluded.bot_name,
+                target_asset = excluded.target_asset
+            """, (b_id, bot_cfg["name"], bot_cfg["asset"], bot_cfg.get("status", "RUNNING"), now_str))
         conn.commit()
+    except Exception as e:
+        print(f"[Canonical Bot Seeding Error]: {e}")
 
     # Seed or verify permanent Master User Profile for Veeresh
     cursor.execute("SELECT value FROM system_config WHERE key = 'user_profile'")
@@ -430,7 +420,74 @@ def log_trade(trade: Dict[str, Any]) -> int:
     inserted_id = cursor.lastrowid
     conn.commit()
     conn.close()
+
+    try:
+        recalculate_bot_performance()
+    except Exception as e:
+        print(f"[Recalculate Performance Error]: {e}")
+
     return inserted_id
+
+
+def recalculate_bot_performance(bot_id: Optional[int] = None) -> None:
+    """
+    Recalculates bot performance metrics strictly from verified records in trade_memory.
+    Synchronizes bot_performance_memory with realistic trade counts, win rates, and PnL.
+    """
+    from server.bot_registry import CANONICAL_BOT_REGISTRY
+    conn = get_connection()
+    try:
+        with conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM trade_memory")
+            trades = [dict(r) for r in cursor.fetchall()]
+
+            target_bot_ids = [bot_id] if bot_id is not None else list(CANONICAL_BOT_REGISTRY.keys())
+
+            for b_id in target_bot_ids:
+                bot_cfg = CANONICAL_BOT_REGISTRY.get(b_id)
+                if not bot_cfg:
+                    continue
+
+                b_name = bot_cfg["name"].lower().strip()
+                bot_trades = []
+                for t in trades:
+                    t_bot = str(t.get("bot", "")).lower().strip()
+                    if t_bot == b_name or t_bot == f"bot {b_id}" or t_bot == str(b_id) or f"bot_{b_id}" in t_bot:
+                        bot_trades.append(t)
+
+                total = len(bot_trades)
+                wins = 0
+                losses = 0
+                total_pnl = 0.0
+
+                for t in bot_trades:
+                    raw_pnl = str(t.get("pnl") or "0").replace("₹", "").replace("+", "").replace(",", "").strip()
+                    try:
+                        pnl_val = float(raw_pnl)
+                        if t.get("is_positive") == 0 and pnl_val > 0:
+                            pnl_val = -pnl_val
+                    except ValueError:
+                        pnl_val = 0.0
+
+                    total_pnl += pnl_val
+                    if pnl_val > 0:
+                        wins += 1
+                    elif pnl_val < 0:
+                        losses += 1
+
+                win_rate = round((wins / total * 100), 1) if total > 0 else 0.0
+                now_str = datetime.now().isoformat()
+
+                cursor.execute("""
+                UPDATE bot_performance_memory
+                SET win_rate = ?, total_trades = ?, winning_trades = ?, losing_trades = ?, pnl = ?, updated_at = ?
+                WHERE bot_id = ?
+                """, (win_rate, total, wins, losses, round(total_pnl, 2), now_str, b_id))
+    except Exception as e:
+        print(f"[Recalculate Bot Performance Error]: {e}")
+    finally:
+        conn.close()
 
 
 # =========================================================

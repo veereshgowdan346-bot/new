@@ -1085,9 +1085,9 @@ export default function AICommanderView({
 
   // 9. Profitability Advisor & Quantitative Macro Strategy Engine
   const runProfitabilityAdvisor = () => {
-    const sortedBots = [...bots].sort((a, b) => (b.winRate || 0) - (a.winRate || 0));
-    const topBot1 = sortedBots[0] || { name: 'Scalper Bot', winRate: 78, asset: 'NIFTY 50' };
-    const topBot2 = sortedBots[1] || { name: 'Breakout Bot', winRate: 74, asset: 'BANKNIFTY' };
+    const sortedBots = [...bots].sort((a, b) => (Number(b.winRate) || 0) - (Number(a.winRate) || 0));
+    const topBot1 = sortedBots[0] || { id: 1, name: 'Scalper Bot', winRate: 0, asset: 'NIFTY 50' };
+    const topBot2 = sortedBots[1] || { id: 2, name: 'EMA Trend Bot', winRate: 0, asset: 'BANKNIFTY' };
 
     let text = `### 📈 Quantitative Macro & Profitability Optimization\n\n`;
     text += `Commander, cross-referencing 14-bot performance with current global macro telemetry:\n\n`;
@@ -1098,15 +1098,15 @@ export default function AICommanderView({
     text += `   • **Safe Haven Gold (XAUUSD)**: $${goldTicker.price || 2653.40}. Stable safe-haven indicates risk-on institutional bias.\n\n`;
 
     text += `2. **Capital Concentration on Top Alpha Nodes**:\n`;
-    text += `   • **#${topBot1.id || 1} ${topBot1.name}** (${topBot1.asset}): Win Rate **${topBot1.winRate}%** | Allocated: ₹${Number(topBot1.allocatedCapital || 0).toLocaleString('en-IN')}\n`;
-    text += `   • **#${topBot2.id || 2} ${topBot2.name}** (${topBot2.asset}): Win Rate **${topBot2.winRate}%** | Allocated: ₹${Number(topBot2.allocatedCapital || 0).toLocaleString('en-IN')}\n`;
-    text += `   • *Directive*: Reallocate ₹500 - ₹1,000 to these top 2 performers to maximize Sharpe Ratio.\n\n`;
+    text += `   • **#${topBot1.id || 1} ${topBot1.name}** (${topBot1.asset}): Win Rate **${topBot1.winRate ? `${topBot1.winRate}%` : 'Awaiting verified fills'}** | Allocated: ₹${Number(topBot1.allocatedCapital || 0).toLocaleString('en-IN')}\n`;
+    text += `   • **#${topBot2.id || 2} ${topBot2.name}** (${topBot2.asset}): Win Rate **${topBot2.winRate ? `${topBot2.winRate}%` : 'Awaiting verified fills'}** | Allocated: ₹${Number(topBot2.allocatedCapital || 0).toLocaleString('en-IN')}\n`;
+    text += `   • *Directive*: Reallocate capital to verified top performers after statistical threshold is met.\n\n`;
 
     text += `3. **Dynamic Volatility Trailing Stops**:\n`;
     text += `   • Tighten ATR multiplier from **2.0x to 1.5x** during market opening (9:15 – 10:15 AM IST) to lock in intraday gains.\n\n`;
 
     text += `4. **Strict Quorum Enforcement**:\n`;
-    text += `   • Maintain **11/13 consensus threshold**. Backtests confirm this eliminates **83% of false breakout whipsaws**.\n`;
+    text += `   • Maintain **11/13 consensus threshold**. Mathematical signals eliminate premature breakout whipsaws.\n`;
 
     const chips = [
       '🌅 Pre-Market Scan',
@@ -1126,67 +1126,85 @@ export default function AICommanderView({
     const sortedByWinRate = [...bots].sort((a, b) => (Number(b.winRate) || 0) - (Number(a.winRate) || 0));
     const sortedByPnl = [...bots].sort((a, b) => (Number(b.pnlToday) || 0) - (Number(a.pnlToday) || 0));
 
+    const hasVerifiedTrades = bots.some((b) => (Number(b.trades) || 0) > 0 || (Number(b.pnlToday) || 0) !== 0);
+
     // Determine top profit / alpha bot
-    const topBot = (sortedByPnl[0]?.pnlToday > 0 ? sortedByPnl[0] : null) ||
+    const topBot = sortedByPnl.find((b) => Number(b.pnlToday) > 0) ||
+      sortedByWinRate.find((b) => Number(b.winRate) > 0) ||
       sortedByWinRate[0] ||
-      { id: 1, name: 'Scalper Bot', asset: 'NIFTY 50', winRate: 78, pnlToday: 0 };
+      { id: 1, name: 'Scalper Bot', asset: 'NIFTY 50', winRate: 0, pnlToday: 0 };
 
     // Determine highest drawdown / loss / lagging bot
-    const worstBot = (sortedByPnl[sortedByPnl.length - 1]?.pnlToday < 0 ? sortedByPnl[sortedByPnl.length - 1] : null) ||
-      sortedByWinRate[sortedByWinRate.length - 1] ||
-      { id: 4, name: 'VWAP Bot', asset: 'TCS', winRate: 52, pnlToday: -350 };
+    const worstBot = [...sortedByPnl].reverse().find((b) => Number(b.pnlToday) < 0) ||
+      [...sortedByWinRate].reverse()[0] ||
+      { id: 4, name: 'Breakout Bot', asset: 'TATA MOTORS', winRate: 0, pnlToday: 0 };
 
     // Categorize win rate distribution
     const highAlpha = bots.filter((b) => (Number(b.winRate) || 0) >= 70);
     const midAlpha = bots.filter((b) => (Number(b.winRate) || 0) >= 55 && (Number(b.winRate) || 0) < 70);
-    const lowAlpha = bots.filter((b) => (Number(b.winRate) || 0) < 55);
+    const lowAlpha = bots.filter((b) => (Number(b.winRate) || 0) < 55 && (Number(b.trades) || 0) > 0);
 
     let text = '';
     let speechSummary = '';
 
     if (isKn) {
       text = `### 📊 ಬಾಟ್ ಆಲ್ಫಾ ಮತ್ತು ರಿಸ್ಕ್ ಆಡಿಟ್ ವರದಿ (Bot Alpha & Risk Audit)\n\n`;
-      text += `ಕಮಾಂಡರ್ ವೀರೇಶ್, 14 ಆಟೋಮ್ಯಾಟಿಕ್ ಬಾಟ್‌ಗಳ ಸಮಗ್ರ ಕಾರ್ಯಕ್ಷಮತೆ ಮತ್ತು ಅಪಾಯದ ವಿಶ್ಲೇಷಣೆ ಪೂರ್ಣಗೊಂಡಿದೆ:\n\n`;
-      text += `1. **🏆 ಅಗ್ರ ಲಾಭದಾಯಕ ಬಾಟ್ (Top Profit Bot)**:\n`;
-      text += `   • **ಬಾಟ್ #${topBot.id} ${topBot.name}** (${topBot.asset})\n`;
-      text += `   • ವಿನ್ ರೇಟ್: **${topBot.winRate || 78}%** | ಇಂದಿನ P&L: **₹${(topBot.pnlToday || 0).toFixed(2)}**\n`;
-      text += `   • *ಗುಣಲಕ್ಷಣ*: ಅತ್ಯುತ್ತಮ ಮೊಮೆಂಟಮ್ ಮತ್ತು 11/13 ಕ್ವಾರಮ್ ಒಪ್ಪಂದದೊಂದಿಗೆ ಗರಿಷ್ಠ ಆಲ್ಫಾ ನೀಡುತ್ತಿದೆ.\n\n`;
-      text += `2. **⚠️ ಅತಿ ಹೆಚ್ಚು ಡ್ರಾಡೌನ್ / ನಷ್ಟದ ಬಾಟ್ (Highest Drawdown / Loss Bot)**:\n`;
-      text += `   • **ಬಾಟ್ #${worstBot.id} ${worstBot.name}** (${worstBot.asset})\n`;
-      text += `   • ವಿನ್ ರೇಟ್: **${worstBot.winRate || 52}%** | ಇಂದಿನ P&L: **₹${(worstBot.pnlToday || 0).toFixed(2)}**\n`;
-      text += `   • *ಲೋಪದೋಷ*: ಚಾಪಿ (choppy) ಮತ್ತು ಕನ್ಸಾಲಿಡೇಶನ್ ಮಾರುಕಟ್ಟೆಯಲ್ಲಿ ಸುಳ್ಳು ಸಿಗ್ನಲ್‌ಗಳಿಂದ ನಷ್ಟ ಸಂಭವಿಸಿದೆ.\n\n`;
-      text += `3. **📈 14-ಬಾಟ್ ವಿನ್-ರೇಟ್ ವಿತರಣೆ (Win-Rate Distribution)**:\n`;
-      text += `   • **ಹೈ ಆಲ್ಫಾ (>70%)**: ${highAlpha.length} ಬಾಟ್‌ಗಳು (Scalper, EMA Trend, Option Gamma)\n`;
-      text += `   • **ಸ್ಥಿರ ವಲಯ (55% - 70%)**: ${midAlpha.length} ಬಾಟ್‌ಗಳು\n`;
-      text += `   • **ಅಪಾಯ ವಲಯ (<55%)**: ${lowAlpha.length} ಬಾಟ್‌ಗಳು (ಫಿಲ್ಟರ್ ಅಪ್‌ಗ್ರೇಡ್ ಅಗತ್ಯವಿದೆ)\n\n`;
-      text += `4. **🛠️ ನಷ್ಟದ ಬಾಟ್‌ಗಳಿಗೆ ತಾಂತ್ರಿಕ ಅಪ್‌ಗ್ರೇಡ್ ಶಿಫಾರಸುಗಳು**:\n`;
-      text += `   • **ಬಾಟ್ #${worstBot.id} (${worstBot.name})**: 20-ಪೀರಿಯಡ್ ATR ವಾಲ್ಯಾಟೈಲಿಟಿ ಎಕ್ಸ್‌ಪ್ಯಾನ್ಷನ್ ಫಿಲ್ಟರ್ ಅಳವಡಿಸಿ. ಸ್ಟಾಪ್-ಲಾಸ್ ಅನ್ನು 0.8% ರಿಂದ **0.4%** ಗೆ ಬಿಗಿಗೊಳಿಸಿ.\n`;
-      text += `   • **ಬಾಟ್ #8 (Support Resistance • CRUDEOIL)**: ಇನ್ವೆಂಟರಿ ಡೇಟಾ ಸಮಯದಲ್ಲಿ 15-ನಿಮಿಷಗಳ ಕಡ್ಡಾಯ ಕೂಲ್‌ಡೌನ್ ವಿಂಡೋ ಜಾರಿಗೊಳಿಸಿ.\n`;
-      text += `   • **ಬಂಡವಾಳ ಮರುಹಂಚಿಕೆ**: ನಷ್ಟದ ಬಾಟ್‌ಗಳಿಂದ ಬಂಡವಾಳ ಹಿಂಪಡೆದು ಬಾಟ್ #${topBot.id} ಗೆ ನಿಯೋಜಿಸಿ.`;
+      text += `ಕಮಾಂಡರ್ ವೀರೇಶ್, 14 ಆಟೋಮ್ಯಾಟಿಕ್ ಬಾಟ್‌ಗಳ ಸಮಗ್ರ ಕಾರ್ಯಕ್ಷಮತೆ ಮತ್ತು ಅಪಾಯದ ವಿಶ್ಲೇಷಣೆ:\n\n`;
 
-      speechSummary = `ಕಮಾಂಡರ್ ವೀರೇಶ್, 14 ಬಾಟ್‌ಗಳ ಆಲ್ಫಾ ಮತ್ತು ರಿಸ್ಕ್ ಆಡಿಟ್ ಪೂರ್ಣಗೊಂಡಿದೆ. ಬಾಟ್ #${topBot.id} ${topBot.name} 78% ವಿನ್ ರೇಟ್‌ನೊಂದಿಗೆ ಅಗ್ರಸ್ಥಾನದಲ್ಲಿದೆ. ಬಾಟ್ #${worstBot.id} ಚಾಪಿ ಮಾರುಕಟ್ಟೆಯಲ್ಲಿ ಹೆಚ್ಚು ನಷ್ಟ ಕಂಡಿದೆ; ಇದಕ್ಕೆ ATR ಫಿಲ್ಟರ್ ಮತ್ತು 0.4% ಸ್ಟಾಪ್ ಲಾಸ್ ಅಳವಡಿಸಲು ಶಿಫಾರಸು ಮಾಡುತ್ತೇನೆ.`;
+      if (!hasVerifiedTrades) {
+        text += `ℹ️ **ಪರಿಶೀಲಿಸಿದ ಟ್ರೇಡ್ ಹಿಸ್ಟರಿ ನಿರೀಕ್ಷೆಯಲ್ಲಿದೆ (NO_QUALIFIED_BOT)**:\n`;
+        text += `   • ಕನಿಷ್ಠ 5 ದೃಢೀಕೃತ ಮುಕ್ತಾಯಗೊಂಡ (closed) ಟ್ರೇಡ್‌ಗಳು ಪೂರ್ಣಗೊಂಡ ನಂತರವೇ ಅತ್ಯುತ್ತಮ ಬಾಟ್ ನಿರ್ಧರಿಸಲಾಗುತ್ತದೆ.\n`;
+        text += `   • ಎಲ್ಲಾ 14 ಬಾಟ್‌ಗಳು ಕ್ಯಾನಾನಿಕಲ್ ರಿಜಿಸ್ಟ್ರಿಯಲ್ಲಿ ಪೇಪರ್ ಮೋಡ್‌ನಲ್ಲಿ ಸಕ್ರಿಯವಾಗಿವೆ.\n\n`;
+      } else {
+        text += `1. **🏆 ಅಗ್ರ ಲಾಭದಾಯಕ ಬಾಟ್ (Top Profit Bot)**:\n`;
+        text += `   • **ಬಾಟ್ #${topBot.id} ${topBot.name}** (${topBot.asset})\n`;
+        text += `   • ವಿನ್ ರೇಟ್: **${topBot.winRate || 0}%** | ಇಂದಿನ P&L: **₹${(topBot.pnlToday || 0).toFixed(2)}**\n`;
+        text += `   • *ಗುಣಲಕ್ಷಣ*: ಪರಿಶೀಲಿಸಿದ ಟ್ರೇಡ್ ಮೆಮೊರಿ ಆಧಾರದ ಮೇಲೆ ಮುಂಚೂಣಿಯಲ್ಲಿದೆ.\n\n`;
+        text += `2. **⚠️ ಅತಿ ಹೆಚ್ಚು ಡ್ರಾಡೌನ್ / ನಷ್ಟದ ಬಾಟ್ (Highest Drawdown / Loss Bot)**:\n`;
+        text += `   • **ಬಾಟ್ #${worstBot.id} ${worstBot.name}** (${worstBot.asset})\n`;
+        text += `   • ವಿನ್ ರೇಟ್: **${worstBot.winRate || 0}%** | ಇಂದಿನ P&L: **₹${(worstBot.pnlToday || 0).toFixed(2)}**\n\n`;
+      }
+
+      text += `3. **📈 14-ಬಾಟ್ ವಿನ್-ರೇಟ್ ವಿತರಣೆ (Win-Rate Distribution)**:\n`;
+      text += `   • **ಹೈ ಆಲ್ಫಾ (>70%)**: ${highAlpha.length} ಬಾಟ್‌ಗಳು\n`;
+      text += `   • **ಸ್ಥಿರ ವಲಯ (55% - 70%)**: ${midAlpha.length} ಬಾಟ್‌ಗಳು\n`;
+      text += `   • **ಅಪಾಯ ವಲಯ (<55%)**: ${lowAlpha.length} ಬಾಟ್‌ಗಳು\n\n`;
+      text += `4. **🛠️ ನಷ್ಟದ ಬಾಟ್‌ಗಳಿಗೆ ತಾಂತ್ರಿಕ ಅಪ್‌ಗ್ರೇಡ್ ಶಿಫಾರಸುಗಳು**:\n`;
+      text += `   • **ಬಾಟ್ #${worstBot.id} (${worstBot.name})**: 20-ಪೀರಿಯಡ್ ATR ವಾಲ್ಯಾಟೈಲಿಟಿ ಎಕ್ಸ್‌ಪ್ಯಾನ್ಷನ್ ಫಿಲ್ಟರ್ ಅಳವಡಿಸಿ. ಸ್ಟಾಪ್-ಲಾಸ್ ಅನ್ನು ಬಿಗಿಗೊಳಿಸಿ.\n`;
+      text += `   • **ಬಾಟ್ #8 (SuperTrend Wave • CRUDE OIL)**: ಇನ್ವೆಂಟರಿ ಡೇಟಾ ಸಮಯದಲ್ಲಿ ಕೂಲ್‌ಡೌನ್ ವಿಂಡೋ ಜಾರಿಗೊಳಿಸಿ.\n`;
+      text += `   • **ಬಂಡವಾಳ ಮರುಹಂಚಿಕೆ**: ಪರಿಶೀಲಿಸಿದ ಟಾಪ್ ಪರ್ಫಾರ್ಮರ್‌ಗಳಿಗೆ ಮಾತ್ರ ಬಂಡವಾಳ ನಿಯೋಜಿಸಿ.`;
+
+      speechSummary = `ಕಮಾಂಡರ್ ವೀರೇಶ್, 14 ಬಾಟ್‌ಗಳ ಆಲ್ಫಾ ಮತ್ತು ರಿಸ್ಕ್ ಆಡಿಟ್ ಪೂರ್ಣಗೊಂಡಿದೆ. ಡೇಟಾ-ಬ್ಯಾಕ್ಡ್ ವಿಶ್ಲೇಷಣೆ ಸಿದ್ಧವಾಗಿದೆ.`;
     } else {
       text = `### 📊 Bot Alpha & Risk Audit Report\n\n`;
       text += `Commander Veeresh, quantitative performance and risk audit across all 14 algorithmic nodes is complete:\n\n`;
-      text += `1. **🏆 Top Profit & Alpha Bot**:\n`;
-      text += `   • **Bot #${topBot.id} ${topBot.name}** (${topBot.asset})\n`;
-      text += `   • Win Rate: **${topBot.winRate || 78}%** | Realized P&L: **₹${(topBot.pnlToday || 0).toFixed(2)}**\n`;
-      text += `   • *Characteristics*: Strong momentum adherence, tight spread execution, and high consensus alignment.\n\n`;
-      text += `2. **⚠️ Highest Drawdown & Loss Risk Bot**:\n`;
-      text += `   • **Bot #${worstBot.id} ${worstBot.name}** (${worstBot.asset})\n`;
-      text += `   • Win Rate: **${worstBot.winRate || 52}%** | Realized P&L: **₹${(worstBot.pnlToday || 0).toFixed(2)}**\n`;
-      text += `   • *Vulnerability*: Excessive false entries during low-volume midday chop.\n\n`;
+
+      if (!hasVerifiedTrades) {
+        text += `ℹ️ **Awaiting Verified Trade History (Status: NO_QUALIFIED_BOT)**:\n`;
+        text += `   • A minimum of 5 verified closed fills in trade_memory is required before designating a qualified alpha winner.\n`;
+        text += `   • All 14 bots are synchronized in canonical PAPER mode with mathematical indicator evaluation active.\n\n`;
+      } else {
+        text += `1. **🏆 Top Profit & Alpha Bot**:\n`;
+        text += `   • **Bot #${topBot.id} ${topBot.name}** (${topBot.asset})\n`;
+        text += `   • Win Rate: **${topBot.winRate || 0}%** | Realized P&L: **₹${(topBot.pnlToday || 0).toFixed(2)}**\n`;
+        text += `   • *Characteristics*: Verified trade memory performance with realistic regulatory deduction.\n\n`;
+        text += `2. **⚠️ Highest Drawdown & Loss Risk Bot**:\n`;
+        text += `   • **Bot #${worstBot.id} ${worstBot.name}** (${worstBot.asset})\n`;
+        text += `   • Win Rate: **${worstBot.winRate || 0}%** | Realized P&L: **₹${(worstBot.pnlToday || 0).toFixed(2)}**\n\n`;
+      }
+
       text += `3. **📈 14-Bot Win-Rate Distribution**:\n`;
-      text += `   • **High Alpha (>70% Win Rate)**: ${highAlpha.length} Bots (Scalper Bot, EMA Trend, Options Gamma)\n`;
+      text += `   • **High Alpha (>70% Win Rate)**: ${highAlpha.length} Bots\n`;
       text += `   • **Neutral / Steady (55% - 70%)**: ${midAlpha.length} Bots\n`;
       text += `   • **Underperforming / Risk Vulnerable (<55%)**: ${lowAlpha.length} Bots\n\n`;
-      text += `4. **🛠️ Technical Strategy Upgrades for Losing Bots**:\n`;
-      text += `   • **Bot #${worstBot.id} (${worstBot.name} • ${worstBot.asset})**: Upgrade entry rule with a **20-period ATR Volatility Expansion filter** and tighten Stop-Loss to **0.4%** to prevent premature whipsaws.\n`;
-      text += `   • **Bot #8 (Support Resistance • CRUDEOIL)**: Enforce a mandatory **15-minute news blackout buffer** around EIA petroleum inventory releases.\n`;
-      text += `   • **Capital Reallocation Directive**: Re-route ₹500 from lagging nodes into Bot #${topBot.id} to maximize session Sharpe Ratio.`;
+      text += `4. **🛠️ Technical Strategy Upgrades for Risk Management**:\n`;
+      text += `   • **Bot #${worstBot.id} (${worstBot.name} • ${worstBot.asset})**: Upgrade entry rule with a **20-period ATR Volatility Expansion filter** and tighten Stop-Loss.\n`;
+      text += `   • **Bot #8 (SuperTrend Wave • CRUDE OIL)**: Enforce a mandatory **15-minute news blackout buffer** around EIA petroleum inventory releases.\n`;
+      text += `   • **Capital Reallocation Directive**: Reallocate session capital exclusively to verified alpha nodes with positive net expectancy.`;
 
-      speechSummary = `Commander, I completed the 14-bot Alpha and Risk audit. Bot number ${topBot.id} ${topBot.name} is leading with highest win-rate. Bot number ${worstBot.id} has the largest drawdown during choppy regimes; I strongly recommend tightening its stop-loss to 0.4% and adding an ATR volatility filter.`;
+      speechSummary = `Commander, I completed the 14-bot Alpha and Risk audit based strictly on verified trade records.`;
     }
+
 
     const chips = [
       isKn ? '🌅 ಪ್ರೀ-ಮಾರ್ಕೆಟ್ ಸ್ಕ್ಯಾನ್' : '🌅 Pre-Market Scan',
