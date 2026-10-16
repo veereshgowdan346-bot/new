@@ -7,6 +7,7 @@ Database: chintu_memory.db
 import sqlite3
 import json
 import os
+import time
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
@@ -14,9 +15,15 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "chintu_memor
 
 
 def get_connection():
-    """Returns a SQLite connection with row_factory set to sqlite3.Row."""
-    conn = sqlite3.connect(DB_PATH)
+    """Returns a SQLite connection with row_factory set to sqlite3.Row and WAL concurrency enabled."""
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA synchronous = NORMAL")
+        conn.execute("PRAGMA foreign_keys = ON")
+    except Exception:
+        pass
     return conn
 
 
@@ -115,6 +122,73 @@ def init_db():
         risk_per_trade REAL,
         is_preset INTEGER DEFAULT 0,
         created_at TEXT
+    )
+    """)
+
+    # 7. Authoritative Positions Memory Table (Durable Lifecycle & Reconciliation)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS positions_memory (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        position_id TEXT UNIQUE NOT NULL,
+        pos_key TEXT UNIQUE NOT NULL,
+        bot TEXT NOT NULL,
+        symbol TEXT NOT NULL,
+        segment TEXT,
+        side TEXT NOT NULL,
+        qty INTEGER NOT NULL,
+        avg_price REAL NOT NULL,
+        ltp REAL DEFAULT 0.0,
+        pnl TEXT DEFAULT '+₹0.00',
+        unrealized_pnl REAL DEFAULT 0.0,
+        mode TEXT NOT NULL,
+        broker TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'OPEN',
+        reconciled_with_broker INTEGER DEFAULT 0,
+        broker_qty INTEGER DEFAULT 0,
+        opened_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        closed_at TEXT
+    )
+    """)
+
+    # 8. Authoritative Orders Memory Table (State Transitions & Rejections)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS orders_memory (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id TEXT UNIQUE NOT NULL,
+        client_order_id TEXT,
+        bot TEXT,
+        symbol TEXT NOT NULL,
+        segment TEXT,
+        action TEXT NOT NULL,
+        qty INTEGER NOT NULL,
+        filled_qty INTEGER DEFAULT 0,
+        price REAL DEFAULT 0.0,
+        avg_price REAL DEFAULT 0.0,
+        ordertype TEXT,
+        producttype TEXT,
+        variety TEXT,
+        exchange TEXT,
+        status TEXT NOT NULL DEFAULT 'PENDING',
+        rejection_reason TEXT,
+        is_emergency_exit INTEGER DEFAULT 0,
+        mode TEXT NOT NULL,
+        broker TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """)
+
+    # 9. Broker Reconciliation Audit Log
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS reconciliation_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT NOT NULL,
+        status TEXT NOT NULL,
+        broker_positions_count INTEGER DEFAULT 0,
+        local_positions_count INTEGER DEFAULT 0,
+        details TEXT,
+        action_taken TEXT
     )
     """)
 
@@ -357,6 +431,241 @@ def log_trade(trade: Dict[str, Any]) -> int:
     conn.commit()
     conn.close()
     return inserted_id
+
+
+# =========================================================
+# DURABLE POSITIONS & ORDERS LIFECYCLE MEMORY (PHASE 3)
+# =========================================================
+
+def save_position(pos: Dict[str, Any]) -> str:
+    """
+    Persists or updates an active position in SQLite positions_memory.
+    Ensures durable position lifecycle tracking with transactions, timestamps, and constraints.
+    """
+    conn = get_connection()
+    try:
+        with conn:
+            cursor = conn.cursor()
+            pos_id = str(pos.get("id") or f"POS_{int(time.time() * 1000)}")
+            bot = str(pos.get("bot", "Bot 1"))
+            symbol = str(pos.get("symbol", "NIFTY 50"))
+            pos_key = pos.get("pos_key") or f"{bot}_{symbol}"
+            side = str(pos.get("type") or pos.get("side") or "BUY").upper()
+            qty = abs(int(pos.get("qty", 1)))
+            avg_price = float(pos.get("avgPrice") or pos.get("avg_price") or 0.0)
+            ltp = float(pos.get("ltp") or avg_price)
+            pnl = str(pos.get("pnl", "+₹0.00"))
+            unrealized_pnl = float(pos.get("unrealizedPnl") or pos.get("unrealized_pnl") or 0.0)
+            mode = str(pos.get("mode", "PAPER")).upper()
+            broker = str(pos.get("broker", "SmartAPI"))
+            status = str(pos.get("status", "OPEN")).upper()
+            segment = pos.get("segment", "NSE F&O Options")
+            opened_at = str(pos.get("openedAt") or pos.get("opened_at") or datetime.now().isoformat())
+            updated_at = datetime.now().isoformat()
+            closed_at = pos.get("closed_at")
+
+            cursor.execute("""
+            INSERT INTO positions_memory (
+                position_id, pos_key, bot, symbol, segment, side, qty, avg_price,
+                ltp, pnl, unrealized_pnl, mode, broker, status, reconciled_with_broker,
+                broker_qty, opened_at, updated_at, closed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)
+            ON CONFLICT(pos_key) DO UPDATE SET
+                position_id = excluded.position_id,
+                side = excluded.side,
+                qty = excluded.qty,
+                avg_price = excluded.avg_price,
+                ltp = excluded.ltp,
+                pnl = excluded.pnl,
+                unrealized_pnl = excluded.unrealized_pnl,
+                mode = excluded.mode,
+                broker = excluded.broker,
+                status = excluded.status,
+                updated_at = excluded.updated_at,
+                closed_at = excluded.closed_at
+            """, (
+                pos_id, pos_key, bot, symbol, segment, side, qty, avg_price,
+                ltp, pnl, unrealized_pnl, mode, broker, status, opened_at, updated_at, closed_at
+            ))
+            return pos_id
+    finally:
+        conn.close()
+
+
+def get_open_positions() -> List[Dict[str, Any]]:
+    """Returns all positions currently marked as OPEN in positions_memory."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM positions_memory WHERE status = 'OPEN'")
+        rows = cursor.fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def close_position(position_id_or_key: str, closed_at: Optional[str] = None) -> bool:
+    """Marks a position as CLOSED in positions_memory upon broker-confirmed exit fill."""
+    conn = get_connection()
+    try:
+        with conn:
+            cursor = conn.cursor()
+            c_time = closed_at or datetime.now().isoformat()
+            cursor.execute("""
+            UPDATE positions_memory
+            SET status = 'CLOSED', closed_at = ?, updated_at = ?
+            WHERE position_id = ? OR pos_key = ?
+            """, (c_time, c_time, position_id_or_key, position_id_or_key))
+            return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+def update_position_reconciliation(pos_key: str, is_reconciled: bool, broker_qty: int) -> bool:
+    """Updates broker reconciliation status and reconciled broker quantity for an active position."""
+    conn = get_connection()
+    try:
+        with conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+            UPDATE positions_memory
+            SET reconciled_with_broker = ?, broker_qty = ?, updated_at = ?
+            WHERE pos_key = ? AND status = 'OPEN'
+            """, (1 if is_reconciled else 0, broker_qty, datetime.now().isoformat(), pos_key))
+            return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+def save_order(order: Dict[str, Any]) -> str:
+    """
+    Persists an order lifecycle record into orders_memory.
+    Handles transitions from PENDING -> COMPLETE / PARTIAL_FILL / REJECTED / AMBIGUOUS_TIMEOUT.
+    """
+    conn = get_connection()
+    try:
+        with conn:
+            cursor = conn.cursor()
+            order_id = str(order.get("orderId") or order.get("order_id") or f"ORD_{int(time.time() * 1000)}")
+            client_order_id = str(order.get("clientOrderId") or order.get("client_order_id") or order_id)
+            bot = str(order.get("bot", "System"))
+            symbol = str(order.get("symbol", "NIFTY 50"))
+            segment = order.get("segment", "NSE F&O Options")
+            action = str(order.get("action", "BUY")).upper()
+            qty = abs(int(order.get("qty", 1)))
+            filled_qty = int(order.get("filled_qty", qty if order.get("status") in ["COMPLETE", "LIVE", "PAPER"] else 0))
+            price = float(order.get("price", 0.0))
+            avg_price = float(order.get("avg_price", price))
+            ordertype = str(order.get("ordertype", "MARKET"))
+            producttype = str(order.get("producttype", "INTRADAY"))
+            variety = str(order.get("variety", "NORMAL"))
+            exchange = str(order.get("exchange", "NSE"))
+            status_val = str(order.get("status", "COMPLETE")).upper()
+            rejection_reason = str(order.get("rejection_reason") or order.get("error") or "")
+            is_emergency = 1 if order.get("is_emergency_exit") or order.get("is_exit") else 0
+            mode = str(order.get("mode", "PAPER")).upper()
+            broker = str(order.get("broker", "SmartAPI"))
+            created_at = str(order.get("created_at") or datetime.now().isoformat())
+            updated_at = datetime.now().isoformat()
+
+            cursor.execute("""
+            INSERT INTO orders_memory (
+                order_id, client_order_id, bot, symbol, segment, action, qty, filled_qty,
+                price, avg_price, ordertype, producttype, variety, exchange, status,
+                rejection_reason, is_emergency_exit, mode, broker, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(order_id) DO UPDATE SET
+                filled_qty = excluded.filled_qty,
+                avg_price = excluded.avg_price,
+                status = excluded.status,
+                rejection_reason = excluded.rejection_reason,
+                updated_at = excluded.updated_at
+            """, (
+                order_id, client_order_id, bot, symbol, segment, action, qty, filled_qty,
+                price, avg_price, ordertype, producttype, variety, exchange, status_val,
+                rejection_reason, is_emergency, mode, broker, created_at, updated_at
+            ))
+            return order_id
+    finally:
+        conn.close()
+
+
+def get_order(order_id: str) -> Optional[Dict[str, Any]]:
+    """Retrieves an order record from orders_memory by order_id."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM orders_memory WHERE order_id = ?", (order_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def log_reconciliation_event(
+    status: str,
+    broker_count: int,
+    local_count: int,
+    details: Optional[Dict[str, Any]] = None,
+    action_taken: str = ""
+) -> int:
+    """Logs a broker reconciliation audit event."""
+    conn = get_connection()
+    try:
+        with conn:
+            cursor = conn.cursor()
+            details_str = json.dumps(details) if details else "{}"
+            now_str = datetime.now().isoformat()
+            cursor.execute("""
+            INSERT INTO reconciliation_log (
+                timestamp, status, broker_positions_count, local_positions_count, details, action_taken
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """, (now_str, status, broker_count, local_count, details_str, action_taken))
+            return cursor.lastrowid
+    finally:
+        conn.close()
+
+
+def get_latest_reconciliation_log() -> Optional[Dict[str, Any]]:
+    """Retrieves the latest reconciliation log record."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM reconciliation_log ORDER BY id DESC LIMIT 1")
+        row = cursor.fetchone()
+        if row:
+            d = dict(row)
+            if d.get("details"):
+                try:
+                    d["details"] = json.loads(d["details"])
+                except Exception:
+                    pass
+            return d
+        return None
+    finally:
+        conn.close()
+
+
+def get_recent_reconciliation_logs(limit: int = 20) -> List[Dict[str, Any]]:
+    """Retrieves recent reconciliation audit logs from reconciliation_log."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM reconciliation_log ORDER BY id DESC LIMIT ?", (limit,))
+        rows = cursor.fetchall()
+        results = []
+        for row in rows:
+            d = dict(row)
+            if d.get("details"):
+                try:
+                    d["details"] = json.loads(d["details"])
+                except Exception:
+                    pass
+            results.append(d)
+        return results
+    finally:
+        conn.close()
+
 
 
 def get_recent_trades(limit: int = 30) -> List[Dict[str, Any]]:

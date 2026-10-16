@@ -459,6 +459,298 @@ BOT_PEER_CORRELATION: Dict[str, Dict[str, Any]] = {
     "Bot 14": {"name": "Risk Neutral Delta Hedger", "peers": ["Bot 1", "Bot 2", "Bot 12"], "asset": "SENSEX", "segment": "Benchmark Index"}
 }
 
+# Authoritative Broker Reconciliation Registry (Phase 3)
+reconciliation_state: Dict[str, Any] = {
+    "status": "UNINITIALIZED",  # "MATCHED", "MISMATCH", "FAILED", "NOT_VERIFIED", "PAPER_MODE_UNCHECKED"
+    "block_live_entries": False,
+    "last_reconciled_at": None,
+    "broker": None,
+    "discrepancies": [],
+    "broker_positions": [],
+    "local_positions": []
+}
+
+
+def fetch_broker_positions_adapter() -> Dict[str, Any]:
+    """
+    Fetches live positions from the connected broker adapter in read-only mode.
+    Only Angel One SmartAPI is currently supported.
+    Zerodha, Upstox, and 5paisa remain explicitly UNSUPPORTED until real adapters are implemented.
+    """
+    # 1. Check Angel One
+    angel_conn = broker_state.get("angel_one", {}).get("connected", False)
+    smart_inst = active_smart_connect.get("instance")
+
+    if angel_conn and smart_inst is not None:
+        try:
+            # SmartConnect.position() calls getPosition API endpoint
+            res = smart_inst.position()
+            if isinstance(res, dict) and res.get("status") is False:
+                err_msg = res.get("message") or "Broker returned error fetching positions."
+                return {"status": "FAILED", "broker": "angel_one", "error": err_msg, "positions": []}
+
+            raw_positions = []
+            if isinstance(res, dict):
+                raw_positions = res.get("data") or []
+            elif isinstance(res, list):
+                raw_positions = res
+
+            normalized = []
+            for p in raw_positions:
+                try:
+                    net_qty = int(p.get("netqty") or p.get("totalnetqty") or 0)
+                except (ValueError, TypeError):
+                    net_qty = 0
+
+                # Only include positions with non-zero open quantity
+                if net_qty != 0:
+                    sym = str(p.get("tradingsymbol") or p.get("symbolname") or "")
+                    side = "BUY" if net_qty > 0 else "SELL"
+                    avg_p = float(p.get("avgnetprice") or p.get("netprice") or p.get("buyavgprice") or 0.0)
+                    ltp = float(p.get("ltp") or avg_p)
+                    normalized.append({
+                        "symbol": sym,
+                        "tradingsymbol": sym,
+                        "symboltoken": str(p.get("symboltoken", "")),
+                        "exchange": str(p.get("exchange", "NSE")),
+                        "net_qty": net_qty,
+                        "qty": abs(net_qty),
+                        "side": side,
+                        "avg_price": avg_p,
+                        "ltp": ltp,
+                        "pnl": str(p.get("pnl", "+₹0.00")),
+                        "raw": p
+                    })
+            return {"status": "SUCCESS", "broker": "angel_one", "positions": normalized}
+        except Exception as e:
+            return {"status": "FAILED", "broker": "angel_one", "error": f"Exception querying broker positions: {str(e)}", "positions": []}
+
+    # 2. Check other brokers (strictly unsupported)
+    for b_key in ["zerodha", "upstox", "5paisa"]:
+        if broker_state.get(b_key, {}).get("connected", False):
+            return {
+                "status": "UNSUPPORTED",
+                "broker": b_key,
+                "error": f"Broker adapter for {b_key} is not yet implemented. Position fetching unsupported.",
+                "positions": []
+            }
+
+    return {
+        "status": "NOT_VERIFIED",
+        "broker": None,
+        "error": "No authenticated broker connection available for reconciliation.",
+        "positions": []
+    }
+
+
+def reconcile_positions_with_broker() -> Dict[str, Any]:
+    """
+    Reconciles broker-confirmed positions with local persisted SQLite records.
+    Safety Rules Enforced:
+    - Never infers that the broker has zero positions merely because the local database is empty.
+    - If local DB has 0 positions but broker has open positions, flags MISMATCH and blocks live orders.
+    - If broker has positions that disagree with local DB in quantity or side, flags MISMATCH.
+    - If broker query fails or credentials are unavailable in LIVE mode, flags FAILED/NOT_VERIFIED and blocks live orders.
+    - In PAPER mode, reconciliation reports PAPER_MODE_UNCHECKED without blocking simulated paper orders.
+    """
+    now_str = datetime.now().isoformat()
+    reconciliation_state["last_reconciled_at"] = now_str
+
+    # In PAPER mode, local simulation operates without external broker dependency
+    if execution_mode == "PAPER":
+        reconciliation_state["status"] = "PAPER_MODE_UNCHECKED"
+        reconciliation_state["block_live_entries"] = False
+        reconciliation_state["discrepancies"] = []
+        try:
+            open_locals = memory_db.get_open_positions()
+            reconciliation_state["local_positions"] = open_locals
+        except Exception:
+            reconciliation_state["local_positions"] = list(active_positions.values())
+        reconciliation_state["broker_positions"] = []
+        return reconciliation_state
+
+    # In LIVE mode, authoritative broker reconciliation is mandatory
+    broker_fetch = fetch_broker_positions_adapter()
+    reconciliation_state["broker"] = broker_fetch.get("broker")
+
+    if broker_fetch["status"] != "SUCCESS":
+        reconciliation_state["status"] = broker_fetch["status"]  # "FAILED", "UNSUPPORTED", or "NOT_VERIFIED"
+        reconciliation_state["block_live_entries"] = True
+        reconciliation_state["discrepancies"] = [{
+            "type": "BROKER_FETCH_ERROR",
+            "message": broker_fetch.get("error", "Failed to fetch positions from broker.")
+        }]
+        try:
+            memory_db.log_reconciliation_event(
+                status=reconciliation_state["status"],
+                broker_count=0,
+                local_count=len(active_positions),
+                details={"error": broker_fetch.get("error")},
+                action_taken="BLOCK_LIVE_ENTRIES"
+            )
+        except Exception:
+            pass
+        return reconciliation_state
+
+    broker_positions = broker_fetch["positions"]
+    reconciliation_state["broker_positions"] = broker_positions
+
+    # Fetch local open positions from SQLite
+    try:
+        local_open_records = memory_db.get_open_positions()
+    except Exception as e:
+        reconciliation_state["status"] = "FAILED"
+        reconciliation_state["block_live_entries"] = True
+        reconciliation_state["discrepancies"] = [{
+            "type": "DATABASE_READ_ERROR",
+            "message": f"Failed to read local positions from SQLite: {e}"
+        }]
+        return reconciliation_state
+
+    reconciliation_state["local_positions"] = local_open_records
+    discrepancies = []
+
+    # Map positions by canonical normalized symbol identifier
+    def norm_sym(s: str) -> str:
+        s_clean = s.upper().replace("-EQ", "").replace("-PERP", "").replace("FUT", "").strip()
+        for k in ANGEL_SYMBOL_MAP:
+            if k.replace(" ", "") in s_clean or s_clean in k.replace(" ", ""):
+                return k
+        return s.upper().strip()
+
+    broker_map: Dict[str, Dict[str, Any]] = {}
+    for bp in broker_positions:
+        sym_key = norm_sym(bp.get("tradingsymbol") or bp.get("symbol", ""))
+        broker_map[sym_key] = bp
+
+    local_map: Dict[str, Dict[str, Any]] = {}
+    for lp in local_open_records:
+        sym_key = norm_sym(lp.get("symbol", ""))
+        local_map[sym_key] = lp
+
+    # 1. Check for broker positions missing from local DB (Never assume 0 broker positions when local is empty)
+    for b_sym, b_pos in broker_map.items():
+        if b_sym not in local_map:
+            discrepancies.append({
+                "type": "UNRECORDED_BROKER_POSITION",
+                "symbol": b_sym,
+                "broker_qty": b_pos["qty"],
+                "broker_side": b_pos["side"],
+                "local_qty": 0,
+                "message": f"Broker has open {b_pos['side']} {b_pos['qty']}x {b_sym} not recorded in local database."
+            })
+        else:
+            l_pos = local_map[b_sym]
+            b_qty = abs(int(b_pos["qty"]))
+            l_qty = abs(int(l_pos["qty"]))
+            b_side = str(b_pos["side"]).upper()
+            l_side = str(l_pos.get("side") or l_pos.get("type") or "BUY").upper()
+
+            if b_qty != l_qty:
+                discrepancies.append({
+                    "type": "QUANTITY_MISMATCH",
+                    "symbol": b_sym,
+                    "broker_qty": b_qty,
+                    "local_qty": l_qty,
+                    "message": f"Quantity mismatch for {b_sym}: Broker reports {b_qty}, local database reports {l_qty}."
+                })
+
+            if b_side != l_side:
+                discrepancies.append({
+                    "type": "SIDE_MISMATCH",
+                    "symbol": b_sym,
+                    "broker_side": b_side,
+                    "local_side": l_side,
+                    "message": f"Side mismatch for {b_sym}: Broker reports {b_side}, local database reports {l_side}."
+                })
+
+    # 2. Check for local open positions missing from broker (Phantom local positions)
+    for l_sym, l_pos in local_map.items():
+        if l_sym not in broker_map:
+            discrepancies.append({
+                "type": "PHANTOM_LOCAL_POSITION",
+                "symbol": l_sym,
+                "local_qty": l_pos["qty"],
+                "local_side": l_pos.get("side") or l_pos.get("type"),
+                "broker_qty": 0,
+                "message": f"Local database has open position in {l_sym} ({l_pos['qty']}x) not found at broker."
+            })
+
+    reconciliation_state["discrepancies"] = discrepancies
+
+    if discrepancies:
+        reconciliation_state["status"] = "MISMATCH"
+        reconciliation_state["block_live_entries"] = True
+        action_taken = "BLOCK_LIVE_ENTRIES: Discrepancy detected"
+    else:
+        reconciliation_state["status"] = "MATCHED"
+        reconciliation_state["block_live_entries"] = False
+        action_taken = "VERIFIED_MATCHED: Full alignment confirmed"
+        for lp in local_open_records:
+            try:
+                b_match = broker_map.get(norm_sym(lp["symbol"]))
+                b_q = b_match["qty"] if b_match else lp["qty"]
+                memory_db.update_position_reconciliation(lp["pos_key"], True, b_q)
+            except Exception:
+                pass
+
+    try:
+        memory_db.log_reconciliation_event(
+            status=reconciliation_state["status"],
+            broker_count=len(broker_positions),
+            local_count=len(local_open_records),
+            details={"discrepancies": discrepancies},
+            action_taken=action_taken
+        )
+    except Exception:
+        pass
+
+    return reconciliation_state
+
+
+def restore_state_on_startup():
+    """
+    Restores local authoritative position book from SQLite positions_memory upon server boot.
+    Runs initial broker reconciliation to guarantee safety.
+    """
+    try:
+        memory_db.init_db()
+        open_records = memory_db.get_open_positions()
+        for p in open_records:
+            active_positions[p["pos_key"]] = {
+                "id": p["position_id"],
+                "bot": p["bot"],
+                "symbol": p["symbol"],
+                "segment": p.get("segment", "NSE F&O Options"),
+                "type": p["side"],
+                "qty": p["qty"],
+                "avgPrice": p["avg_price"],
+                "ltp": p.get("ltp", p["avg_price"]),
+                "pnl": p.get("pnl", "+₹0.00"),
+                "unrealizedPnl": p.get("unrealized_pnl", 0.0),
+                "mode": p["mode"],
+                "broker": p["broker"],
+                "openedAt": p["opened_at"]
+            }
+        print(f"[State Recovery]: Restored {len(open_records)} open positions from SQLite positions_memory.")
+    except Exception as e:
+        print(f"[State Recovery Error]: Failed to restore positions from SQLite: {e}")
+
+    # Run safe initial reconciliation
+    try:
+        reconcile_positions_with_broker()
+    except Exception as e:
+        print(f"[Startup Reconciliation Error]: {e}")
+
+
+# Initialize durable state on server load
+try:
+    restore_state_on_startup()
+except Exception as _e_init:
+    print(f"[Module State Init Error]: {_e_init}")
+
+
+
 def calculate_trade_deductions(price: float, qty: int, action: str, segment: str, gross_pnl: float) -> Dict[str, float]:
     """Calculates Indian regulatory deductions (Brokerage, STT, Exchange Turnover, GST, SEBI, Stamp Duty)."""
     order_val = max(0.0, float(price) * float(qty))
@@ -627,6 +919,39 @@ def place_live_angel_order(
     # 3. Fail-Closed Market Data Safety Check & Broker Connection Check
     if execution_mode == "LIVE":
         if not is_emergency_exit:
+            # 3a. Authoritative Reconciliation Safety Gate
+            rec_status = reconciliation_state.get("status", "UNINITIALIZED")
+            if reconciliation_state.get("block_live_entries", False) or rec_status in ["MISMATCH", "FAILED", "NOT_VERIFIED"]:
+                err_msg = f"Live entry order blocked: Reconciliation gate active (Status: {rec_status}). Open positions must be reconciled with broker before placing new orders."
+                print(f"[Reconciliation Gate Reject]: {err_msg}")
+                try:
+                    memory_db.save_order({
+                        "orderId": f"RECON-REJ-{int(time.time()*1000)}",
+                        "symbol": clean_symbol,
+                        "bot": bot_name,
+                        "action": action,
+                        "qty": effective_qty,
+                        "status": "REJECTED",
+                        "rejection_reason": err_msg,
+                        "mode": "LIVE",
+                        "broker": "Broker Reconciliation Gate"
+                    })
+                except Exception:
+                    pass
+                return {
+                    "success": False,
+                    "orderId": "RECONCILIATION-BLOCKED",
+                    "mode": "RECONCILIATION_BLOCKED",
+                    "status": "RECONCILIATION_BLOCKED",
+                    "error": err_msg,
+                    "exchange": spec["exchange"],
+                    "broker": "Broker Reconciliation Gate",
+                    "consensus": quorum["quorum_ratio"],
+                    "reconciliation_status": rec_status
+                }
+
+
+            # 3b. Market Feed Safety Gate
             feed_eval = evaluate_server_market_feed_state(clean_symbol)
             if not feed_eval["authentic"]:
                 reason = feed_eval.get("reason", "UNVERIFIED_FEED")
@@ -733,6 +1058,22 @@ def place_live_angel_order(
             if isinstance(res, dict) and res.get("status") is False:
                 error_reason = res.get("message") or "Broker order rejected by exchange."
                 print(f"[SmartAPI Rejected]: {error_reason}")
+                rej_id = f"AO-REJ-{int(time.time()*1000)}"
+                try:
+                    memory_db.save_order({
+                        "orderId": rej_id,
+                        "symbol": clean_symbol,
+                        "bot": bot_name,
+                        "action": action,
+                        "qty": effective_qty,
+                        "status": "REJECTED",
+                        "rejection_reason": error_reason,
+                        "mode": "LIVE",
+                        "broker": "Angel One (SmartAPI)",
+                        "is_emergency_exit": 1 if is_emergency_exit else 0
+                    })
+                except Exception:
+                    pass
                 return {
                     "success": False,
                     "orderId": "BROKER-REJECTED",
@@ -742,38 +1083,93 @@ def place_live_angel_order(
                 }
             order_id = res if isinstance(res, str) else res.get("data", {}).get("orderid", f"AO{random.randint(10000000, 99999999)}")
             print(f"[SmartAPI Success]: Order confirmed by Angel One Exchange Engine. OrderID: {order_id}")
+            try:
+                memory_db.save_order({
+                    "orderId": order_id,
+                    "symbol": clean_symbol,
+                    "bot": bot_name,
+                    "action": action,
+                    "qty": effective_qty,
+                    "filled_qty": effective_qty,
+                    "price": effective_price,
+                    "avg_price": effective_price,
+                    "status": "COMPLETE",
+                    "mode": "LIVE",
+                    "broker": "Angel One (SmartAPI)",
+                    "is_emergency_exit": 1 if is_emergency_exit else 0
+                })
+            except Exception as e:
+                print(f"[Memory DB Order Save Error]: {e}")
             return {
                 "success": True,
                 "orderId": order_id,
                 "mode": "LIVE",
+                "status": "COMPLETE",
                 "exchange": spec["exchange"],
                 "broker": "Angel One (SmartAPI)",
                 "consensus": quorum["quorum_ratio"],
                 "details": order_params
             }
+
         except Exception as e:
             print(f"[SmartAPI Live Order Exception]: {e}")
             fallback_id = f"AO-ERR-{random.randint(1000000, 9999999)}"
+            try:
+                memory_db.save_order({
+                    "orderId": fallback_id,
+                    "symbol": clean_symbol,
+                    "bot": bot_name,
+                    "action": action,
+                    "qty": effective_qty,
+                    "status": "AMBIGUOUS_TIMEOUT",
+                    "rejection_reason": str(e),
+                    "mode": "LIVE",
+                    "broker": "Angel One (SmartAPI)",
+                    "is_emergency_exit": 1 if is_emergency_exit else 0
+                })
+            except Exception:
+                pass
             return {
                 "success": False,
                 "orderId": fallback_id,
                 "mode": "LIVE_EXCEPTION",
+                "status": "AMBIGUOUS_TIMEOUT",
                 "error": str(e),
                 "consensus": quorum["quorum_ratio"],
                 "details": order_params
             }
 
+
     # Default paper/simulated order
     paper_id = f"ORD{random.randint(1000000, 9999999)}"
+    try:
+        memory_db.save_order({
+            "orderId": paper_id,
+            "symbol": clean_symbol,
+            "bot": bot_name,
+            "action": action,
+            "qty": effective_qty,
+            "filled_qty": effective_qty,
+            "price": effective_price,
+            "avg_price": effective_price,
+            "status": "COMPLETE",
+            "mode": "PAPER",
+            "broker": "Paper Execution Engine",
+            "is_emergency_exit": 1 if is_emergency_exit else 0
+        })
+    except Exception as e:
+        print(f"[Memory DB Paper Order Save Error]: {e}")
     return {
         "success": True,
         "orderId": paper_id,
         "mode": "PAPER",
+        "status": "COMPLETE",
         "exchange": spec["exchange"],
         "broker": "Paper Execution Engine",
         "consensus": quorum["quorum_ratio"],
         "details": order_params
     }
+
 
 
 def calculate_closing_order(position: Dict[str, Any], requested_qty: Optional[int] = None) -> Dict[str, Any]:
@@ -814,7 +1210,8 @@ def calculate_closing_order(position: Dict[str, Any], requested_qty: Optional[in
 
 def update_position_on_fill(trade: Dict[str, Any]):
     """
-    Updates or creates positions in authoritative active_positions book upon trade execution.
+    Updates or creates positions in authoritative active_positions book upon trade execution
+    and guarantees durable persistence in SQLite positions_memory.
     """
     symbol = trade.get("symbol", "NIFTY 50")
     bot = trade.get("bot", "Bot 1")
@@ -833,15 +1230,25 @@ def update_position_on_fill(trade: Dict[str, Any]):
             existing["qty"] = new_qty
             existing["avgPrice"] = new_avg
             existing["ltp"] = price
+            try:
+                memory_db.save_position(existing)
+            except Exception as e:
+                print(f"[Memory DB Position Update Error]: {e}")
         else:
             # Opposite side -> Reduce or close
             if qty >= existing["qty"]:
                 # Completely squared off
                 del active_positions[pos_key]
+                try:
+                    memory_db.close_position(existing.get("id") or pos_key)
+                except Exception as e:
+                    print(f"[Memory DB Position Close Error]: {e}")
+
                 if qty > existing["qty"]:
                     rem_qty = qty - existing["qty"]
-                    active_positions[pos_key] = {
+                    new_pos = {
                         "id": f"POS_{int(time.time() * 1000)}_{random.randint(100, 999)}",
+                        "pos_key": pos_key,
                         "bot": bot,
                         "symbol": symbol,
                         "segment": seg,
@@ -854,12 +1261,22 @@ def update_position_on_fill(trade: Dict[str, Any]):
                         "broker": trade.get("broker", "SmartAPI"),
                         "openedAt": datetime.now().isoformat()
                     }
+                    active_positions[pos_key] = new_pos
+                    try:
+                        memory_db.save_position(new_pos)
+                    except Exception as e:
+                        print(f"[Memory DB Position Save Error]: {e}")
             else:
                 existing["qty"] -= qty
                 existing["ltp"] = price
+                try:
+                    memory_db.save_position(existing)
+                except Exception as e:
+                    print(f"[Memory DB Position Reduce Error]: {e}")
     else:
-        active_positions[pos_key] = {
+        new_pos = {
             "id": f"POS_{int(time.time() * 1000)}_{random.randint(100, 999)}",
+            "pos_key": pos_key,
             "bot": bot,
             "symbol": symbol,
             "segment": seg,
@@ -872,6 +1289,11 @@ def update_position_on_fill(trade: Dict[str, Any]):
             "broker": trade.get("broker", "SmartAPI"),
             "openedAt": datetime.now().isoformat()
         }
+        active_positions[pos_key] = new_pos
+        try:
+            memory_db.save_position(new_pos)
+        except Exception as e:
+            print(f"[Memory DB Position Save Error]: {e}")
 
 
 # Models
@@ -1444,6 +1866,7 @@ async def autonomous_anomaly_detector():
 @app.on_event("startup")
 async def on_startup():
     memory_db.init_db()
+    restore_state_on_startup()
 
     # Restore persistent Telegram configuration from SQLite or env
     env_tg_token = os.environ.get("CHINTU_TELEGRAM_BOT_TOKEN", "").strip()
@@ -2137,7 +2560,62 @@ async def get_positions():
         "total_unrealized_pnl": round(sum(p.get("unrealizedPnl", 0.0) for p in positions_list), 2)
     }
 
+@app.get("/api/reconciliation/status")
+async def get_reconciliation_status_api():
+    """Returns current broker reconciliation state, discrepancies, and entry-blocking status."""
+    return {
+        "status": "success",
+        "reconciliation": reconciliation_state,
+        "execution_mode": execution_mode,
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.post("/api/reconciliation/reconcile")
+async def trigger_reconciliation_api(request: Request = None):
+    """Triggers an on-demand reconciliation between broker positions and local database."""
+    verify_request_auth(request)
+    state = reconcile_positions_with_broker()
+    return {
+        "status": "success",
+        "reconciliation": state,
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.get("/api/memory/positions")
+async def get_memory_positions_api(status: Optional[str] = "OPEN"):
+    """Retrieves persisted positions from SQLite positions_memory."""
+    if status and status.upper() == "OPEN":
+        positions = memory_db.get_open_positions()
+    else:
+        conn = memory_db.get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM positions_memory ORDER BY id DESC")
+            positions = [dict(r) for r in cursor.fetchall()]
+        finally:
+            conn.close()
+    return {"status": "success", "positions": positions, "count": len(positions)}
+
+@app.get("/api/memory/orders")
+async def get_memory_orders_api(limit: int = 50):
+    """Retrieves persisted order lifecycle records from SQLite orders_memory."""
+    conn = memory_db.get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM orders_memory ORDER BY id DESC LIMIT ?", (limit,))
+        orders = [dict(r) for r in cursor.fetchall()]
+    finally:
+        conn.close()
+    return {"status": "success", "orders": orders, "count": len(orders)}
+
+@app.get("/api/memory/reconciliation-log")
+async def get_reconciliation_log_api(limit: int = 20):
+    """Retrieves recent broker reconciliation audit logs."""
+    logs = memory_db.get_recent_reconciliation_logs(limit=limit)
+    return {"status": "success", "logs": logs, "count": len(logs)}
+
 @app.post("/api/positions/square-off")
+
 async def square_off_position(payload: SquareOffPayload, request: Request = None):
     verify_request_auth(request)
     """
@@ -2231,13 +2709,21 @@ async def square_off_position(payload: SquareOffPayload, request: Request = None
             "post_trade_analysis": f"Square-off completed. Closed {qty}x {target_pos.get('symbol')} ({pos_type}) @ ₹{exit_price:,.2f}. Realized Net PnL: ₹{deductions['net_pnl']:,.2f} after ₹{deductions['total_charges']} charges."
         }
 
-        # Handle full vs partial close in active book
+        # Handle full vs partial close in active book and durable SQLite storage
         current_open_qty = target_pos.get("qty", qty)
         if qty >= current_open_qty:
             if target_key in active_positions:
                 del active_positions[target_key]
+            try:
+                memory_db.close_position(target_pos.get("id") or target_key)
+            except Exception as e:
+                print(f"[Memory DB Square-Off Close Error]: {e}")
         else:
             target_pos["qty"] -= qty
+            try:
+                memory_db.save_position(target_pos)
+            except Exception as e:
+                print(f"[Memory DB Square-Off Partial Save Error]: {e}")
 
         try:
             memory_db.log_trade(trade_record)
@@ -2370,6 +2856,10 @@ async def square_off_all_positions(request: Request = None):
             }
 
             del active_positions[key]
+            try:
+                memory_db.close_position(pos.get("id") or key)
+            except Exception as e:
+                print(f"[Memory DB Square-Off All Close Error]: {e}")
             try:
                 memory_db.log_trade(trade_record)
             except Exception:
