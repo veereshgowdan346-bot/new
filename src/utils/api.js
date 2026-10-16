@@ -25,6 +25,26 @@ export async function apiFetch(endpoint, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
+  // Attach master authorization token from localStorage or local permanent session
+  if (typeof window !== 'undefined' && !headers['Authorization']) {
+    try {
+      const storedProfile = localStorage.getItem('chintu_user_profile');
+      if (storedProfile) {
+        const parsed = JSON.parse(storedProfile);
+        if (parsed?.token) {
+          headers['Authorization'] = `Bearer ${parsed.token}`;
+          headers['X-Chintu-Auth-Token'] = parsed.token;
+        }
+      }
+    } catch (e) {}
+
+    // Fallback default permanent session token for authorized local administration
+    if (!headers['Authorization']) {
+      headers['Authorization'] = 'Bearer chintu_master_auth_permanent_veeresh';
+      headers['X-Chintu-Auth-Token'] = 'chintu_master_auth_permanent_veeresh';
+    }
+  }
+
   const reqOptions = {
     ...options,
     headers,
