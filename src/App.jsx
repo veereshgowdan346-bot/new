@@ -190,6 +190,82 @@ export default function App() {
       .catch((e) => console.debug('[Profile Mount Sync]:', e));
   }, []);
 
+  // Authoritative Backend Position Synchronization
+  const fetchPositions = async () => {
+    try {
+      const res = await apiFetch('/api/positions');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.positions)) {
+          setPositions(data.positions);
+        }
+      }
+    } catch (e) {
+      console.debug('[Positions Mount Sync]:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchPositions();
+    const posInterval = setInterval(fetchPositions, 3500);
+    return () => clearInterval(posInterval);
+  }, []);
+
+  const handleSquareOff = async (positionOrId) => {
+    try {
+      const posId = typeof positionOrId === 'object' ? positionOrId.id : positionOrId;
+      const posSymbol = typeof positionOrId === 'object' ? positionOrId.symbol : null;
+      const posBot = typeof positionOrId === 'object' ? positionOrId.bot : null;
+
+      const res = await apiFetch('/api/positions/square-off', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ positionId: posId, symbol: posSymbol, bot: posBot })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 'success') {
+          soundEngine.playSellChime();
+          voiceAssistant.speak(`Position in ${data.closed_position?.symbol || posSymbol || 'asset'} squared off.`);
+          await fetchPositions();
+          return { success: true, data };
+        } else {
+          soundEngine.playAlertChime();
+          alert(`Square-off failed: ${data.message}`);
+          return { success: false, error: data.message };
+        }
+      }
+      return { success: false, error: `Server error ${res.status}` };
+    } catch (e) {
+      console.error('[Square-off Exception]:', e);
+      alert(`Square-off network error: ${e.message}`);
+      return { success: false, error: e.message };
+    }
+  };
+
+  const handleSquareOffAll = async () => {
+    try {
+      const res = await apiFetch('/api/positions/square-off-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        soundEngine.playSellChime();
+        voiceAssistant.speak(`All ${data.squared_count || 0} active positions squared off.`);
+        await fetchPositions();
+        return { success: true, count: data.squared_count };
+      }
+      return { success: false, error: `Server error ${res.status}` };
+    } catch (e) {
+      console.error('[Square-off All Exception]:', e);
+      alert(`Square-off All network error: ${e.message}`);
+      return { success: false, error: e.message };
+    }
+  };
+
   // REAL-TIME WEBSOCKET SYNC with local Python server (getWebSocketUrl('/chintu-feed'))
   const wsRef = useRef(null);
   const botsRef = useRef(bots);
@@ -280,6 +356,18 @@ export default function App() {
                 }
                 return prev;
               });
+            }
+
+            if (data.type === 'POSITIONS_UPDATE' && Array.isArray(data.positions)) {
+              setPositions(data.positions);
+            }
+
+            if (data.type === 'POSITION_SQUARED_OFF') {
+              setPositions((prev) => prev.filter((p) => p.id !== data.positionId && p.symbol !== data.symbol));
+            }
+
+            if (data.type === 'ALL_POSITIONS_SQUARED_OFF') {
+              setPositions([]);
             }
 
             if (data.type === 'TICKER_PULSE') {
@@ -657,12 +745,13 @@ export default function App() {
           {/* Dedicated View: Backtest */}
           {activeTab === 'backtest' && <BacktestView />}
 
-          {/* Dedicated View: Orders & Positions (Synced with live WebSocket) */}
+          {/* Dedicated View: Orders & Positions (Synced with authoritative backend position book) */}
           {activeTab === 'orders-positions' && (
             <OrdersPositionsView
               positions={positions}
-              onSquareOff={(id) => setPositions(positions.filter((p) => p.id !== id))}
-              onSquareOffAll={() => setPositions([])}
+              onSquareOff={handleSquareOff}
+              onSquareOffAll={handleSquareOffAll}
+              onRefresh={fetchPositions}
             />
           )}
 

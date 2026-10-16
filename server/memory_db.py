@@ -168,25 +168,26 @@ def init_db():
         """, (json.dumps(master_profile_data), datetime.now().isoformat()))
         conn.commit()
 
-    # Ensure valid Telegram Bot Token & Chat ID in system_config
+    # Ensure Telegram Bot Token & Chat ID in system_config from environment or safe defaults
     cursor.execute("SELECT value FROM system_config WHERE key = 'telegram_bot_token'")
     tg_row = cursor.fetchone()
-    valid_tg_token = "8856634279:AAEJmjMIYDTNAiR8IuFjULzprGBrHN3eebg"
-    valid_tg_chat = "6912523089"
-    valid_tg_user = "chintu_jarvis_veer_bot"
+    valid_tg_token = os.environ.get("CHINTU_TELEGRAM_BOT_TOKEN", "").strip()
+    valid_tg_chat = os.environ.get("CHINTU_TELEGRAM_CHAT_ID", "6912523089").strip()
+    valid_tg_user = os.environ.get("CHINTU_TELEGRAM_BOT_USERNAME", "chintu_jarvis_veer_bot").strip()
 
-    if not tg_row or not tg_row["value"] or tg_row["value"].startswith("gsk_") or ":" not in tg_row["value"]:
+    if valid_tg_token and (not tg_row or not tg_row["value"] or ":" not in tg_row["value"]):
         cursor.execute("""
         INSERT INTO system_config (key, value, updated_at)
         VALUES ('telegram_bot_token', ?, ?)
         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
         """, (valid_tg_token, datetime.now().isoformat()))
 
-    cursor.execute("""
-    INSERT INTO system_config (key, value, updated_at)
-    VALUES ('telegram_chat_id', ?, ?)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
-    """, (valid_tg_chat, datetime.now().isoformat()))
+    if valid_tg_chat:
+        cursor.execute("""
+        INSERT INTO system_config (key, value, updated_at)
+        VALUES ('telegram_chat_id', ?, ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+        """, (valid_tg_chat, datetime.now().isoformat()))
 
     cursor.execute("""
     INSERT INTO system_config (key, value, updated_at)

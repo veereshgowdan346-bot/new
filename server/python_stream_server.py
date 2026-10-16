@@ -136,12 +136,55 @@ broker_state: Dict[str, Dict[str, Any]] = {
     }
 }
 
+# Market Feed Safety Registry
+market_feed_status: Dict[str, Any] = {
+    "is_authentic_exchange_feed": False,
+    "provider": "SYNTHETIC_RANDOM_WALK",
+    "status": "SANDBOX_SIMULATED",
+    "last_tick_time": None
+}
+
+# Authoritative In-Memory Active Position Book
+active_positions: Dict[str, Dict[str, Any]] = {}
+
+# Broker Capabilities Registry
+BROKER_CAPABILITIES: Dict[str, Dict[str, Any]] = {
+    "angel_one": {
+        "status": "ADAPTER_READY",
+        "name": "Angel One (SmartAPI)",
+        "supported": True,
+        "features": ["TOTP Auth", "Live Order Routing", "RMS Limits", "WebSocket Streaming"],
+        "version": "SmartAPI Python 1.3+"
+    },
+    "zerodha": {
+        "status": "COMING_SOON",
+        "name": "Zerodha (Kite Connect)",
+        "supported": False,
+        "features": ["Direct Kite Connect adapter scheduled for next release"],
+        "version": "Planned"
+    },
+    "upstox": {
+        "status": "COMING_SOON",
+        "name": "Upstox Pro",
+        "supported": False,
+        "features": ["Upstox API v2 adapter scheduled for next release"],
+        "version": "Planned"
+    },
+    "5paisa": {
+        "status": "COMING_SOON",
+        "name": "5paisa Capital",
+        "supported": False,
+        "features": ["5paisa Open API adapter scheduled for next release"],
+        "version": "Planned"
+    }
+}
+
 # 24/7 Telegram Commander Bot State
 telegram_state: Dict[str, Any] = {
-    "bot_token": os.environ.get("CHINTU_TELEGRAM_BOT_TOKEN", "8856634279:AAEJmjMIYDTNAiR8IuFjULzprGBrHN3eebg"),
-    "chat_id": os.environ.get("CHINTU_TELEGRAM_CHAT_ID", "6912523089"),
-    "enabled": True,
-    "bot_username": "chintu_jarvis_veer_bot",
+    "bot_token": os.environ.get("CHINTU_TELEGRAM_BOT_TOKEN", "").strip(),
+    "chat_id": os.environ.get("CHINTU_TELEGRAM_CHAT_ID", "6912523089").strip(),
+    "enabled": bool(os.environ.get("CHINTU_TELEGRAM_BOT_TOKEN")),
+    "bot_username": os.environ.get("CHINTU_TELEGRAM_BOT_USERNAME", "chintu_jarvis_veer_bot").strip(),
     "last_update_id": 0,
     "is_polling": False
 }
@@ -299,7 +342,37 @@ def place_live_angel_order(
             "consensus": quorum["quorum_ratio"]
         }
 
-    # 2. RMS Circuit Breaker Validation
+    is_angel_live = broker_state["angel_one"].get("connected") and active_smart_connect.get("instance") is not None
+
+    # 2. Fail-Closed Market Data Safety Check: Live execution requires verified authentic exchange feed
+    if execution_mode == "LIVE":
+        if not market_feed_status.get("is_authentic_exchange_feed", False):
+            err_msg = "Live order blocked: Fail-Closed Protection active. Market feed is currently synthetic/simulated. Live execution requires verified exchange feed."
+            print(f"[Market Feed Safety Gate]: {err_msg}")
+            return {
+                "success": False,
+                "orderId": "FEED-BLOCKED",
+                "mode": "FEED_BLOCKED",
+                "error": err_msg,
+                "exchange": spec["exchange"],
+                "broker": "Market Feed Safety Gate",
+                "consensus": quorum["quorum_ratio"]
+            }
+
+        if not is_angel_live:
+            err_msg = "Live order blocked: No active authenticated broker connection found."
+            print(f"[Broker Gateway Reject]: {err_msg}")
+            return {
+                "success": False,
+                "orderId": "NO-BROKER-BLOCKED",
+                "mode": "LIVE_REJECTED",
+                "error": err_msg,
+                "exchange": spec["exchange"],
+                "broker": "Angel One (SmartAPI)",
+                "consensus": quorum["quorum_ratio"]
+            }
+
+    # 3. RMS Circuit Breaker Validation
     if rms_state.get("circuit_breaker_active"):
         err_msg = "RMS Circuit Breaker is ACTIVE. Live order routing is emergency blocked."
         print(f"[RMS Emergency Reject]: {err_msg}")
@@ -313,7 +386,7 @@ def place_live_angel_order(
             "consensus": quorum["quorum_ratio"]
         }
 
-    # 3. RMS Capital Limit Validation (from ₹1 upwards)
+    # 4. RMS Capital Limit Validation (from ₹1 upwards)
     max_cap = float(rms_state.get("max_capital_per_bot", 50000.0) or 0)
     if max_cap > 0 and est_value > max_cap:
         err_msg = f"Order value INR {est_value:,.2f} exceeds Max Capital Per Bot limit (INR {max_cap:,.2f})."
@@ -328,7 +401,7 @@ def place_live_angel_order(
             "consensus": quorum["quorum_ratio"]
         }
 
-    # 3. RMS Daily Loss Limit Check
+    # 5. RMS Daily Loss Limit Check
     max_loss = float(rms_state.get("max_daily_loss", 15000.0) or 0)
     if rms_state.get("realized_daily_pnl", 0.0) <= -abs(max_loss) and max_loss > 0:
         rms_state["circuit_breaker_active"] = True
@@ -366,7 +439,6 @@ def place_live_angel_order(
     }
 
     rms_state["total_orders_today"] = rms_state.get("total_orders_today", 0) + 1
-    is_angel_live = broker_state["angel_one"].get("connected") and active_smart_connect.get("instance") is not None
 
     if execution_mode == "LIVE" and is_angel_live:
         try:
@@ -406,6 +478,90 @@ def place_live_angel_order(
         "consensus": quorum["quorum_ratio"],
         "details": order_params
     }
+
+
+def calculate_closing_order(position: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Computes exact reverse closing order according to Indian exchange conventions:
+    - Long (BUY / positive qty) -> SELL
+    - Short (SELL / negative qty) -> BUY
+    """
+    pos_type = str(position.get("type") or position.get("action") or "BUY").upper()
+    qty = abs(int(position.get("qty", 1)))
+    closing_action = "SELL" if pos_type in ["BUY", "LONG"] else "BUY"
+    
+    return {
+        "symbol": position.get("symbol", "NIFTY 50"),
+        "action": closing_action,
+        "qty": qty,
+        "price": float(position.get("ltp") or position.get("avgPrice") or 0.0),
+        "bot": position.get("bot", "System / Manual"),
+        "segment": position.get("segment", "NSE F&O Options"),
+        "variety": "NORMAL",
+        "ordertype": "MARKET"
+    }
+
+
+def update_position_on_fill(trade: Dict[str, Any]):
+    """
+    Updates or creates positions in authoritative active_positions book upon trade execution.
+    """
+    symbol = trade.get("symbol", "NIFTY 50")
+    bot = trade.get("bot", "Bot 1")
+    pos_key = f"{bot}_{symbol}"
+    action = str(trade.get("action", "BUY")).upper()
+    qty = abs(int(trade.get("qty", 1)))
+    price = float(trade.get("price", 0.0))
+    seg = trade.get("segment", "NSE F&O Options")
+
+    if pos_key in active_positions:
+        existing = active_positions[pos_key]
+        if existing["type"] == action:
+            # Same side -> Accumulate position
+            new_qty = existing["qty"] + qty
+            new_avg = round(((existing["avgPrice"] * existing["qty"]) + (price * qty)) / new_qty, 2)
+            existing["qty"] = new_qty
+            existing["avgPrice"] = new_avg
+            existing["ltp"] = price
+        else:
+            # Opposite side -> Reduce or close
+            if qty >= existing["qty"]:
+                # Completely squared off
+                del active_positions[pos_key]
+                if qty > existing["qty"]:
+                    rem_qty = qty - existing["qty"]
+                    active_positions[pos_key] = {
+                        "id": f"POS_{int(time.time() * 1000)}_{random.randint(100, 999)}",
+                        "bot": bot,
+                        "symbol": symbol,
+                        "segment": seg,
+                        "type": action,
+                        "qty": rem_qty,
+                        "avgPrice": price,
+                        "ltp": price,
+                        "pnl": "+₹0.00",
+                        "mode": trade.get("mode", execution_mode),
+                        "broker": trade.get("broker", "SmartAPI"),
+                        "openedAt": datetime.now().isoformat()
+                    }
+            else:
+                existing["qty"] -= qty
+                existing["ltp"] = price
+    else:
+        active_positions[pos_key] = {
+            "id": f"POS_{int(time.time() * 1000)}_{random.randint(100, 999)}",
+            "bot": bot,
+            "symbol": symbol,
+            "segment": seg,
+            "type": action,
+            "qty": qty,
+            "avgPrice": price,
+            "ltp": price,
+            "pnl": "+₹0.00",
+            "mode": trade.get("mode", execution_mode),
+            "broker": trade.get("broker", "SmartAPI"),
+            "openedAt": datetime.now().isoformat()
+        }
 
 
 # Models
@@ -510,10 +666,20 @@ class UserProfilePayload(BaseModel):
     provider: Optional[str] = "Master Authority (Localhost Verified)"
     isAuthenticated: Optional[bool] = True
 
+class SquareOffPayload(BaseModel):
+    positionId: Optional[str] = None
+    id: Optional[str] = None
+    symbol: Optional[str] = None
+    bot: Optional[str] = None
+
+class MarketFeedStatusPayload(BaseModel):
+    is_authentic_exchange_feed: Optional[bool] = None
+    provider: Optional[str] = None
+
 
 # Telegram Bot Helpers
 async def send_telegram_message_detailed(text: str, chat_id: Optional[str] = None) -> Dict[str, Any]:
-    token = telegram_state.get("bot_token", "").strip() or "8856634279:AAEJmjMIYDTNAiR8IuFjULzprGBrHN3eebg"
+    token = telegram_state.get("bot_token", "").strip()
     target_chat = (chat_id or telegram_state.get("chat_id", "")).strip() or "6912523089"
     prompt_uninitiated = "Please open t.me/chintu_jarvis_veer_bot and press Start once"
 
@@ -521,7 +687,7 @@ async def send_telegram_message_detailed(text: str, chat_id: Optional[str] = Non
         return {
             "success": False,
             "uninitiated": False,
-            "message": "Telegram Bot Token or Chat ID is missing."
+            "message": "Telegram Bot Token or Chat ID is not configured."
         }
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -967,21 +1133,18 @@ async def autonomous_anomaly_detector():
 async def on_startup():
     memory_db.init_db()
 
-    # Ensure valid Telegram Bot Token & Chat ID are explicitly persisted in SQLite
-    memory_db.save_config("telegram_token", "8856634279:AAEJmjMIYDTNAiR8IuFjULzprGBrHN3eebg")
-    memory_db.save_config("telegram_bot_token", "8856634279:AAEJmjMIYDTNAiR8IuFjULzprGBrHN3eebg")
-    memory_db.save_config("telegram_chat_id", "6912523089")
-    memory_db.save_config("telegram_enabled", "true")
+    # Restore persistent Telegram configuration from SQLite or env
+    env_tg_token = os.environ.get("CHINTU_TELEGRAM_BOT_TOKEN", "").strip()
+    env_tg_chat = os.environ.get("CHINTU_TELEGRAM_CHAT_ID", "6912523089").strip()
 
-    # Restore persistent Telegram configuration from SQLite
-    saved_tg_token = memory_db.get_config("telegram_bot_token", "8856634279:AAEJmjMIYDTNAiR8IuFjULzprGBrHN3eebg")
-    saved_tg_chat = memory_db.get_config("telegram_chat_id", "6912523089")
-    saved_tg_enabled = memory_db.get_config("telegram_enabled", "true").lower() == "true"
+    saved_tg_token = memory_db.get_config("telegram_bot_token", env_tg_token)
+    saved_tg_chat = memory_db.get_config("telegram_chat_id", env_tg_chat)
+    saved_tg_enabled = memory_db.get_config("telegram_enabled", "false").lower() == "true"
     saved_tg_user = memory_db.get_config("telegram_bot_username", "chintu_jarvis_veer_bot")
 
-    telegram_state["bot_token"] = saved_tg_token or "8856634279:AAEJmjMIYDTNAiR8IuFjULzprGBrHN3eebg"
-    telegram_state["chat_id"] = saved_tg_chat or "6912523089"
-    telegram_state["enabled"] = True
+    telegram_state["bot_token"] = saved_tg_token or env_tg_token
+    telegram_state["chat_id"] = saved_tg_chat or env_tg_chat
+    telegram_state["enabled"] = bool(telegram_state["bot_token"] and telegram_state["chat_id"] and saved_tg_enabled)
     telegram_state["bot_username"] = saved_tg_user or "chintu_jarvis_veer_bot"
 
     # Restore persistent WhatsApp (CallMeBot) configuration from SQLite
@@ -1173,8 +1336,8 @@ async def get_telegram_config():
 
 @app.post("/api/telegram/config")
 async def configure_telegram(payload: TelegramConfigPayload):
-    token = payload.bot_token.strip() or "8856634279:AAEJmjMIYDTNAiR8IuFjULzprGBrHN3eebg"
-    chat_id = payload.chat_id.strip() or "6912523089"
+    token = payload.bot_token.strip()
+    chat_id = payload.chat_id.strip() or telegram_state.get("chat_id", "6912523089")
     enabled = payload.enabled if payload.enabled is not None else True
 
     bot_username = "chintu_jarvis_veer_bot"
@@ -1239,7 +1402,7 @@ async def send_test_telegram(payload: TelegramTestPayload):
 @app.post("/api/telegram/verify-handshake")
 async def verify_telegram_handshake():
     """1-Click Verification of Telegram Bot handshake with latency & ping confirmation."""
-    token = telegram_state.get("bot_token", "").strip() or "8856634279:AAEJmjMIYDTNAiR8IuFjULzprGBrHN3eebg"
+    token = telegram_state.get("bot_token", "").strip()
     chat_id = telegram_state.get("chat_id", "").strip() or "6912523089"
     bot_username = telegram_state.get("bot_username", "").strip() or "chintu_jarvis_veer_bot"
 
@@ -1568,20 +1731,267 @@ async def connect_broker(payload: GenericBrokerConnectRequest):
             "broker": broker_state["angel_one"]
         }
 
-    # Other brokers
+    # Other brokers: Capability Enforcement (Prevent mock connections)
     target_key = "zerodha" if "zerodha" in broker_id else "upstox" if "upstox" in broker_id else "5paisa"
-    broker_state[target_key].update({
-        "connected": True,
-        "clientId": payload.clientId or broker_state[target_key]["clientId"],
-        "connectedAt": datetime.now().isoformat(),
-        "tokenExpires": "23h 59m",
-        "ping": f"{random.randint(11, 19)}ms"
-    })
+    broker_info = BROKER_CAPABILITIES.get(target_key, {})
+    broker_name = broker_info.get("name", payload.broker)
+
+    return {
+        "status": "unsupported",
+        "capability": "COMING_SOON",
+        "message": f"{broker_name} direct adapter integration is COMING SOON. Live execution currently supports Angel One SmartAPI.",
+        "broker": broker_state.get(target_key, {})
+    }
+
+@app.get("/api/broker/capabilities")
+async def get_broker_capabilities():
+    """Returns capabilities registry of broker adapters."""
+    return {
+        "status": "success",
+        "capabilities": BROKER_CAPABILITIES,
+        "active_broker": "angel_one" if broker_state["angel_one"]["connected"] else None,
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.get("/api/market-feed/status")
+async def get_market_feed_status():
+    """Returns market feed health and authenticity status."""
+    return {
+        "status": "success",
+        "feed": market_feed_status,
+        "execution_mode": execution_mode,
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.post("/api/market-feed/status")
+async def update_market_feed_status(payload: MarketFeedStatusPayload):
+    """Allows updating market feed authenticity for verification and fail-closed gates."""
+    if payload.is_authentic_exchange_feed is not None:
+        market_feed_status["is_authentic_exchange_feed"] = bool(payload.is_authentic_exchange_feed)
+    if payload.provider:
+        market_feed_status["provider"] = str(payload.provider)
+    market_feed_status["status"] = "AUTHENTIC_EXCHANGE" if market_feed_status["is_authentic_exchange_feed"] else "SANDBOX_SIMULATED"
+    return {"status": "success", "feed": market_feed_status}
+
+@app.get("/api/positions")
+async def get_positions():
+    """
+    Returns list of open positions from authoritative active_positions book.
+    Calculates MTMM mark-to-market unrealized PnL.
+    """
+    positions_list = []
+    for key, pos in list(active_positions.items()):
+        avg_entry = float(pos.get("avgPrice", 0.0))
+        ltp = float(pos.get("ltp", avg_entry))
+        qty = abs(int(pos.get("qty", 1)))
+        pos_type = str(pos.get("type", "BUY")).upper()
+
+        if pos_type in ["BUY", "LONG"]:
+            unrealized = (ltp - avg_entry) * qty
+        else:
+            unrealized = (avg_entry - ltp) * qty
+
+        pnl_str = f"{'+' if unrealized >= 0 else '-'}₹{abs(unrealized):,.2f}"
+        pos["pnl"] = pnl_str
+        pos["unrealizedPnl"] = round(unrealized, 2)
+        positions_list.append(pos)
 
     return {
         "status": "success",
-        "message": f"{broker_state[target_key]['broker']} successfully verified and connected.",
-        "broker": broker_state[target_key]
+        "positions": positions_list,
+        "count": len(positions_list),
+        "total_unrealized_pnl": round(sum(p.get("unrealizedPnl", 0.0) for p in positions_list), 2)
+    }
+
+@app.post("/api/positions/square-off")
+async def square_off_position(payload: SquareOffPayload):
+    """
+    Authoritative single-position square-off endpoint:
+    Calculates closing order (BUY -> SELL, SELL -> BUY),
+    routes through execution engine, deducts regulatory charges,
+    records to SQLite trade_memory, and removes from active book.
+    """
+    target_pos = None
+    target_key = None
+
+    pos_id = payload.positionId or payload.id
+    for key, p in active_positions.items():
+        if (pos_id and p.get("id") == pos_id) or \
+           (payload.symbol and payload.symbol.lower() in p.get("symbol", "").lower() and \
+            (not payload.bot or payload.bot.lower() in p.get("bot", "").lower())):
+            target_pos = p
+            target_key = key
+            break
+
+    if not target_pos or not target_key:
+        return {"status": "error", "message": f"Position '{pos_id or payload.symbol}' not found in active book."}
+
+    closing_spec = calculate_closing_order(target_pos)
+    order_res = place_live_angel_order(
+        symbol_name=closing_spec["symbol"],
+        action=closing_spec["action"],
+        qty=closing_spec["qty"],
+        price=closing_spec["price"],
+        bot_name=closing_spec["bot"]
+    )
+
+    if not order_res.get("success"):
+        return {
+            "status": "error",
+            "message": f"Square off order rejected: {order_res.get('error', 'Execution failure')}",
+            "order_result": order_res
+        }
+
+    entry_price = float(target_pos.get("avgPrice", 0.0))
+    exit_price = float(closing_spec["price"])
+    qty = int(closing_spec["qty"])
+    pos_type = str(target_pos.get("type", "BUY")).upper()
+    raw_gross = (exit_price - entry_price) * qty if pos_type in ["BUY", "LONG"] else (entry_price - exit_price) * qty
+
+    deductions = calculate_trade_deductions(
+        price=exit_price,
+        qty=qty,
+        action=closing_spec["action"],
+        segment=target_pos.get("segment", "NSE F&O Options"),
+        gross_pnl=raw_gross
+    )
+
+    now = datetime.now()
+    time_ms = now.strftime("%H:%M:%S") + f".{now.microsecond // 1000:03d}"
+
+    trade_record = {
+        "id": int(time.time() * 1000),
+        "time": time_ms,
+        "bot": target_pos.get("bot", "System Square-Off"),
+        "symbol": target_pos.get("symbol"),
+        "segment": target_pos.get("segment", "NSE F&O Options"),
+        "action": closing_spec["action"],
+        "price": exit_price,
+        "qty": qty,
+        "pnl": f"{'+' if deductions['net_pnl'] >= 0 else '-'}₹{abs(deductions['net_pnl']):,.2f}",
+        "grossPnl": deductions["gross_pnl"],
+        "totalCharges": deductions["total_charges"],
+        "netPnl": deductions["net_pnl"],
+        "charges": deductions,
+        "isPositive": deductions["net_pnl"] >= 0,
+        "orderId": order_res.get("orderId", f"SQO_{int(time.time()*1000)}"),
+        "exchange": order_res.get("exchange", "NSE"),
+        "mode": order_res.get("mode", execution_mode),
+        "broker": order_res.get("broker", "SmartAPI"),
+        "post_trade_analysis": f"Square-off completed. Closed {qty}x {target_pos.get('symbol')} ({pos_type}) @ ₹{exit_price:,.2f}. Realized Net PnL: ₹{deductions['net_pnl']:,.2f} after ₹{deductions['total_charges']} charges."
+    }
+
+    del active_positions[target_key]
+    try:
+        memory_db.log_trade(trade_record)
+    except Exception as e:
+        print(f"[Memory DB Square-Off Log Error]: {e}")
+
+    ws_event = json.dumps({
+        "type": "POSITION_SQUARED_OFF",
+        "positionId": target_pos.get("id"),
+        "symbol": target_pos.get("symbol"),
+        "trade": trade_record
+    })
+    for ws in connected_websockets:
+        try:
+            await ws.send_text(ws_event)
+        except Exception:
+            pass
+
+    return {
+        "status": "success",
+        "message": f"Successfully squared off position in {target_pos.get('symbol')} ({closing_spec['action']} {qty}x).",
+        "closed_position": target_pos,
+        "trade": trade_record
+    }
+
+@app.post("/api/positions/square-off-all")
+async def square_off_all_positions():
+    """
+    Authoritative square-off-all endpoint:
+    Iterates through all open positions in active book and closes each one.
+    """
+    if not active_positions:
+        return {"status": "success", "message": "No active positions to square off.", "squared_count": 0, "results": []}
+
+    squared_results = []
+    keys_to_square = list(active_positions.keys())
+
+    for key in keys_to_square:
+        if key not in active_positions:
+            continue
+        pos = active_positions[key]
+        closing_spec = calculate_closing_order(pos)
+        order_res = place_live_angel_order(
+            symbol_name=closing_spec["symbol"],
+            action=closing_spec["action"],
+            qty=closing_spec["qty"],
+            price=closing_spec["price"],
+            bot_name=closing_spec["bot"]
+        )
+
+        entry_price = float(pos.get("avgPrice", 0.0))
+        exit_price = float(closing_spec["price"])
+        qty = int(closing_spec["qty"])
+        pos_type = str(pos.get("type", "BUY")).upper()
+        raw_gross = (exit_price - entry_price) * qty if pos_type in ["BUY", "LONG"] else (entry_price - exit_price) * qty
+
+        deductions = calculate_trade_deductions(
+            price=exit_price,
+            qty=qty,
+            action=closing_spec["action"],
+            segment=pos.get("segment", "NSE F&O Options"),
+            gross_pnl=raw_gross
+        )
+
+        now = datetime.now()
+        time_ms = now.strftime("%H:%M:%S") + f".{now.microsecond // 1000:03d}"
+
+        trade_record = {
+            "id": int(time.time() * 1000) + random.randint(1, 999),
+            "time": time_ms,
+            "bot": pos.get("bot", "Mass Square-Off"),
+            "symbol": pos.get("symbol"),
+            "segment": pos.get("segment", "NSE F&O Options"),
+            "action": closing_spec["action"],
+            "price": exit_price,
+            "qty": qty,
+            "pnl": f"{'+' if deductions['net_pnl'] >= 0 else '-'}₹{abs(deductions['net_pnl']):,.2f}",
+            "grossPnl": deductions["gross_pnl"],
+            "totalCharges": deductions["total_charges"],
+            "netPnl": deductions["net_pnl"],
+            "charges": deductions,
+            "isPositive": deductions["net_pnl"] >= 0,
+            "orderId": order_res.get("orderId", f"SQO_ALL_{int(time.time()*1000)}"),
+            "exchange": order_res.get("exchange", "NSE"),
+            "mode": order_res.get("mode", execution_mode),
+            "broker": order_res.get("broker", "SmartAPI")
+        }
+
+        del active_positions[key]
+        try:
+            memory_db.log_trade(trade_record)
+        except Exception:
+            pass
+
+        squared_results.append(trade_record)
+
+    mass_event = json.dumps({
+        "type": "ALL_POSITIONS_SQUARED_OFF",
+        "count": len(squared_results)
+    })
+    for ws in connected_websockets:
+        try:
+            await ws.send_text(mass_event)
+        except Exception:
+            pass
+
+    return {
+        "status": "success",
+        "message": f"Successfully squared off all {len(squared_results)} positions.",
+        "squared_count": len(squared_results),
+        "results": squared_results
     }
 
 @app.post("/api/broker/disconnect")
@@ -1608,6 +2018,13 @@ async def place_order_api(payload: OrderPlacePayload):
         producttype=payload.producttype
     )
 
+    if not order_result.get("success"):
+        return {
+            "status": "error",
+            "message": f"Order placement failed: {order_result.get('error', 'Unknown error')}",
+            "result": order_result
+        }
+
     now = datetime.now()
     time_ms = now.strftime("%H:%M:%S") + f".{now.microsecond // 1000:03d}"
 
@@ -1627,6 +2044,9 @@ async def place_order_api(payload: OrderPlacePayload):
         "mode": order_result["mode"],
         "broker": order_result.get("broker", "SmartAPI")
     }
+
+    # Update authoritative active position book
+    update_position_on_fill(trade_spec)
 
     # Record to persistent SQLite memory
     try:
@@ -1927,6 +2347,9 @@ async def websocket_feed(websocket: WebSocket):
                         "broker": order_result.get("broker", "SmartAPI")
                     }
 
+                    # Update authoritative active position book
+                    update_position_on_fill(trade_spec)
+
                     # Log to SQLite trade_memory
                     try:
                         memory_db.log_trade(trade_spec)
@@ -1938,6 +2361,16 @@ async def websocket_feed(websocket: WebSocket):
                         "trade": trade_spec
                     }
                     await websocket.send_text(json.dumps(trade_message))
+
+                    # Broadcast authoritative positions update
+                    try:
+                        pos_list = list(active_positions.values())
+                        await websocket.send_text(json.dumps({
+                            "type": "POSITIONS_UPDATE",
+                            "positions": pos_list
+                        }))
+                    except Exception:
+                        pass
 
                     # Push to Telegram & WhatsApp (CallMeBot)
                     asyncio.create_task(dispatch_trade_notifications(trade_spec, "AUTONOMOUS TRADE EXECUTED"))

@@ -278,23 +278,32 @@ export default function BrokerAccountsView({ brokerConnections, onUpdateBroker }
 
       if (response.ok) {
         const resData = await response.json();
+        if (resData.status === 'unsupported' || resData.capability === 'COMING_SOON') {
+          soundEngine.playAlertChime();
+          setStatusMessage({
+            type: 'warning',
+            text: resData.message || `${name} adapter integration is COMING SOON. Only Angel One SmartAPI is currently supported.`
+          });
+          return;
+        }
+
         const b = resData.broker;
-        const realCash = Number(b.availableCash) || 0.00;
-        const realCollateral = Number(b.collateralMargin) || 0.00;
-        const realNet = Number(b.netMargin) || (realCash + realCollateral);
+        const realCash = Number(b?.availableCash) || 0.00;
+        const realCollateral = Number(b?.collateralMargin) || 0.00;
+        const realNet = Number(b?.netMargin) || (realCash + realCollateral);
 
         setBrokerDetails((prev) => ({
           ...prev,
           [brokerKey]: {
             ...prev[brokerKey],
             connected: true,
-            clientId: b.clientId || 'LIVE-USER',
-            clientName: b.clientName || `${name} Pro Account`,
+            clientId: b?.clientId || 'LIVE-USER',
+            clientName: b?.clientName || `${name} Pro Account`,
             availableCash: realCash,
             collateralMargin: realCollateral,
             netMargin: realNet,
             tokenExpires: '23h 59m',
-            ping: b.ping || '12ms',
+            ping: b?.ping || '12ms',
             lastSync: new Date().toLocaleTimeString()
           }
         }));
@@ -389,10 +398,10 @@ export default function BrokerAccountsView({ brokerConnections, onUpdateBroker }
       {/* 4 Broker Tabs Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { key: 'angel_one', name: 'Angel One', tag: 'SmartAPI V2', color: 'from-orange-500/20 to-amber-500/10' },
-          { key: 'zerodha', name: 'Zerodha', tag: 'Kite Connect 3', color: 'from-blue-500/20 to-cyan-500/10' },
-          { key: 'upstox', name: 'Upstox', tag: 'Pro API v2', color: 'from-purple-500/20 to-indigo-500/10' },
-          { key: '5paisa', name: '5paisa', tag: 'Developer API', color: 'from-emerald-500/20 to-teal-500/10' },
+          { key: 'angel_one', name: 'Angel One', tag: 'SmartAPI V2', capability: 'ADAPTER READY', isReady: true, color: 'from-orange-500/20 to-amber-500/10' },
+          { key: 'zerodha', name: 'Zerodha', tag: 'Kite Connect 3', capability: 'COMING SOON', isReady: false, color: 'from-blue-500/20 to-cyan-500/10' },
+          { key: 'upstox', name: 'Upstox', tag: 'Pro API v2', capability: 'COMING SOON', isReady: false, color: 'from-purple-500/20 to-indigo-500/10' },
+          { key: '5paisa', name: '5paisa', tag: 'Developer API', capability: 'COMING SOON', isReady: false, color: 'from-emerald-500/20 to-teal-500/10' },
         ].map((item) => {
           const isSelected = selectedBroker === item.key;
           const isConn = brokerDetails[item.key]?.connected;
@@ -408,15 +417,12 @@ export default function BrokerAccountsView({ brokerConnections, onUpdateBroker }
             >
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-xs font-bold text-white">{item.name}</span>
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      isConn ? 'bg-emerald-400 shadow-[0_0_8px_#10b981]' : 'bg-slate-600'
-                    }`}
-                  ></span>
-                  <span className={`text-[10px] font-mono ${isConn ? 'text-emerald-400 font-bold' : 'text-slate-500'}`}>
-                    {isConn ? 'Connected' : 'Disconnected'}
-                  </span>
+                <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+                  item.isReady
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                }`}>
+                  {item.capability}
                 </span>
               </div>
               <div className="flex items-center justify-between text-[10.5px] font-mono text-slate-400">
@@ -459,6 +465,19 @@ export default function BrokerAccountsView({ brokerConnections, onUpdateBroker }
               Ping: {currentDetails.ping}
             </span>
           </div>
+
+          {/* Coming Soon Disclosure Banner for Non-Angel Brokers */}
+          {selectedBroker !== 'angel_one' && (
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+              <div>
+                <span className="font-bold uppercase tracking-wider block">Adapter In Development (Coming Soon)</span>
+                <span className="text-[11px] text-slate-300">
+                  Direct DMA execution for {selectedBroker === 'zerodha' ? 'Zerodha Kite Connect' : selectedBroker === 'upstox' ? 'Upstox Pro' : '5paisa Capital'} is coming soon in the next release. Live algorithmic execution is currently active for Angel One SmartAPI.
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* ANGEL ONE FORM */}
           {selectedBroker === 'angel_one' && (
