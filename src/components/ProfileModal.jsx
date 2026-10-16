@@ -24,10 +24,10 @@ export default function ProfileModal({
   onUpdateProfile,
   onLogout
 }) {
-  if (!isOpen) return null;
-
   const [copiedToken, setCopiedToken] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  if (!isOpen) return null;
 
   // 1-Click Instant Master Authorization for Veeresh
   const handleAuthorizeMasterAccount = async () => {

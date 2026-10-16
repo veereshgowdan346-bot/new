@@ -24,11 +24,11 @@ export default function BotDetailsModal({
   onManualTrigger,
   onOpenSkills
 }) {
-  if (!bot) return null;
-
   const [activeTab, setActiveTab] = useState('strategy');
   const [lotMultiplier, setLotMultiplier] = useState(1);
   const [toastMsg, setToastMsg] = useState('');
+
+  if (!bot) return null;
 
   const showToast = (msg) => {
     setToastMsg(msg);

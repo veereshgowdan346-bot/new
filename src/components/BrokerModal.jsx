@@ -1,11 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Radio, CheckCircle2, RefreshCw, Zap, ShieldCheck } from 'lucide-react';
 
 export default function BrokerModal({ broker, onClose, onRefreshBroker }) {
-  if (!broker) return null;
-
   const [isPinging, setIsPinging] = useState(false);
-  const [currentPing, setCurrentPing] = useState(broker.ping || '14ms');
+  const [currentPing, setCurrentPing] = useState(broker?.ping || '14ms');
+
+  useEffect(() => {
+    if (broker?.ping) {
+      setCurrentPing(broker.ping);
+    }
+  }, [broker?.ping]);
+
+  if (!broker) return null;
 
   const handleTestPing = () => {
     setIsPinging(true);
