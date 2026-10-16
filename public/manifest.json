@@ -1,0 +1,18 @@
+{
+  "short_name": "CHINTU AI",
+  "name": "CHINTU AI TRADING SYSTEM • AI Decision Network",
+  "description": "Production Autonomous AI Trading System & 24/7 Telegram Commander Bot",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#060b17",
+  "theme_color": "#060b17",
+  "display": "standalone",
+  "orientation": "any"
+}
+
