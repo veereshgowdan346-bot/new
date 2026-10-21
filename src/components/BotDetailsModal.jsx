@@ -27,12 +27,39 @@ export default function BotDetailsModal({
   const [activeTab, setActiveTab] = useState('strategy');
   const [lotMultiplier, setLotMultiplier] = useState(1);
   const [toastMsg, setToastMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [triggerResult, setTriggerResult] = useState(null);
 
   if (!bot) return null;
 
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 2500);
+  };
+
+  const handleTrigger = async (action) => {
+    if (isSubmitting || !onManualTrigger) return;
+    setIsSubmitting(true);
+    setTriggerResult(null);
+    const qty = (bot.lotSize || 1) * lotMultiplier;
+    try {
+      const res = await onManualTrigger(bot, action, qty);
+      if (res && res.success) {
+        const msg = res.message || `Order confirmed: ${qty}x ${bot.asset}`;
+        setTriggerResult({ type: 'success', message: msg });
+        showToast(msg);
+      } else {
+        const errMsg = (res && res.error) || 'Order placement rejected by risk gates';
+        setTriggerResult({ type: 'error', message: errMsg });
+        showToast(`Rejected: ${errMsg}`);
+      }
+    } catch (err) {
+      const errMsg = err.message || 'Execution failed';
+      setTriggerResult({ type: 'error', message: errMsg });
+      showToast(`Error: ${errMsg}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const isPositive = bot.pnlToday >= 0;
@@ -345,27 +372,45 @@ export default function BotDetailsModal({
                   </div>
                 </div>
 
+                {triggerResult && (
+                  <div
+                    className={`p-2.5 rounded-lg text-xs flex items-start gap-2 border transition-all ${
+                      triggerResult.type === 'success'
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                        : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                    }`}
+                  >
+                    {triggerResult.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    )}
+                    <span>
+                      <strong>{triggerResult.type === 'success' ? 'Confirmed:' : 'Rejected:'}</strong>{' '}
+                      {triggerResult.message}
+                    </span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-3 pt-2">
                   <button
-                    onClick={() => {
-                      onManualTrigger && onManualTrigger(bot, 'BUY', bot.lotSize * lotMultiplier);
-                      showToast(`Manual BUY order sent: ${bot.lotSize * lotMultiplier} ${bot.asset}`);
-                    }}
-                    className="py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/60 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all"
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => handleTrigger('BUY')}
+                    className="py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/60 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <ArrowUpRight className="w-4 h-4" />
-                    <span>Instant Force BUY</span>
+                    <span>{isSubmitting ? 'Transmitting...' : 'Instant Force BUY'}</span>
                   </button>
 
                   <button
-                    onClick={() => {
-                      onManualTrigger && onManualTrigger(bot, 'SELL', bot.lotSize * lotMultiplier);
-                      showToast(`Manual SELL order sent: ${bot.lotSize * lotMultiplier} ${bot.asset}`);
-                    }}
-                    className="py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/60 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(244,63,94,0.3)] transition-all"
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => handleTrigger('SELL')}
+                    className="py-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/60 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(244,63,94,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <ArrowDownRight className="w-4 h-4" />
-                    <span>Instant Force SELL</span>
+                    <span>{isSubmitting ? 'Transmitting...' : 'Instant Force SELL'}</span>
                   </button>
                 </div>
               </div>

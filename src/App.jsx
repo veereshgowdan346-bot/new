@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import TopNavbar from './components/TopNavbar';
 import Sidebar from './components/Sidebar';
 import DecisionMeshHub from './components/DecisionMeshHub';
@@ -9,22 +9,23 @@ import ProfileModal from './components/ProfileModal';
 import BrokerModal from './components/BrokerModal';
 import NotificationsModal from './components/NotificationsModal';
 
-// Dedicated views
-import BrokerAccountsView from './components/views/BrokerAccountsView';
-import BotsMonitorView from './components/views/BotsMonitorView';
-import DecisionNetworkView from './components/views/DecisionNetworkView';
-import LiveTradingView from './components/views/LiveTradingView';
-import MarketWatchView from './components/views/MarketWatchView';
-import StrategyBuilderView from './components/views/StrategyBuilderView';
-import AnalyticsView from './components/views/AnalyticsView';
-import BacktestView from './components/views/BacktestView';
-import OrdersPositionsView from './components/views/OrdersPositionsView';
-import RiskManagementView from './components/views/RiskManagementView';
-import TradeHistoryView from './components/views/TradeHistoryView';
-import PerformanceView from './components/views/PerformanceView';
-import SettingsView from './components/views/SettingsView';
-import AICommanderView from './components/views/AICommanderView';
-import BotSkillsHubView from './components/views/BotSkillsHubView';
+// Dedicated views (Lazy-loaded with React.lazy for code splitting)
+const BrokerAccountsView = React.lazy(() => import('./components/views/BrokerAccountsView'));
+const BotsMonitorView = React.lazy(() => import('./components/views/BotsMonitorView'));
+const DecisionNetworkView = React.lazy(() => import('./components/views/DecisionNetworkView'));
+const LiveTradingView = React.lazy(() => import('./components/views/LiveTradingView'));
+const MarketWatchView = React.lazy(() => import('./components/views/MarketWatchView'));
+const StrategyBuilderView = React.lazy(() => import('./components/views/StrategyBuilderView'));
+const AnalyticsView = React.lazy(() => import('./components/views/AnalyticsView'));
+const BacktestView = React.lazy(() => import('./components/views/BacktestView'));
+const OrdersPositionsView = React.lazy(() => import('./components/views/OrdersPositionsView'));
+const RiskManagementView = React.lazy(() => import('./components/views/RiskManagementView'));
+const TradeHistoryView = React.lazy(() => import('./components/views/TradeHistoryView'));
+const PerformanceView = React.lazy(() => import('./components/views/PerformanceView'));
+const SettingsView = React.lazy(() => import('./components/views/SettingsView'));
+const AICommanderView = React.lazy(() => import('./components/views/AICommanderView'));
+const BotSkillsHubView = React.lazy(() => import('./components/views/BotSkillsHubView'));
+const StrategyLibraryView = React.lazy(() => import('./components/views/StrategyLibraryView'));
 
 import { soundEngine } from './utils/audioChime';
 import { voiceAssistant } from './utils/voiceAssistant';
@@ -49,6 +50,64 @@ export const MASTER_PROFILE_VEERESH = {
   linkedAt: 'Permanent Master Session',
   provider: 'Master Authority (Localhost Verified)'
 };
+
+function ViewLoadingFallback() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[420px] w-full p-8 space-y-4">
+      <div className="relative w-12 h-12">
+        <div className="absolute inset-0 rounded-full border-2 border-cyan-500/20 border-t-cyan-400 animate-spin" />
+        <div className="absolute inset-2 rounded-full border-2 border-emerald-500/20 border-b-emerald-400 animate-spin [animation-direction:reverse]" />
+      </div>
+      <div className="flex flex-col items-center gap-1.5 text-center">
+        <span className="text-xs font-mono font-bold text-cyan-300 uppercase tracking-widest animate-pulse">
+          Loading Quant Module...
+        </span>
+        <span className="text-[10px] text-slate-500 font-mono tracking-wider">
+          CHINTU AI QUANT WORKSPACE
+        </span>
+      </div>
+    </div>
+  );
+}
+
+class ViewErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('[ViewErrorBoundary] Module loading error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[350px] w-full p-6 bg-[#060c1c] border border-rose-500/30 rounded-2xl text-center space-y-3">
+          <div className="w-10 h-10 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 font-bold text-base">
+            !
+          </div>
+          <h3 className="text-sm font-bold text-slate-100">Failed to Load View Module</h3>
+          <p className="text-xs text-slate-400 max-w-md">
+            {this.state.error?.message || 'An error occurred while dynamically loading this view. Please try again.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="px-4 py-1.5 rounded-lg text-xs font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-500/30 transition-all cursor-pointer"
+          >
+            Retry Loading
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function App() {
   // Navigation State
@@ -293,51 +352,47 @@ export default function App() {
             if (data.type === 'TRADE_CONFIRMATION' && data.trade) {
               const trade = data.trade;
 
-              // Gating 1: Disconnected Broker Check
-              // Strictly reject any trade executions if no broker is actively connected
-              const isBrokerLive = brokerConnectionsRef.current.some((b) => b.status === 'Connected');
-              if (!isBrokerLive) {
-                console.log('[Execution Blocked] No live broker connected. Trade ignored.');
-                return;
-              }
-
-              // Gating 2: Per-Bot Status & Capital Allocation Check
-              const currentBots = botsRef.current;
-              const matchedBot = currentBots.find((b) => {
-                const bIdStr = `bot ${b.id}`.toLowerCase();
-                const bNameStr = b.name.toLowerCase();
-                const tradeBotStr = (trade.bot || '').toLowerCase();
-                return tradeBotStr === bIdStr || tradeBotStr === bNameStr || tradeBotStr.includes(bIdStr) || tradeBotStr.includes(bNameStr);
-              });
-
-              // If bot is not found, or not RUNNING, or allocatedCapital <= 0, suppress execution!
-              // The bot still computed consensus signals, but execution is blocked.
-              if (!matchedBot || matchedBot.status !== 'RUNNING' || (Number(matchedBot.allocatedCapital) || 0) <= 0) {
-                console.log(`[Consensus Only] Bot ${trade.bot} trade suppressed (Status: ${matchedBot?.status}, Capital: ₹${matchedBot?.allocatedCapital || 0}).`);
+              // Validate event schema safely to prevent rendering crashes
+              if (!trade.symbol || !trade.action) {
+                console.warn('[WebSocket] Malformed TRADE_CONFIRMATION payload ignored:', trade);
                 return;
               }
 
               // Play audio chime
-              if (trade.action === 'BUY') {
-                soundEngine.playBuyChime();
-              } else {
-                soundEngine.playSellChime();
+              try {
+                if (trade.action === 'BUY') {
+                  soundEngine.playBuyChime();
+                } else {
+                  soundEngine.playSellChime();
+                }
+              } catch (soundErr) {
+                console.warn('[Audio] Failed to play chime:', soundErr);
               }
 
               // Voice Event Announcement
-              voiceAssistant.announceTrade(trade);
+              try {
+                voiceAssistant.announceTrade(trade);
+              } catch (voiceErr) {
+                console.warn('[Voice] Failed to announce trade:', voiceErr);
+              }
 
-              // Update Recent Trades
-              setRecentTrades((prev) => [trade, ...prev.slice(0, 9)]);
+              // Update Recent Trades with deduplication (by id or orderId)
+              setRecentTrades((prev) => {
+                const incomingKey = trade.id || trade.orderId;
+                if (incomingKey && prev.some((t) => (t.id && t.id === incomingKey) || (t.orderId && t.orderId === incomingKey))) {
+                  return prev;
+                }
+                return [trade, ...prev.slice(0, 9)];
+              });
 
               // Update Notifications
               setNotifications((prev) => [
                 {
-                  id: trade.id || Date.now(),
-                  title: `${trade.bot} Trade Confirmation`,
-                  message: `${trade.action} fill for ${trade.qty}x ${trade.symbol} (${trade.segment}) @ ₹${trade.price}`,
-                  time: trade.time,
-                  type: trade.action.toLowerCase()
+                  id: trade.id || trade.orderId || Date.now(),
+                  title: `${trade.bot || 'Fleet'} Trade Confirmation`,
+                  message: `${trade.action} fill for ${trade.qty || 1}x ${trade.symbol} (${trade.segment || 'NSE'}) @ ₹${trade.price || 0}`,
+                  time: trade.time || new Date().toLocaleTimeString('en-IN'),
+                  type: (trade.action || '').toLowerCase()
                 },
                 ...prev.slice(0, 8)
               ]);
@@ -477,53 +532,79 @@ export default function App() {
     runBootHealthCheck();
   }, []);
 
-  // Internal dynamic ticking fallback simulation
+  // Connect frontend to backend bot scheduler & performance endpoints
   useEffect(() => {
-    if (!simulationEnabled || !allBotsRunning) return;
-    const isBrokerLive = brokerConnections.some((b) => b.status === 'Connected');
-    if (!isBrokerLive) return; // Strictly no fake trading/fluctuations if disconnected
+    let isMounted = true;
 
-    const interval = setInterval(() => {
-      // 1. Ticker price micro-fluctuations
-      setTickers((prevTickers) =>
-        prevTickers.map((ticker) => {
-          const delta = (Math.random() - 0.48) * (ticker.price > 1000 ? 3.5 : 0.04);
-          const newPrice = Math.max(1, ticker.price + delta);
-          const newChange = ticker.change + delta;
-          const newPct = (newChange / (newPrice - newChange)) * 100;
-          return {
-            ...ticker,
-            price: Number(newPrice.toFixed(2)),
-            change: Number(newChange.toFixed(2)),
-            changePercent: Number(newPct.toFixed(2)),
-          };
-        })
-      );
+    const fetchBotStatuses = async () => {
+      try {
+        const [statusRes, perfRes] = await Promise.all([
+          apiFetch('/api/bots/status').catch(() => null),
+          apiFetch('/api/bots/highest-profit').catch(() => null)
+        ]);
 
-      // 2. Micro-updates to 1 or 2 bot prices & PnL
-      setBots((prevBots) => {
-        const randomIndex = Math.floor(Math.random() * prevBots.length);
-        return prevBots.map((b, idx) => {
-          if (idx !== randomIndex && Math.random() > 0.4) return b;
-          const priceDelta = (Math.random() - 0.47) * (b.price * 0.0008);
-          const newPrice = Number((b.price + priceDelta).toFixed(2));
-          const pnlDelta = Number(((Math.random() - 0.45) * 8.5).toFixed(2));
-          const newPnl = Number((b.pnlToday + pnlDelta).toFixed(2));
+        if (!isMounted) return;
 
-          const updatedSparkline = [...b.sparklineData.slice(1), newPrice];
+        if (statusRes && Array.isArray(statusRes.bots)) {
+          const perfMap = {};
+          if (perfRes && Array.isArray(perfRes.bot_rankings)) {
+            perfRes.bot_rankings.forEach((r) => {
+              perfMap[r.bot_id] = r;
+            });
+          }
 
-          return {
-            ...b,
-            price: newPrice,
-            pnlToday: newPnl,
-            sparklineData: updatedSparkline,
-          };
-        });
-      });
-    }, 2000);
+          setBots((prevBots) => {
+            return prevBots.map((b) => {
+              const backendBot = statusRes.bots.find((s) => s.bot_id === b.id);
+              if (!backendBot) return b;
 
-    return () => clearInterval(interval);
-  }, [simulationEnabled, allBotsRunning, wsConnected, brokerConnections]);
+              const perf = perfMap[b.id];
+              const pnl = perf ? perf.net_pnl : (b.pnlToday || 0);
+              const winRate = perf ? perf.win_rate : (b.winRate || 0);
+              const trades = perf ? perf.total_trades : (b.trades || 0);
+              const verifiedAuthenticTrades = perf ? Number(perf.verified_authentic_trades || 0) : 0;
+              const syntheticTrades = perf ? Number(perf.synthetic_trades || 0) : 0;
+              const isQualified = perf ? Boolean(perf.is_qualified) : false;
+              const isLiveEligible = perf ? Boolean(perf.is_live_allocation_eligible) : false;
+              const disqualificationReason = perf ? perf.disqualification_reason : null;
+              const isHealthy = backendBot.data_healthy;
+              const isReady = backendBot.strategy_ready;
+              const lastPrice = backendBot.last_tick_price || b.price;
+
+              return {
+                ...b,
+                price: lastPrice,
+                pnlToday: pnl,
+                winRate: winRate,
+                trades: trades,
+                verifiedAuthenticTrades,
+                syntheticTrades,
+                isQualified,
+                isLiveEligible,
+                disqualificationReason,
+                dataHealthy: isHealthy,
+                strategyReady: isReady,
+                dataReadiness: backendBot.data_readiness,
+                workerRunning: backendBot.worker_running,
+                status: backendBot.worker_running ? 'RUNNING' : 'STOPPED'
+              };
+            });
+          });
+        }
+      } catch (err) {
+        // Backend offline: preserve state without synthesizing random fluctuations
+      }
+    };
+
+    fetchBotStatuses();
+    const botPollInterval = setInterval(fetchBotStatuses, 4000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(botPollInterval);
+    };
+  }, []);
+
 
   // Global Start/Stop All Bots
   const handleStartAllBots = () => {
@@ -621,7 +702,9 @@ export default function App() {
 
         {/* 3. Main Center Workspace */}
         <main className="flex-1 p-3.5 space-y-3.5 overflow-x-hidden min-w-0 pb-24 md:pb-3.5">
-          {/* Main Dashboard View */}
+          <ViewErrorBoundary>
+            <Suspense fallback={<ViewLoadingFallback />}>
+              {/* Main Dashboard View */}
           {activeTab === 'dashboard' && (
             <>
               {/* Bot Decision Network (Mesh Hub) */}
@@ -736,6 +819,9 @@ export default function App() {
             <MarketWatchView tickers={tickers} bots={bots} />
           )}
 
+          {/* Dedicated View: Strategy Library & Importer */}
+          {activeTab === 'strategy-library' && <StrategyLibraryView />}
+
           {/* Dedicated View: Strategy Builder */}
           {activeTab === 'strategy-builder' && <StrategyBuilderView />}
 
@@ -780,6 +866,8 @@ export default function App() {
               setSimulationEnabled={setSimulationEnabled}
             />
           )}
+            </Suspense>
+          </ViewErrorBoundary>
         </main>
       </div>
 
@@ -793,47 +881,78 @@ export default function App() {
             setSelectedBotForSkillsId(botId);
             setActiveTab('bot-skills');
           }}
-          onManualTrigger={(bot, action, qty) => {
-            const isBrokerLive = brokerConnections.some((b) => b.status === 'Connected');
-            if (!isBrokerLive) {
-              alert('Order Blocked: No active broker connected. Please authenticate in Broker Accounts.');
-              return;
+          onManualTrigger={async (bot, action, qty) => {
+            // In LIVE mode, broker connection is required
+            if (executionMode === 'LIVE') {
+              const isBrokerLive = brokerConnections.some((b) => b.status === 'Connected');
+              if (!isBrokerLive) {
+                const errMsg = 'Order Blocked: No active broker connected for LIVE trading. Please authenticate in Broker Accounts.';
+                alert(errMsg);
+                return { success: false, error: errMsg };
+              }
             }
 
+            // Capital and status check
             if (bot.status !== 'RUNNING' || (Number(bot.allocatedCapital) || 0) <= 0) {
-              alert(`Order Blocked: ${bot.name} is currently ${bot.status} with ₹${bot.allocatedCapital || 0} capital. Please allocate capital and start the bot in Risk Management.`);
-              return;
+              const errMsg = `Order Blocked: ${bot.name} is currently ${bot.status} with ₹${bot.allocatedCapital || 0} capital. Please allocate capital and start the bot in Risk Management.`;
+              alert(errMsg);
+              return { success: false, error: errMsg };
             }
 
-            const now = new Date();
-            const ms = String(now.getMilliseconds()).padStart(3, '0');
-            const timeString = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}.${ms}`;
+            const sym = bot.tradingsymbol || bot.assetSymbol || bot.asset || 'NIFTY';
             const seg =
-              bot.asset.includes('CE') || bot.asset.includes('FUT') || bot.asset.includes('NIFTY')
+              bot.segment ||
+              (bot.asset.includes('CE') || bot.asset.includes('FUT') || bot.asset.includes('NIFTY')
                 ? 'NSE F&O Options'
                 : bot.asset.includes('GOLD') || bot.asset.includes('SILVER') || bot.asset.includes('CRUDE')
                 ? 'MCX Commodity'
                 : bot.asset.includes('BTC')
                 ? 'Crypto Perpetual'
-                : 'NSE Equity';
+                : 'NSE Equity');
 
-            setRecentTrades((prev) => [
-              {
-                id: Date.now(),
-                time: timeString,
-                bot: `Bot ${bot.id}`,
-                symbol: bot.asset,
+            const orderQty = parseInt(qty, 10) || bot.lotSize || 1;
+            const orderPrice = parseFloat(bot.price) || 0.0;
+
+            try {
+              const payload = {
+                bot: bot.name || `Bot ${bot.id}`,
+                symbol: sym,
+                action: action.toUpperCase(),
+                qty: orderQty,
+                price: orderPrice,
                 segment: seg,
-                action: action,
-                price: bot.price,
-                qty: qty,
-                pnl: '+₹0.00',
-                isPositive: true
-              },
-              ...prev
-            ]);
-            if (action === 'BUY') soundEngine.playBuyChime();
-            else soundEngine.playSellChime();
+                variety: 'NORMAL',
+                ordertype: orderPrice > 0 ? 'LIMIT' : 'MARKET',
+                producttype: seg.includes('F&O') || seg.includes('Options') || seg.includes('Futures') ? 'CARRYFORWARD' : 'INTRADAY'
+              };
+
+              const res = await apiFetch('/api/order/place', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+              });
+
+              if (res && res.status === 'success') {
+                if (action === 'BUY') soundEngine.playBuyChime();
+                else soundEngine.playSellChime();
+                return {
+                  success: true,
+                  order: res.order,
+                  message: `Manual ${action} order confirmed: ${orderQty}x ${sym} @ ₹${orderPrice || 'MKT'}`
+                };
+              } else {
+                const errMsg = (res && res.message) || (res && res.result && res.result.error) || 'Order placement rejected by backend RMS';
+                return {
+                  success: false,
+                  error: errMsg
+                };
+              }
+            } catch (err) {
+              const errMsg = err.message || 'Network error dispatching order';
+              return {
+                success: false,
+                error: errMsg
+              };
+            }
           }}
         />
       )}

@@ -1,0 +1,28 @@
+{
+  "audit_version": "CHINTU_INDEPENDENT_SAFETY_AUDIT_v2.0",
+  "total_records_audited": 759,
+  "classification_summary": {
+    "level_1_clean_total": 267,
+    "level_1_breakdown": {
+      "synthetic_fixed_target_replays": 207,
+      "synthetic_telemetry_tests": 48,
+      "anomalous_stock_options_mislabeled": 8,
+      "variable_pnl_organic_trades": 4
+    },
+    "level_2_quarantined_unresolved": 102,
+    "level_3_synthetic_stress_tests": 4,
+    "level_4_excluded_non_closed": 386
+  },
+  "output_artifacts": {
+    "independent_register_csv": {
+      "path": "c:\\Users\\veere\\Desktop\\new\\audit_output\\INDEPENDENT_TRADE_AUDIT_REGISTER.csv",
+      "sha256": "B5499909B1D2C3C242AFCAEA4244AD657F829327052F4E83F8D0CCAE9530A3BC",
+      "size_bytes": 200981
+    },
+    "independent_audit_report_md": {
+      "path": "audit_output/INDEPENDENT_AUDIT_REPORT.md",
+      "sha256": "6BF0704A23FEFCB66ECCADB8947E745F86BC2B2D68D8904B375389F929CA73D4",
+      "size_bytes": 9380
+    }
+  }
+}

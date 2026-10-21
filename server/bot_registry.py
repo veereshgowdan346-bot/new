@@ -109,8 +109,8 @@ CANONICAL_BOT_REGISTRY: Dict[int, Dict[str, Any]] = {
             "max_capital": 35000.0,
             "max_drawdown_pct": 3.0
         },
-        "data_readiness": "READY",
-        "status": "RUNNING"
+        "data_readiness": "DISCREPANCY_BLOCKED",
+        "status": "PAUSED"
     },
     5: {
         "id": 5,

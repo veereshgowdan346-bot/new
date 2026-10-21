@@ -1,0 +1,48 @@
+{
+  "manifest_version": "3.0.0",
+  "audit_phase": "Phase 3 - Independent Verification & Authentic Paper-Feed Gate",
+  "generated_at": "2026-10-18T10:50:35.476133",
+  "production_database": {
+    "path": "server/chintu_memory.db",
+    "sha256": "262F1C0F78ABE0E00555B97FC5F7F27DFA57C345D5F22FA084C4E504AE95FE33",
+    "size_bytes": 1306624
+  },
+  "artifacts": [
+    {
+      "file_name": "INDEPENDENT_CODE_REVIEW.md",
+      "relative_path": "audit_output/phase3/INDEPENDENT_CODE_REVIEW.md",
+      "size_bytes": 8477,
+      "sha256": "ACAAF233AA878B21DE2C98E2722EDDE84D5F584DC8AAA676CC4D19666DA4E988"
+    },
+    {
+      "file_name": "HISTORICAL_PROVENANCE_RECONCILIATION.csv",
+      "relative_path": "audit_output/phase3/HISTORICAL_PROVENANCE_RECONCILIATION.csv",
+      "size_bytes": 125880,
+      "sha256": "9E18DECA5D27BE90B503FE87D7DCB75CFCF35049134A1A2DCB650231C1FE3409"
+    },
+    {
+      "file_name": "AUTHENTIC_FEED_READINESS.md",
+      "relative_path": "audit_output/phase3/AUTHENTIC_FEED_READINESS.md",
+      "size_bytes": 3422,
+      "sha256": "681C57F5C9CB4B58D10380B38D692A7D198B07067727CBADB65033C47855EA63"
+    },
+    {
+      "file_name": "ACCOUNTING_INVARIANT_CHECK.json",
+      "relative_path": "audit_output/phase3/ACCOUNTING_INVARIANT_CHECK.json",
+      "size_bytes": 3037,
+      "sha256": "47E31FC564E80E215C73A35F6AC0A4EC34441783D646823B7475222A735D2F8E"
+    },
+    {
+      "file_name": "BOT_QUALIFICATION_GATE_TESTS.md",
+      "relative_path": "audit_output/phase3/BOT_QUALIFICATION_GATE_TESTS.md",
+      "size_bytes": 4945,
+      "sha256": "3C5B5FC14874B76DE4F0E5181B99A15DFA270B769C33F87FD0150113336EFAB4"
+    },
+    {
+      "file_name": "TEST_AND_BUILD_EVIDENCE.md",
+      "relative_path": "audit_output/phase3/TEST_AND_BUILD_EVIDENCE.md",
+      "size_bytes": 3688,
+      "sha256": "536E3C9A251874BF271A2F7360E506F9C90C037C766D93A35CDE189BEDD14285"
+    }
+  ]
+}

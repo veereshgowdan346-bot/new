@@ -1,0 +1,57 @@
+{
+  "phase": "PHASE_6_MASTER_BRAIN_INTEGRATION",
+  "audit_date": "2026-10-18T13:14:00+05:30",
+  "system_mode": "PAPER",
+  "live_trading_eligible": false,
+  "live_gate_status": "BLOCKED",
+  "database": {
+    "path": "server/chintu_memory.db",
+    "size_bytes": 1306624,
+    "sha256": "441898d996139e2f407e864b8ceba516d58044dff441e2fee44afd981570cc78",
+    "records": {
+      "trade_memory": 759,
+      "orders_memory": 1078,
+      "positions_memory": 19,
+      "system_config": 27,
+      "rms_audit_log": 23
+    },
+    "mutations_during_audit": 0,
+    "isolation_verified": true
+  },
+  "canonical_bots_count": 14,
+  "integrated_subsystems": [
+    "server/master_brain.py",
+    "server/multi_market_scanner.py",
+    "server/centralized_risk_manager.py",
+    "server/low_latency_event_pipeline.py",
+    "server/regulatory_charges.py",
+    "server/execution_engine.py",
+    "server/python_stream_server.py",
+    "src/components/views/BotsMonitorView.jsx"
+  ],
+  "verification_evidence": {
+    "phase6_tests_passed": 19,
+    "total_regression_tests_passed": 381,
+    "tests_failed": 0,
+    "test_execution_time_seconds": 47.0,
+    "frontend_build_status": "SUCCESS",
+    "frontend_build_time_seconds": 1.78,
+    "median_pipeline_latency_ms": 3.17,
+    "p95_pipeline_latency_ms": 6.18,
+    "p99_pipeline_latency_ms": 9.77
+  },
+  "delivered_reports": [
+    "audit_output/phase6/implementation_plan.md",
+    "audit_output/phase6/feature_matrix.md",
+    "audit_output/phase6/master_brain_architecture.md",
+    "audit_output/phase6/market_support_validation.md",
+    "audit_output/phase6/profit_cost_validation.md",
+    "audit_output/phase6/risk_safety_report.md",
+    "audit_output/phase6/latency_benchmarks.md",
+    "audit_output/phase6/test_results.md",
+    "audit_output/phase6/database_safety_report.md",
+    "audit_output/phase6/live_readiness_report.md",
+    "audit_output/phase6/final_report.md"
+  ]
+}
+

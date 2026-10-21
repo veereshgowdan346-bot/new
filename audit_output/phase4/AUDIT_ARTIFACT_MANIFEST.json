@@ -1,0 +1,31 @@
+{
+  "manifest_phase": "Phase 4 - Authentic Market Feed Validation & Paper-Only Execution Audit",
+  "generated_at": "2026-10-18T11:40:00+05:30",
+  "artifacts": {
+    "AUTHENTIC_FEED_PREFLIGHT.json": {
+      "relative_path": "audit_output/phase4/AUTHENTIC_FEED_PREFLIGHT.json",
+      "file_size_bytes": 2656,
+      "sha256_checksum": "EDDD10A4D43A452EE9774B25BDBC75B95A5938EBA9D3C1D8C3E9503FFC2CCE39"
+    },
+    "BOT_RANKING_AND_DASHBOARD_AUDIT.md": {
+      "relative_path": "audit_output/phase4/BOT_RANKING_AND_DASHBOARD_AUDIT.md",
+      "file_size_bytes": 6957,
+      "sha256_checksum": "7CCAF33FD36888DF7D1EE80F35F6405BDE766220F9274E5032E89ABC32D731E2"
+    },
+    "PAPER_EXECUTION_ACCOUNTING_CHECKS.json": {
+      "relative_path": "audit_output/phase4/PAPER_EXECUTION_ACCOUNTING_CHECKS.json",
+      "file_size_bytes": 4692,
+      "sha256_checksum": "5CB416894DC032427A010B8D11D6F83A1F60F27659B8C3E300EE499941F6D4C4"
+    },
+    "PHASE4_INDEPENDENT_REVIEW.md": {
+      "relative_path": "audit_output/phase4/PHASE4_INDEPENDENT_REVIEW.md",
+      "file_size_bytes": 8854,
+      "sha256_checksum": "F20F834131CEE9CBE9795D564262C79ABD54C3A60333CB832DDB132042170901"
+    },
+    "TEST_AND_BUILD_EVIDENCE.md": {
+      "relative_path": "audit_output/phase4/TEST_AND_BUILD_EVIDENCE.md",
+      "file_size_bytes": 6828,
+      "sha256_checksum": "F4B833A626458A232212232A774500BF86FA6DDBC83642B8D8C924F7C15A1D05"
+    }
+  }
+}

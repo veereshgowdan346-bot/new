@@ -1,0 +1,50 @@
+{
+  "manifest_version": "2.0.0",
+  "audit_phase": "Phase 2 - Synthetic Trade Contamination Fix & Authentic Paper-Trading Validation",
+  "generated_at": "2026-10-18T10:20:00",
+  "artifacts": {
+    "TRADE_PROVENANCE_AUDIT.md": {
+      "sha256": "58b6efb5fd986f48ae6799d4b31d897b03028d1857c6b181c8a77465d0fad3b6",
+      "size_bytes": 7771,
+      "path": "audit_output/phase2\\TRADE_PROVENANCE_AUDIT.md"
+    },
+    "PAPER_FEED_VALIDATION.md": {
+      "sha256": "da5ff14eed79da691d9d5a9446685b184ccdee6dd2bc6fe3bb59deb63e27587c",
+      "size_bytes": 6267,
+      "path": "audit_output/phase2\\PAPER_FEED_VALIDATION.md"
+    },
+    "BOT_PERFORMANCE_BY_PROVENANCE.csv": {
+      "sha256": "bf3eb48c3647b207e421803e3b105132451a8ef65e2a3e445545a23ba3c6925d",
+      "size_bytes": 1323,
+      "path": "audit_output/phase2\\BOT_PERFORMANCE_BY_PROVENANCE.csv"
+    },
+    "ACCOUNTING_RECONCILIATION.json": {
+      "sha256": "aa150180a310801a888f05253da82ac81d780f41cb297c73de26296025910f11",
+      "size_bytes": 4478,
+      "path": "audit_output/phase2\\ACCOUNTING_RECONCILIATION.json"
+    },
+    "TEST_AND_BUILD_EVIDENCE.md": {
+      "sha256": "a635d26dd666c411ef168f08c2ef535e33eeff6f32743eddf8ea172cc9c70c6a",
+      "size_bytes": 4061,
+      "path": "audit_output/phase2\\TEST_AND_BUILD_EVIDENCE.md"
+    },
+    "chintu_memory.db": {
+      "sha256": "262f1c0f78abe0e00555b97fc5f7f27dfa57c345d5f22fa084c4e504ae95fe33",
+      "size_bytes": 1306624,
+      "path": "server/chintu_memory.db",
+      "description": "Authoritative Production Database (Preserved Read-Only)"
+    },
+    "chintu_memory_pre_phase2.db": {
+      "sha256": "262f1c0f78abe0e00555b97fc5f7f27dfa57c345d5f22fa084c4e504ae95fe33",
+      "size_bytes": 1306624,
+      "path": "backups/chintu_memory_pre_phase2.db",
+      "description": "Verified Pre-Phase2 Immutable Backup"
+    },
+    "exploratory_paper.db": {
+      "sha256": "a7d706619e061faeab2a7f0c5d2190970530ec813ed4a07717b6d27e89363b39",
+      "size_bytes": 131072,
+      "path": "server/data/exploratory_paper.db",
+      "description": "Exploratory Paper Session Database (65 Organic Trades)"
+    }
+  }
+}

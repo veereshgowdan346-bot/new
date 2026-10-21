@@ -1,0 +1,67 @@
+{
+  "preflight_phase": "Phase 5 - Authentic Market Feed Preflight & Gating Audit",
+  "timestamp_ist": "2026-10-18 11:56:00 IST",
+  "iso_timestamp": "2026-10-18T11:56:00+05:30",
+  "execution_safety_mode": "PAPER",
+  "live_trading_locked": true,
+  "credential_availability": {
+    "status": "MISSING_CREDENTIALS",
+    "has_api_key": false,
+    "has_client_id": false,
+    "has_pin": false,
+    "has_totp_secret": false,
+    "missing_configurations": [
+      "ANGEL_API_KEY",
+      "ANGEL_CLIENT_ID",
+      "ANGEL_PIN",
+      "ANGEL_TOTP_SECRET"
+    ],
+    "sources_inspected": [
+      ".env",
+      "environment_variables",
+      "server/memory_db (system_config)"
+    ],
+    "security_compliance": "Zero plaintext secrets logged, exposed, or committed"
+  },
+  "exchange_market_session": {
+    "weekday": "Sunday",
+    "is_weekend": true,
+    "session_status": "MARKET_CLOSED",
+    "is_open": false,
+    "nse_cm_open": false,
+    "nse_fo_open": false,
+    "mcx_open": false,
+    "reason": "Exchange market is closed on Sunday",
+    "regular_trading_window": "Monday-Friday 09:15 - 15:30 IST (Equity/F&O), 09:00 - 23:30 IST (MCX)"
+  },
+  "broker_sdk_connection_status": {
+    "sdk_smartconnect_installed": true,
+    "sdk_smartwebsocket_v2_installed": true,
+    "connection_state": "DISCONNECTED",
+    "authenticated_session_active": false,
+    "jwt_token_present": false,
+    "feed_token_present": false,
+    "active_websocket_instance": false
+  },
+  "market_feed_security_thresholds": {
+    "maximum_tick_age_seconds": 15.0,
+    "future_timestamp_tolerance_seconds": 5.0,
+    "minimum_binary_packet_bytes": 51,
+    "cds_price_scaling_divisor": 10000000,
+    "standard_price_scaling_divisor": 100,
+    "reconnection_policy": {
+      "strategy": "bounded_exponential_backoff",
+      "delays_seconds": [2.0, 4.0, 8.0, 16.0, 32.0],
+      "max_attempts": 5,
+      "terminal_action": "fail_closed_disconnect"
+    },
+    "unknown_token_policy": "discard_and_fail_closed",
+    "invalid_or_nan_price_policy": "discard_and_fail_closed"
+  },
+  "preflight_verdict": {
+    "paper_feed_ready": "BLOCKED",
+    "reason": "SmartAPI broker credentials unconfigured and exchange market closed on Sunday",
+    "action_required": "Provide valid credentials during regular trading hours (Mon-Fri 09:15 - 15:30 IST) to test authentic WebSocket streaming"
+  }
+}
+

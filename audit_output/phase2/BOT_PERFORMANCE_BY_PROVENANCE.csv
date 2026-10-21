@@ -1,0 +1,15 @@
+bot_id,bot_name,asset,total_trades,verified_authentic_trades,synthetic_trades,authentic_win_rate,synthetic_win_rate,authentic_gross_pnl,authentic_charges,authentic_net_pnl,synthetic_gross_pnl,synthetic_charges,synthetic_net_pnl,live_allocation_eligible
+1,Scalper Bot,NIFTY 50,5,0,5,N/A,60.0%,0.0,0.0,0.0,413.0,298.13,114.87,False
+2,EMA Trend Bot,BANKNIFTY,5,0,5,N/A,80.0%,0.0,0.0,0.0,2680.25,1345.66,1334.59,False
+3,RSI Reversal Bot,RELIANCE,5,0,5,N/A,20.0%,0.0,0.0,0.0,-1449.3,317.15,-1766.45,False
+4,Breakout Bot,TATA MOTORS,5,0,5,N/A,60.0%,0.0,0.0,0.0,511.2,269.08,242.12,False
+5,Mean Reversion,FINNIFTY,4,0,4,N/A,50.0%,0.0,0.0,0.0,168.75,224.54,-55.79,False
+6,VWAP Momentum,HDFCBANK,4,0,4,N/A,75.0%,0.0,0.0,0.0,1248.8,235.77,1013.03,False
+7,Volume Spike Bot,INFY,4,0,4,N/A,50.0%,0.0,0.0,0.0,217.2,349.19,-131.99,False
+8,SuperTrend Wave,CRUDE OIL,4,0,4,N/A,75.0%,0.0,0.0,0.0,490.8,334.74,156.06,False
+9,Bollinger Band Squeeze,GOLD (XAUUSD),4,0,4,N/A,50.0%,0.0,0.0,0.0,548.5,337.47,211.03,False
+10,Pivot Point Reversal,SILVER (XAGUSD),5,0,5,N/A,60.0%,0.0,0.0,0.0,435.5,402.63,32.87,False
+11,Multi-Timeframe Confluence,USDINR,5,0,5,N/A,60.0%,0.0,0.0,0.0,160.78,55.51,105.27,False
+12,Options Gamma Scalper,NIFTY OPTIONS,5,0,5,N/A,60.0%,0.0,0.0,0.0,188.62,301.91,-113.29,False
+13,Order Flow Imbalance,BANKNIFTY OPTIONS,5,0,5,N/A,40.0%,0.0,0.0,0.0,-8.44,314.82,-323.26,False
+14,Risk Neutral Delta Hedger,SENSEX,5,0,5,N/A,80.0%,0.0,0.0,0.0,1969.04,534.6,1434.44,False

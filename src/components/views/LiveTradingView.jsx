@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Activity, ArrowUpRight, ArrowDownRight, Zap, RefreshCw, Layers, Radio, ShieldAlert } from 'lucide-react';
+import { apiFetch } from '../../utils/api';
 
 export default function LiveTradingView({
   candlestickData = [],
@@ -15,6 +16,8 @@ export default function LiveTradingView({
   const [priceInput, setPriceInput] = useState('24730.50');
   const [qtyInput, setQtyInput] = useState('50');
   const [orderSuccess, setOrderSuccess] = useState('');
+  const [orderError, setOrderError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Check if any broker is live connected
   const isAnyBrokerConnected = brokerConnections.some((b) => b.status === 'Connected');
@@ -30,17 +33,48 @@ export default function LiveTradingView({
   const bids = [];
   const asks = [];
 
-  const handlePlaceOrder = (e) => {
+  const handlePlaceOrder = async (e) => {
     e.preventDefault();
-    if (isPaper) {
-      setOrderSuccess(`Order Transmitted (PAPER SIMULATION): ${side} ${qtyInput}x ${selectedAsset} @ ₹${priceInput}`);
-    } else if (!isAnyBrokerConnected) {
-      setOrderSuccess('Notice: Broker disconnected in LIVE mode. Authenticate Angel One in Broker Accounts first.');
-    } else {
-      setOrderSuccess(`Live Order Dispatched to Broker DMA: ${side} ${qtyInput}x ${selectedAsset} @ ₹${priceInput}`);
+    setOrderSuccess('');
+    setOrderError('');
+    setIsSubmitting(true);
+
+    try {
+      const payload = {
+        symbol: selectedAsset,
+        action: side,
+        qty: parseInt(qtyNum, 10),
+        price: priceNum,
+        bot: "Live Terminal DMA",
+        variety: "NORMAL",
+        ordertype: orderType,
+        producttype: "INTRADAY"
+      };
+
+      const res = await apiFetch('/api/order/place', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+
+      if (res && res.status === 'success') {
+        const orderId = res.result?.orderId || res.orderId || 'CONFIRMED';
+        const mode = res.result?.mode || executionMode;
+        setOrderSuccess(`✅ Order Executed (${mode}): ${side} ${qtyNum}x ${selectedAsset} @ ₹${priceNum} (Order ID: ${orderId})`);
+      } else {
+        const errMsg = res?.message || res?.result?.error || 'Order rejected by Risk Management System.';
+        setOrderError(`❌ Order Rejected: ${errMsg}`);
+      }
+    } catch (err) {
+      setOrderError(`❌ Order Transmission Failed: Backend service offline (${err.message || 'Connection error'}).`);
+    } finally {
+      setIsSubmitting(false);
+      setTimeout(() => {
+        setOrderSuccess('');
+        setOrderError('');
+      }, 6000);
     }
-    setTimeout(() => setOrderSuccess(''), 4500);
   };
+
 
   return (
     <div className="space-y-4 animate-fadeIn select-none">
@@ -69,10 +103,17 @@ export default function LiveTradingView({
       </div>
 
       {orderSuccess && (
-        <div className="bg-cyan-500/20 border border-cyan-500/60 text-cyan-300 px-4 py-2.5 rounded-xl text-xs font-bold font-mono shadow-[0_0_15px_rgba(0,240,255,0.3)] animate-fadeIn">
+        <div className="bg-emerald-500/20 border border-emerald-500/60 text-emerald-300 px-4 py-2.5 rounded-xl text-xs font-bold font-mono shadow-[0_0_15px_rgba(16,185,129,0.3)] animate-fadeIn">
           {orderSuccess}
         </div>
       )}
+
+      {orderError && (
+        <div className="bg-rose-500/20 border border-rose-500/60 text-rose-300 px-4 py-2.5 rounded-xl text-xs font-bold font-mono shadow-[0_0_15px_rgba(244,63,94,0.3)] animate-fadeIn">
+          {orderError}
+        </div>
+      )}
+
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Left: Quick Order Entry Pad */}
@@ -199,15 +240,19 @@ export default function LiveTradingView({
 
               <button
                 type="submit"
-                className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer ${
+                disabled={isSubmitting}
+                className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all ${
+                  isSubmitting ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                } ${
                   side === 'BUY'
                     ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
                     : 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 border border-rose-500/60 shadow-[0_0_15px_rgba(244,63,94,0.3)]'
                 }`}
               >
-                <Zap className="w-4 h-4" />
-                <span>Transmit {side} Order</span>
+                <Zap className={`w-4 h-4 ${isSubmitting ? 'animate-spin' : ''}`} />
+                <span>{isSubmitting ? 'Transmitting Order...' : `Transmit ${side} Order`}</span>
               </button>
+
             </form>
           </div>
         </div>

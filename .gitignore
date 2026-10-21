@@ -11,6 +11,10 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
+.env.local
 
 # Editor directories and files
 .vscode/*
@@ -27,3 +31,6 @@ __pycache__/
 server/*.db
 *.db
 server/logs/
+server/data/*.json
+!server/data/scrip_master_meta.json
+scratch/

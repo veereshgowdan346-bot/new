@@ -168,11 +168,13 @@ export function evaluatePeerPermissionHandshake(botIdentifier, proposedAction = 
 
   const actionUpper = proposedAction.toUpperCase();
   const votes = peerBots.map((peer) => {
-    // Millisecond peer consensus model based on correlated market context
-    const peerPriceChange = marketState[peer.asset]?.change ?? (Math.random() - 0.42);
+    // Deterministic peer consensus based on authentic market state
+    const peerPriceChange = typeof marketState[peer.asset]?.change === 'number'
+      ? marketState[peer.asset].change
+      : 0.0;
     const peerIsBullish = peerPriceChange >= 0;
     const peerApproved = actionUpper === 'BUY' ? peerIsBullish : !peerIsBullish;
-    const confidence = Math.round(75 + Math.random() * 23);
+    const confidence = peerApproved ? 85 : 45;
 
     return {
       peerId: peer.id,
@@ -181,7 +183,7 @@ export function evaluatePeerPermissionHandshake(botIdentifier, proposedAction = 
       vote: peerApproved ? actionUpper : (actionUpper === 'BUY' ? 'SELL' : 'BUY'),
       approved: peerApproved,
       confidence: `${confidence}%`,
-      handshakeLatencyMs: Math.round(1 + Math.random() * 4) // 1-5ms peer latency
+      handshakeLatencyMs: 2 // 2ms deterministic IPC handshake
     };
   });
 

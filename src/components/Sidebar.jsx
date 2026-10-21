@@ -20,7 +20,8 @@ import {
   ExternalLink,
   Landmark,
   Sparkles,
-  Zap
+  Zap,
+  BookOpen
 } from 'lucide-react';
 
 export const navItems = [
@@ -28,6 +29,7 @@ export const navItems = [
   { id: 'bots-monitor', label: 'Bots Monitor', icon: Bot, count: 14 },
   { id: 'ai-commander', label: 'AI Commander (Jarvis)', icon: Sparkles, count: 'AI' },
   { id: 'bot-skills', label: 'Bot Skills Hub', icon: Zap, count: 14 },
+  { id: 'strategy-library', label: 'Strategy Library', icon: BookOpen },
   { id: 'broker-accounts', label: 'Broker Accounts', icon: Landmark, count: 4 },
   { id: 'decision-network', label: 'Decision Network', icon: Network },
   { id: 'live-trading', label: 'Live Trading', icon: Activity },

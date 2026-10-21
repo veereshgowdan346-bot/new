@@ -1,0 +1,46 @@
+{
+  "manifest_phase": "Phase 5 - Independent Verification, Database Forensics & Authentic-Feed Paper Trading",
+  "generated_at": "2026-10-18T12:03:30+05:30",
+  "artifacts": {
+    "AUTHENTIC_FEED_PREFLIGHT.json": {
+      "relative_path": "audit_output/phase5/AUTHENTIC_FEED_PREFLIGHT.json",
+      "file_size_bytes": 2336,
+      "sha256_checksum": "46ED4F299E291DA99AD92175DF8504627E95B9D0246E57BC09564E819E5E431E"
+    },
+    "BOT_RANKING_DASHBOARD_CONSISTENCY.md": {
+      "relative_path": "audit_output/phase5/BOT_RANKING_DASHBOARD_CONSISTENCY.md",
+      "file_size_bytes": 7940,
+      "sha256_checksum": "6DFEDD9797AA5B5C3890F639B522D75B280ABEF2B02A2362FAD042670F08E4DD"
+    },
+    "DATABASE_FORENSIC_COMPARISON.json": {
+      "relative_path": "audit_output/phase5/DATABASE_FORENSIC_COMPARISON.json",
+      "file_size_bytes": 110198,
+      "sha256_checksum": "521378F46C4624486274B8698537B9649E0F740674F43C4B17F1CA18D5F53F6E"
+    },
+    "EXECUTION_CALL_PATH_AUDIT.md": {
+      "relative_path": "audit_output/phase5/EXECUTION_CALL_PATH_AUDIT.md",
+      "file_size_bytes": 8620,
+      "sha256_checksum": "3350873D08F6CC3637B2143E4E379E9027BC7E0110E19E2B81F6C508F1F2C2C0"
+    },
+    "PAPER_ACCOUNTING_RECONCILIATION.json": {
+      "relative_path": "audit_output/phase5/PAPER_ACCOUNTING_RECONCILIATION.json",
+      "file_size_bytes": 4103,
+      "sha256_checksum": "0696D12A0E5373C9849DED3654848077910FC19A0EEF4F0A13F51BC064098C43"
+    },
+    "PAPER_SAFETY_TEST_EVIDENCE.md": {
+      "relative_path": "audit_output/phase5/PAPER_SAFETY_TEST_EVIDENCE.md",
+      "file_size_bytes": 6469,
+      "sha256_checksum": "7D5A7188DB806F19839FC25A0A9EB6EBAE3332B229A5813F274368C424EA8802"
+    },
+    "PHASE5_INDEPENDENT_REVIEW.md": {
+      "relative_path": "audit_output/phase5/PHASE5_INDEPENDENT_REVIEW.md",
+      "file_size_bytes": 11369,
+      "sha256_checksum": "A9636475FB240D70662BC3BAA64379BFA124EDB5161F5E1E351E5FE22368DABF"
+    },
+    "TEST_AND_BUILD_EVIDENCE.md": {
+      "relative_path": "audit_output/phase5/TEST_AND_BUILD_EVIDENCE.md",
+      "file_size_bytes": 7169,
+      "sha256_checksum": "8CF48C3EAFE622263F41A72184377153062177569C3A2AE535AFC6F889AEF73D"
+    }
+  }
+}

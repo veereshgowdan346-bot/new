@@ -22,6 +22,36 @@ if SERVER_DIR not in sys.path:
     sys.path.insert(0, SERVER_DIR)
 
 import python_stream_server as pss
+import tempfile
+from server import memory_db
+
+TEMP_DB_PATH = None
+ORIG_DB_PATH = None
+
+def setUpModule():
+    global TEMP_DB_PATH, ORIG_DB_PATH
+    f = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+    TEMP_DB_PATH = f.name
+    f.close()
+    import memory_db as top_memory_db
+    ORIG_DB_PATH = memory_db.DB_PATH
+    memory_db.DB_PATH = TEMP_DB_PATH
+    top_memory_db.DB_PATH = TEMP_DB_PATH
+    pss.memory_db.DB_PATH = TEMP_DB_PATH
+    memory_db.init_db()
+
+def tearDownModule():
+    global TEMP_DB_PATH, ORIG_DB_PATH
+    import memory_db as top_memory_db
+    if ORIG_DB_PATH:
+        memory_db.DB_PATH = ORIG_DB_PATH
+        top_memory_db.DB_PATH = ORIG_DB_PATH
+        pss.memory_db.DB_PATH = ORIG_DB_PATH
+    if TEMP_DB_PATH and os.path.exists(TEMP_DB_PATH):
+        try:
+            os.unlink(TEMP_DB_PATH)
+        except Exception:
+            pass
 
 
 class TestPositionClosingCalculation(unittest.TestCase):

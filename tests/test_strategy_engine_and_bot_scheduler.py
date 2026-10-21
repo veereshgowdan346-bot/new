@@ -265,7 +265,22 @@ class TestBotSchedulerAndWorker(unittest.TestCase):
     """Tests autonomous background worker lifecycle and deduplication."""
 
     def setUp(self):
+        self.temp_db_file = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        self.temp_db_path = self.temp_db_file.name
+        self.temp_db_file.close()
+        self.orig_db_path = memory_db.DB_PATH
+        memory_db.DB_PATH = self.temp_db_path
+        memory_db.init_db()
+
         self.worker = BotWorker(1)
+
+    def tearDown(self):
+        memory_db.DB_PATH = self.orig_db_path
+        if os.path.exists(self.temp_db_path):
+            try:
+                os.unlink(self.temp_db_path)
+            except Exception:
+                pass
 
     def test_synthetic_data_rejected(self):
         synthetic_candle = {
@@ -495,6 +510,75 @@ class TestFastAPIBotEndpoints(unittest.TestCase):
         data = response.json()
         self.assertIn(data["status"], ["QUALIFIED", "NO_QUALIFIED_BOT"])
         self.assertIn("bot_rankings", data)
+
+
+class TestPhase2StrengthenedBots(unittest.TestCase):
+    """Tests Phase 2 enhancements: versioning, exit triggers, invalidation rules, authentic data paths."""
+
+    def test_signal_metadata_enrichment(self):
+        candles = generate_mock_candles(40, base_price=24000.0, trend=5.0)
+        res = evaluate_strategy(1, {"candles": candles})
+        self.assertEqual(res["strategy_version"], "2.3.0")
+        self.assertIn("direction", res)
+        self.assertIn(res["direction"], ["LONG", "SHORT", "HOLD", "EXIT", "DATA_UNAVAILABLE", "NONE"])
+        self.assertIsNotNone(res["signal_timestamp"])
+        self.assertIsNotNone(res["data_timestamp"])
+        self.assertIn("warmup_status", res)
+        self.assertTrue(res["warmup_status"]["is_warmed_up"])
+        self.assertIn("invalidation_rules", res)
+
+    def test_instrument_mismatch_rejection(self):
+        candles = generate_mock_candles(40)
+        # Bot 1 is NIFTY 50; pass CRUDE OIL symbol
+        res = evaluate_strategy(1, {"candles": candles, "symbol": "CRUDE OIL"})
+        self.assertEqual(res["status"], "INVALID_DATA")
+        self.assertEqual(res["decision"], "NO_TRADE")
+        self.assertIn("Instrument mismatch", res["reason"])
+
+    def test_active_position_exit_trigger(self):
+        # Generate bearish candles to trigger SELL on Bot 1
+        bearish_candles = generate_mock_candles(40, base_price=24000.0, trend=-30.0)
+        # Passing position_side="LONG" when strategy is bearish should yield EXIT
+        res = evaluate_strategy(1, {"candles": bearish_candles, "position_side": "LONG"})
+        if res["decision"] == "EXIT":
+            self.assertEqual(res["direction"], "EXIT")
+            self.assertIn("Exit LONG position", res["reason"])
+
+    def test_bots_12_to_14_authentic_evaluation(self):
+        # Bot 12: Options Gamma Scalper with genuine option Greeks
+        b12 = evaluate_strategy(12, {
+            "option_greeks": {"net_gamma_accel": 0.08, "delta_expansion": 0.15, "call_gamma": 0.04, "put_gamma": 0.01}
+        })
+        self.assertEqual(b12["status"], "DATA_READY")
+        self.assertEqual(b12["decision"], "BUY")
+        self.assertEqual(b12["direction"], "LONG")
+
+        # Bot 13: Order Flow Imbalance with genuine footprint depth
+        b13 = evaluate_strategy(13, {
+            "footprint_depth": {"delta_imbalance_ratio": 4.2, "sweep_volume": 1500.0}
+        })
+        self.assertEqual(b13["status"], "DATA_READY")
+        self.assertEqual(b13["decision"], "BUY")
+        self.assertEqual(b13["direction"], "LONG")
+
+        # Bot 14: Risk Neutral Delta Hedger with genuine multi-index beta
+        b14 = evaluate_strategy(14, {
+            "multi_index_beta": {"portfolio_beta": 1.35, "volatility_spike": 1.4}
+        })
+        self.assertEqual(b14["status"], "DATA_READY")
+        self.assertEqual(b14["decision"], "SELL")
+        self.assertEqual(b14["direction"], "SHORT")
+
+    def test_bot_worker_distinct_health_visibility(self):
+        worker = BotWorker(1)
+        st = worker.get_status()
+        self.assertIn("bot_health", st)
+        self.assertIn("data_health", st)
+        self.assertIn("strategy_health", st)
+        self.assertIn("execution_status", st)
+        self.assertIn("current_position", st)
+        self.assertEqual(st["bot_health"], "STOPPED")
+        self.assertEqual(st["execution_status"], "IDLE")
 
 
 if __name__ == "__main__":

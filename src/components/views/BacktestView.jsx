@@ -45,8 +45,76 @@ export default function BacktestView() {
   const [simulationSummary, setSimulationSummary] = useState(null);
   const [simulatedTrades, setSimulatedTrades] = useState([]);
 
-  const handleRun = () => {
+  const handleRun = async () => {
     setIsRunning(true);
+
+    const botIdMatch = selectedBot.match(/Bot\s+(\d+)/i);
+    const botId = botIdMatch ? parseInt(botIdMatch[1], 10) : 1;
+
+    try {
+      const res = await fetch('/api/backtest/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bot_id: botId,
+          initial_capital: Number(initialCapital),
+          slippage_pct: Number(slippagePct),
+          benchmark_bars: 150,
+          regime: 'TRENDING_BULL'
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 'SUCCESS' && data.metrics) {
+          const m = data.metrics;
+          const trades = (data.trades || []).slice(0, 40).map((t, idx) => ({
+            id: t.trade_id || `TRD-${idx + 1}`,
+            date: t.exit_time ? t.exit_time.slice(0, 10) : new Date().toISOString().slice(0, 10),
+            symbol: data.asset || 'NIFTY 50',
+            segment: data.segment || 'NSE Equity',
+            side: t.side,
+            qty: t.qty,
+            entry: t.effective_entry,
+            exit: t.effective_exit,
+            grossPnl: t.gross_pnl,
+            charges: t.charges,
+            netPnl: t.net_pnl,
+            isWin: t.net_pnl > 0
+          }));
+
+          const netProfit = data.net_pnl ?? (data.final_capital - initialCapital);
+          const returnPct = initialCapital > 0 ? (netProfit / initialCapital) * 100 : 0;
+
+          setSimulationSummary({
+            initialCapital,
+            endingEquity: data.final_capital,
+            netProfit,
+            returnPct,
+            totalTrades: m.total_trades,
+            totalWins: m.winning_trades,
+            totalLosses: m.losing_trades,
+            winRate: m.win_rate_pct,
+            profitFactor: m.profit_factor,
+            maxDrawdown: m.max_drawdown_pct,
+            sharpeRatio: m.sharpe_ratio,
+            expectancy: m.expectancy,
+            totalGrossPnl: (netProfit + (data.total_charges_paid || 0)),
+            totalCharges: data.total_charges_paid || 0,
+            symbol: data.asset,
+            segment: data.segment,
+            winRateCI: m.win_rate_ci_95
+          });
+          setSimulatedTrades(trades);
+          setIsRunning(false);
+          setHasRun(true);
+          soundEngine.playBuyChime();
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('[Backtest API fallback to local calculation]:', err);
+    }
 
     setTimeout(() => {
       // Deterministic simulation based on bot + dates + capital

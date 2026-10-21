@@ -1,0 +1,99 @@
+{
+  "audit_phase": "Phase 4 - Authentic Market Feed Validation, PAPER-Only Execution & Accounting Invariant Audit",
+  "verified_at": "2026-10-18T11:38:00+05:30",
+  "execution_mode_isolation": {
+    "configured_mode": "PAPER",
+    "live_trading_locked": true,
+    "smartconnect_placeOrder_reachable": false,
+    "isolation_implementation": {
+      "execution_engine_routing": "server/execution_engine.py line 422 strictly simulates fills with 0.03% slippage; SmartConnect.placeOrder unreachable when mode==PAPER",
+      "python_stream_server_routing": "server/python_stream_server.py line 1408 requires execution_mode == 'LIVE' and is_angel_live; in PAPER mode, execution falls through to simulated paper order creation",
+      "live_readiness_gate_status": "BLOCKED (6 of 8 release criteria unmet, ready_for_live=False)"
+    },
+    "paper_fill_simulation_model": "Observed market prices strictly separated from simulated paper fills; simulated slippage applied to simulated executions only"
+  },
+  "database_forensic_integrity": {
+    "baseline_sha256": "262F1C0F78ABE0E00555B97FC5F7F27DFA57C345D5F22FA084C4E504AE95FE33",
+    "current_sha256": "95FC1E32AC7F1F966A571CCF6A3BD35A484B51296DDEFDDFC76844F459034FFF",
+    "file_size_bytes": 1306624,
+    "forensic_investigation_summary": "Page 3 byte offsets 16164 and 16193 changed in sqlite_sequence autoincrement counters for bot_performance_memory and strategy_bot_allocations during direct script execution; 100% of historical trading records across trade_memory (759 rows), orders_memory (1077 rows), positions_memory (18 rows), and strategy_library (387 rows) remain bit-for-bit identical to baseline backup.",
+    "historical_trade_memory_rows": 759,
+    "historical_records_unmutated": true,
+    "wal_shm_status": "Clean, zero active WAL/SHM locks"
+  },
+  "option_premium_vs_spot_integrity": {
+    "spot_index_quarantine_enforced": true,
+    "spot_quarantine_policy": "Index spot prices (e.g. 51800.0) without valid contract strikes are quarantined as QUARANTINED / UNRESOLVED to prevent turnover distortion",
+    "option_premium_turnover_formula": "Price * Qty (Premium Turnover, NOT Spot Index Value)",
+    "quarantined_option_records_count": 102,
+    "statutory_charge_calculation_verified": true
+  },
+  "historical_database_accounting_partition": {
+    "total_trade_memory_records": 759,
+    "records_partition": {
+      "level_1_clean_closed_trades": 267,
+      "level_2_quarantined_option_trades": 102,
+      "level_3_emergency_stress_tests": 4,
+      "level_4_non_trade_orders": {
+        "rms_pre_order_rejections": 198,
+        "initial_entry_orders": 122,
+        "mock_test_doubles": 66,
+        "total_level_4": 386
+      },
+      "partition_sum": 759,
+      "partition_matches_total": true
+    },
+    "closed_trades_pnl_classification": {
+      "winning_trades": 210,
+      "losing_trades": 159,
+      "breakeven_trades": 4,
+      "sum_closed_trades": 373,
+      "sum_matches_closed_total": true
+    },
+    "historical_provenance_breakdown": {
+      "SYNTHETIC_REPLAY": 303,
+      "RMS_PRE_ORDER_REJECTION": 198,
+      "INITIAL_ENTRY_ORDER": 122,
+      "MOCK_BROKER": 66,
+      "TELEMETRY_TEST": 48,
+      "UNKNOWN_PROVENANCE": 18,
+      "SYNTHETIC_STRESS_TEST": 4,
+      "AUTHENTIC_FEED_PAPER": 0,
+      "REAL_BROKER_EXECUTION": 0,
+      "total_provenance_sum": 759
+    },
+    "qualification_gate_result": {
+      "status": "NO_QUALIFIED_BOT",
+      "qualified": false,
+      "reason": "No bot meets the qualification criteria (minimum 5 verified closed trades and positive net PnL).",
+      "highest_profit_bot": null,
+      "canonical_bots_analyzed": 14,
+      "qualified_bot_count": 0
+    }
+  },
+  "exploratory_dataset_accounting": {
+    "dataset_type": "SYNTHETIC_SIMULATION (Randomized Slippage Offline Script)",
+    "dataset_path": "server/data/exploratory_paper.db",
+    "total_records": 65,
+    "provenance_assigned": "SYNTHETIC_SIMULATION",
+    "participating_bots": 14,
+    "aggregate_synthetic_gross_pnl_inr": 7574.7,
+    "aggregate_statutory_charges_inr": 5321.2,
+    "aggregate_synthetic_net_pnl_inr": 2253.5,
+    "accounting_identity_verified": true,
+    "qualification_gate_result": {
+      "status": "NO_QUALIFIED_BOT",
+      "qualified": false,
+      "highest_profit_bot": null,
+      "verified_authentic_trades": 0,
+      "qualified_bot_count": 0
+    }
+  },
+  "release_gate_verdict": {
+    "paper_feed_ready": "BLOCKED (SmartAPI Credentials Unconfigured & Sunday Market Closed)",
+    "paper_trading_validated": "NOT VERIFIED (Zero Verified Authentic Live-Feed Fills)",
+    "live_trading_eligible": "BLOCKED (0 of 14 Canonical Bots Qualified on Authentic Tape)",
+    "ready_for_live_deployment": false
+  }
+}
+

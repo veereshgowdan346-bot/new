@@ -1,0 +1,91 @@
+{
+  "reconciliation_phase": "Phase 5 - Independent Paper Execution & Regulatory Accounting Audit",
+  "verified_at": "2026-10-18T11:56:30+05:30",
+  "execution_lifecycle_audit": {
+    "lifecycle_stages": [
+      "1_strategy_signal_generation",
+      "2_rms_pre_order_validation",
+      "3_peer_quorum_consensus",
+      "4_state_machine_transition (SUBMITTED -> ACKNOWLEDGED -> PENDING -> FILLED)",
+      "5_paper_fill_simulation (0.03% slippage applied to fill price only)",
+      "6_position_book_update (save_position / close_position)",
+      "7_regulatory_charge_calculation (STT, Exchange, SEBI, GST, Stamp Duty)",
+      "8_realized_pnl_determination (Gross PnL - Total Charges = Net PnL)"
+    ],
+    "fill_model_fidelity": {
+      "tape_price_separation": "Observed market prices are strictly segregated from simulated fill prices; market tape is never altered by simulated slippage",
+      "slippage_model": "1.0003 for BUY fills (+0.03%), 0.9997 for SELL fills (-0.03%)",
+      "partial_fills_handling": "Supported via filled_qty attribute; remaining quantity maintained in OPEN state until timeout or cancellation",
+      "restart_recovery": "Restores open positions from positions_memory table on system boot; 6 positions currently maintained in sandbox memory"
+    }
+  },
+  "option_premium_vs_spot_accounting": {
+    "spot_index_quarantine_enforced": true,
+    "quarantine_rule": "Options lacking valid contract strike/expiry syntax (e.g. raw 'BANKNIFTY' at 51,800.0) are quarantined as QUARANTINED / UNRESOLVED to prevent severe turnover distortion",
+    "turnover_formula": "Price * Qty (Contract Premium Turnover, NOT Spot Index Notional)",
+    "quarantined_historical_options_count": 102,
+    "statutory_charge_policy": "Zero charges are invented for unverified or quarantined records; records without sufficient metadata fail closed as UNRESOLVED"
+  },
+  "historical_database_partition_reconciliation": {
+    "target_database": "server/chintu_memory.db",
+    "total_trade_memory_records": 759,
+    "mutually_exclusive_partition": {
+      "level_1_clean_closed_trades": 267,
+      "level_2_quarantined_option_trades": 102,
+      "level_3_emergency_stress_tests": 4,
+      "level_4_non_trade_orders": {
+        "rms_pre_order_rejections": 198,
+        "initial_entry_orders": 122,
+        "mock_test_doubles": 66,
+        "total_level_4": 386
+      },
+      "partition_sum": 759,
+      "partition_matches_total": true
+    },
+    "closed_trades_pnl_classification": {
+      "winning_trades": 210,
+      "losing_trades": 159,
+      "breakeven_trades": 4,
+      "sum_closed_trades": 373,
+      "sum_matches_closed_total": true
+    },
+    "historical_provenance_breakdown": {
+      "SYNTHETIC_REPLAY": 303,
+      "RMS_PRE_ORDER_REJECTION": 198,
+      "INITIAL_ENTRY_ORDER": 122,
+      "MOCK_BROKER": 66,
+      "TELEMETRY_TEST": 48,
+      "UNKNOWN_PROVENANCE": 18,
+      "SYNTHETIC_STRESS_TEST": 4,
+      "AUTHENTIC_FEED_PAPER": 0,
+      "REAL_BROKER_EXECUTION": 0,
+      "total_provenance_sum": 759
+    },
+    "mathematical_identities_verified": {
+      "gross_minus_charges_equals_net": true,
+      "wins_plus_losses_plus_breakeven_equals_closed": true,
+      "partition_levels_sum_to_759": true
+    }
+  },
+  "exploratory_dataset_accounting": {
+    "dataset_path": "server/data/exploratory_paper.db",
+    "dataset_classification": "SYNTHETIC_SIMULATION",
+    "record_count": 65,
+    "participating_bots": 14,
+    "aggregate_synthetic_gross_pnl_inr": 7574.7,
+    "aggregate_statutory_charges_inr": 5321.2,
+    "aggregate_synthetic_net_pnl_inr": 2253.5,
+    "accounting_identity_verified": true,
+    "verified_authentic_trades": 0,
+    "qualified_bot_count": 0
+  },
+  "qualification_gate_verdict": {
+    "canonical_bots_evaluated": 14,
+    "qualification_threshold": "min 5 verified authentic closed trades and verified net PnL > 0",
+    "qualified_bots_count": 0,
+    "highest_profit_bot": null,
+    "status": "NO_QUALIFIED_BOT",
+    "reason": "100% of historical production data and exploratory simulation records are synthetic/simulated; zero verified authentic live-feed trades exist."
+  }
+}
+

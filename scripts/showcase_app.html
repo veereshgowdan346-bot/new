@@ -1,0 +1,2108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CHINTU AI QUANT WORKSTATION - Commercial Agent Network</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+    :root {
+      --bg-oled: #05070B;
+      --bg-surface: #080E1A;
+      --bg-card: rgba(11, 20, 38, 0.75);
+      --border-cyan: rgba(0, 240, 255, 0.22);
+      --border-green: rgba(0, 255, 157, 0.25);
+      --border-crimson: rgba(255, 46, 99, 0.25);
+      --neon-cyan: #00F0FF;
+      --neon-green: #00FF9D;
+      --neon-crimson: #FF2E63;
+      --neon-amber: #FFB800;
+      --text-main: #F1F5F9;
+      --text-muted: #94A3B8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    body {
+      background-color: var(--bg-oled);
+      color: var(--text-main);
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      overflow: hidden;
+      width: 1920px;
+      height: 1080px;
+      position: relative;
+      user-select: none;
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(0, 240, 255, 0.08) 0%, transparent 60%),
+        linear-gradient(rgba(0, 240, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 240, 255, 0.02) 1px, transparent 1px);
+      background-size: 100% 100%, 32px 32px, 32px 32px;
+    }
+
+    /* Ambient Scanline overlay */
+    .scanline {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+      background-size: 100% 4px;
+      z-index: 99;
+      opacity: 0.4;
+    }
+
+    /* Top Navbar */
+    .navbar {
+      height: 52px;
+      background: rgba(7, 14, 28, 0.92);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-cyan);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      position: relative;
+      z-index: 40;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, rgba(0,240,255,0.2), rgba(0,255,157,0.15));
+      border: 1px solid var(--neon-cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
+      position: relative;
+    }
+
+    .brand-icon::after {
+      content: '';
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--neon-green);
+      box-shadow: 0 0 8px var(--neon-green);
+    }
+
+    .brand-title {
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-title span {
+      background: linear-gradient(90deg, var(--neon-cyan), #38bdf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .badge-live {
+      font-size: 9px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: rgba(0, 255, 157, 0.12);
+      border: 1px solid rgba(0, 255, 157, 0.4);
+      color: var(--neon-green);
+      letter-spacing: 0.8px;
+    }
+
+    /* Live Ticker Strip */
+    .ticker-tape {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .ticker-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(13, 23, 44, 0.7);
+      border: 1px solid rgba(0, 240, 255, 0.15);
+      border-radius: 6px;
+      padding: 3px 10px;
+      font-size: 11px;
+    }
+
+    .ticker-sym {
+      color: #94a3b8;
+      font-weight: 600;
+    }
+
+    .ticker-price {
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .ticker-chg {
+      font-weight: 700;
+      font-size: 10px;
+    }
+
+    .ticker-up { color: var(--neon-green); }
+    .ticker-down { color: var(--neon-crimson); }
+
+    /* Nav actions */
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .nav-btn {
+      background: rgba(13, 23, 44, 0.85);
+      border: 1px solid var(--border-cyan);
+      border-radius: 7px;
+      padding: 6px 12px;
+      color: #cbd5e1;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    .nav-btn:hover, .nav-btn.active {
+      border-color: var(--neon-cyan);
+      box-shadow: 0 0 14px rgba(0, 240, 255, 0.35);
+      color: #fff;
+    }
+
+    .nav-btn.broker-btn {
+      border-color: rgba(0, 255, 157, 0.4);
+      background: rgba(0, 255, 157, 0.08);
+      color: var(--neon-green);
+    }
+
+    .nav-btn.jarvis-btn {
+      border-color: rgba(0, 240, 255, 0.5);
+      background: rgba(0, 240, 255, 0.1);
+      color: var(--neon-cyan);
+      position: relative;
+    }
+
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--neon-green);
+      box-shadow: 0 0 8px var(--neon-green);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.9); opacity: 0.7; }
+      50% { transform: scale(1.3); opacity: 1; }
+      100% { transform: scale(0.9); opacity: 0.7; }
+    }
+
+    /* Subheader / Consensus Ribbon */
+    .consensus-ribbon {
+      height: 48px;
+      background: rgba(8, 14, 26, 0.85);
+      border-bottom: 1px solid rgba(0, 240, 255, 0.12);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      font-size: 11px;
+    }
+
+    .ribbon-left {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .quorum-gauge {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .gauge-bar-wrap {
+      width: 140px;
+      height: 8px;
+      background: rgba(15, 23, 42, 0.8);
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid rgba(0, 240, 255, 0.2);
+    }
+
+    .gauge-fill {
+      height: 100%;
+      width: 92.8%;
+      background: linear-gradient(90deg, var(--neon-cyan), var(--neon-green));
+      box-shadow: 0 0 8px rgba(0, 255, 157, 0.6);
+    }
+
+    .ribbon-stat {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .stat-label { color: #64748b; font-size: 10px; }
+    .stat-val { color: #fff; font-weight: 700; }
+
+    /* 14-Bot Agent Grid Layout */
+    .grid-container {
+      padding: 16px 20px;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      grid-gap: 12px;
+      height: calc(1080px - 52px - 48px - 64px - 84px);
+    }
+
+    .bot-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-cyan);
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      backdrop-filter: blur(12px);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: pointer;
+      overflow: hidden;
+    }
+
+    .bot-card:hover {
+      border-color: var(--neon-cyan);
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.25);
+      transform: translateY(-2px);
+    }
+
+    .bot-card.highlighted {
+      border-color: var(--neon-green);
+      box-shadow: 0 0 24px rgba(0, 255, 157, 0.35);
+    }
+
+    .bot-card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .bot-id-pill {
+      font-size: 9px;
+      font-weight: 800;
+      color: var(--neon-cyan);
+      background: rgba(0, 240, 255, 0.1);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      border-radius: 4px;
+      padding: 2px 5px;
+    }
+
+    .bot-name {
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 2px;
+    }
+
+    .bot-asset {
+      font-size: 10px;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+
+    .bot-signal-badge {
+      font-size: 9px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    .sig-buy {
+      background: rgba(0, 255, 157, 0.15);
+      border: 1px solid rgba(0, 255, 157, 0.4);
+      color: var(--neon-green);
+      box-shadow: 0 0 8px rgba(0, 255, 157, 0.3);
+    }
+
+    .sig-hold {
+      background: rgba(255, 184, 0, 0.15);
+      border: 1px solid rgba(255, 184, 0, 0.4);
+      color: var(--neon-amber);
+    }
+
+    .sig-sell {
+      background: rgba(255, 46, 99, 0.15);
+      border: 1px solid rgba(255, 46, 99, 0.4);
+      color: var(--neon-crimson);
+    }
+
+    .bot-price-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin: 4px 0;
+    }
+
+    .bot-price {
+      font-size: 13px;
+      font-weight: 800;
+      color: #f8fafc;
+    }
+
+    .bot-pnl {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--neon-green);
+    }
+
+    /* Live Sparkline Canvas */
+    .sparkline-canvas {
+      width: 100%;
+      height: 34px;
+      display: block;
+      margin: 4px 0;
+    }
+
+    .bot-card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 9px;
+      color: #64748b;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 6px;
+      margin-top: 2px;
+    }
+
+    .bot-vote-counts {
+      display: flex;
+      gap: 5px;
+      font-weight: 700;
+    }
+
+    .vote-b { color: var(--neon-green); }
+    .vote-s { color: var(--neon-crimson); }
+    .vote-h { color: var(--neon-amber); }
+
+    /* Bottom Analytics / Risk Meter */
+    .bottom-bar {
+      height: 64px;
+      background: rgba(7, 14, 28, 0.95);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border-cyan);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      position: absolute;
+      bottom: 84px;
+      left: 0;
+      right: 0;
+      z-index: 40;
+    }
+
+    .metrics-group {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .metric-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .metric-label {
+      font-size: 9.5px;
+      color: #64748b;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .metric-value {
+      font-size: 14px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .metric-value.pnl-pos {
+      color: var(--neon-green);
+      text-shadow: 0 0 10px rgba(0, 255, 157, 0.4);
+    }
+
+    .risk-btn {
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.15), rgba(0, 255, 157, 0.12));
+      border: 1px solid var(--neon-cyan);
+      border-radius: 8px;
+      padding: 8px 16px;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 0 14px rgba(0, 240, 255, 0.2);
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    .risk-btn:hover {
+      box-shadow: 0 0 22px rgba(0, 240, 255, 0.45);
+    }
+
+    /* Cinematic Caption Banner (Step Explanations) */
+    .cinematic-banner {
+      height: 84px;
+      background: rgba(5, 10, 20, 0.96);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(0, 240, 255, 0.35);
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 50;
+      box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.6);
+    }
+
+    .caption-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      max-width: 1400px;
+    }
+
+    .step-badge {
+      background: linear-gradient(135deg, var(--neon-cyan), #0284c7);
+      color: #030712;
+      font-size: 11px;
+      font-weight: 900;
+      padding: 6px 12px;
+      border-radius: 6px;
+      letter-spacing: 1px;
+      white-space: nowrap;
+      box-shadow: 0 0 16px rgba(0, 240, 255, 0.5);
+    }
+
+    .caption-content {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .caption-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: 0.5px;
+    }
+
+    .caption-desc {
+      font-size: 11.5px;
+      color: #94a3b8;
+      line-height: 1.4;
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    }
+
+    .voice-visual-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 240, 255, 0.08);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      padding: 6px 14px;
+      border-radius: 20px;
+    }
+
+    .wave-bars {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 16px;
+    }
+
+    .w-bar {
+      width: 3px;
+      background: var(--neon-cyan);
+      border-radius: 2px;
+      animation: waveAnim 0.8s ease-in-out infinite alternate;
+    }
+
+    .w-bar:nth-child(2) { animation-delay: 0.2s; height: 14px; }
+    .w-bar:nth-child(3) { animation-delay: 0.4s; height: 18px; }
+    .w-bar:nth-child(4) { animation-delay: 0.1s; height: 10px; }
+    .w-bar:nth-child(5) { animation-delay: 0.3s; height: 16px; }
+
+    @keyframes waveAnim {
+      0% { transform: scaleY(0.3); }
+      100% { transform: scaleY(1); }
+    }
+
+    /* SIDE DRAWER: Angel One Broker Conduit */
+    .drawer-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      z-index: 60;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s ease;
+    }
+
+    .drawer-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .drawer-right {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 520px;
+      height: 1080px;
+      background: #070e1c;
+      border-left: 1px solid var(--border-cyan);
+      box-shadow: -15px 0 40px rgba(0, 240, 255, 0.25);
+      z-index: 70;
+      transform: translateX(100%);
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+    }
+
+    .drawer-right.open {
+      transform: translateX(0);
+    }
+
+    .drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(0, 240, 255, 0.2);
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+    }
+
+    .drawer-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .drawer-close {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #94a3b8;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .margin-ladder {
+      background: rgba(11, 20, 38, 0.85);
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .ladder-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      font-size: 12px;
+    }
+
+    .ladder-row:last-child { margin-bottom: 0; }
+    .ladder-label { color: #94a3b8; }
+    .ladder-val { color: #fff; font-weight: 700; }
+
+    /* Order Depth Ladder (Bids/Asks) */
+    .depth-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      margin-top: 10px;
+    }
+
+    .depth-table th {
+      color: #64748b;
+      padding: 6px 4px;
+      text-align: right;
+      font-size: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .depth-table th:first-child { text-align: left; }
+
+    .depth-table td {
+      padding: 5px 4px;
+      text-align: right;
+      font-weight: 600;
+      position: relative;
+    }
+
+    .depth-table td:first-child { text-align: left; }
+    .bid-c { color: var(--neon-green); }
+    .ask-c { color: var(--neon-crimson); }
+
+    .depth-bar-bg {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      right: 0;
+      opacity: 0.15;
+      pointer-events: none;
+    }
+
+    /* MODAL: TradingView-Style Interactive Chart */
+    .modal-chart-wrap {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(14px);
+      z-index: 80;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s ease;
+    }
+
+    .modal-chart-wrap.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-chart-card {
+      width: 1520px;
+      height: 840px;
+      background: #070e1a;
+      border: 1px solid var(--neon-cyan);
+      border-radius: 12px;
+      box-shadow: 0 0 50px rgba(0, 240, 255, 0.35);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chart-modal-header {
+      height: 52px;
+      background: rgba(13, 23, 44, 0.95);
+      border-bottom: 1px solid rgba(0, 240, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+    }
+
+    .chart-main-body {
+      flex: 1;
+      display: flex;
+      position: relative;
+    }
+
+    .chart-canvas-area {
+      flex: 1;
+      position: relative;
+      background: #050811;
+    }
+
+    #main-candlestick-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .chart-side-ladder {
+      width: 320px;
+      background: rgba(9, 16, 32, 0.95);
+      border-left: 1px solid rgba(0, 240, 255, 0.2);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .chart-ctrl-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chart-tbtn {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      color: #94a3b8;
+      border-radius: 5px;
+      padding: 4px 10px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .chart-tbtn.active {
+      background: rgba(0, 240, 255, 0.2);
+      border-color: var(--neon-cyan);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    /* STATUTORY COST & RISK DRAWER */
+    .statutory-drawer {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 540px;
+      height: 1080px;
+      background: #060b17;
+      border-left: 1px solid var(--neon-green);
+      box-shadow: -15px 0 45px rgba(0, 255, 157, 0.25);
+      z-index: 75;
+      transform: translateX(100%);
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+    }
+
+    .statutory-drawer.open {
+      transform: translateX(0);
+    }
+
+    /* JARVIS VOICE CO-PILOT PANEL */
+    .jarvis-modal-wrap {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(16px);
+      z-index: 85;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.35s ease;
+    }
+
+    .jarvis-modal-wrap.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .jarvis-card {
+      width: 1080px;
+      height: 640px;
+      background: #060c18;
+      border: 1px solid var(--neon-cyan);
+      border-radius: 16px;
+      box-shadow: 0 0 60px rgba(0, 240, 255, 0.4);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #jarvis-canvas {
+      width: 100%;
+      height: 260px;
+      background: radial-gradient(circle at center, rgba(0, 240, 255, 0.08) 0%, transparent 70%);
+      display: block;
+    }
+
+    /* Virtual Mouse Cursor */
+    #virtual-cursor {
+      position: absolute;
+      top: 500px;
+      left: 960px;
+      width: 22px;
+      height: 22px;
+      pointer-events: none;
+      z-index: 9999;
+      transition: top 0.7s cubic-bezier(0.2, 0.8, 0.2, 1), left 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+      filter: drop-shadow(0 0 6px rgba(0, 240, 255, 0.8));
+    }
+
+    .cursor-ping {
+      position: absolute;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 2px solid var(--neon-cyan);
+      top: -5px;
+      left: -5px;
+      opacity: 0;
+      transform: scale(0.4);
+      transition: all 0.3s ease;
+    }
+
+    .cursor-ping.active {
+      opacity: 1;
+      transform: scale(1.6);
+      opacity: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="scanline"></div>
+
+  <!-- Virtual Mouse Cursor -->
+  <div id="virtual-cursor">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path d="M3 3L10.07 19.97L12.58 12.58L19.97 10.07L3 3Z" fill="#00F0FF" stroke="#FFFFFF" stroke-width="1.5" stroke-linejoin="round"/>
+    </svg>
+    <div class="cursor-ping" id="cursor-ping"></div>
+  </div>
+
+  <!-- Top Navbar -->
+  <header class="navbar">
+    <div class="brand-group">
+      <div class="brand-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00F0FF" stroke-width="2.2">
+          <rect x="3" y="11" width="18" height="10" rx="2"></rect>
+          <circle cx="12" cy="5" r="2"></circle>
+          <path d="M12 7v4"></path>
+          <line x1="8" y1="16" x2="8" y2="16"></line>
+          <line x1="16" y1="16" x2="16" y2="16"></line>
+        </svg>
+      </div>
+      <div class="brand-title">
+        CHINTU AI QUANT <span>WORKSTATION</span>
+      </div>
+      <span class="badge-live">14 BOTS ACTIVE</span>
+      <span class="badge-live" style="background: rgba(0,240,255,0.1); border-color: rgba(0,240,255,0.3); color: var(--neon-cyan);">LIVE DMA</span>
+    </div>
+
+    <!-- Live Ticker Strip -->
+    <div class="ticker-tape">
+      <div class="ticker-item">
+        <span class="ticker-sym">NIFTY 50</span>
+        <span class="ticker-price" id="t-nifty">24,730.50</span>
+        <span class="ticker-chg ticker-up">+0.50%</span>
+      </div>
+      <div class="ticker-item">
+        <span class="ticker-sym">BANKNIFTY</span>
+        <span class="ticker-price" id="t-bnifty">52,410.20</span>
+        <span class="ticker-chg ticker-up">+0.60%</span>
+      </div>
+      <div class="ticker-item">
+        <span class="ticker-sym">SENSEX</span>
+        <span class="ticker-price">80,210.15</span>
+        <span class="ticker-chg ticker-up">+0.50%</span>
+      </div>
+      <div class="ticker-item">
+        <span class="ticker-sym">FINNIFTY</span>
+        <span class="ticker-price">23,450.60</span>
+        <span class="ticker-chg ticker-up">+0.45%</span>
+      </div>
+      <div class="ticker-item">
+        <span class="ticker-sym">GOLD</span>
+        <span class="ticker-price">2,653.40</span>
+        <span class="ticker-chg ticker-up">+0.32%</span>
+      </div>
+      <div class="ticker-item">
+        <span class="ticker-sym">CRUDE OIL</span>
+        <span class="ticker-price">6,520.30</span>
+        <span class="ticker-chg ticker-up">+0.70%</span>
+      </div>
+    </div>
+
+    <!-- Right Controls -->
+    <div class="nav-actions">
+      <button class="nav-btn broker-btn" id="broker-btn" onclick="toggleBrokerDrawer(true)">
+        <span class="pulse-dot"></span>
+        <span>ANGEL ONE DMA • 11ms</span>
+        <span style="opacity: 0.6; font-size: 10px;">(VEERESH)</span>
+      </button>
+
+      <button class="nav-btn jarvis-btn" id="jarvis-btn" onclick="toggleJarvisModal(true)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+          <line x1="12" y1="19" x2="12" y2="22"></line>
+        </svg>
+        <span>JARVIS CO-PILOT</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Consensus Ribbon -->
+  <div class="consensus-ribbon">
+    <div class="ribbon-left">
+      <div class="quorum-gauge">
+        <span class="stat-label">AGENT QUORUM CONSENSUS:</span>
+        <div class="gauge-bar-wrap">
+          <div class="gauge-fill"></div>
+        </div>
+        <span class="stat-val" style="color: var(--neon-cyan);">92.8% BULLISH</span>
+      </div>
+
+      <div class="ribbon-stat">
+        <span class="stat-label">DECISION VOTE:</span>
+        <span class="stat-val" style="color: var(--neon-green);">12 BUY</span>
+        <span style="color: #64748b;">/</span>
+        <span class="stat-val" style="color: var(--neon-amber);">1 HOLD</span>
+        <span style="color: #64748b;">/</span>
+        <span class="stat-val" style="color: var(--neon-crimson);">1 SELL</span>
+      </div>
+
+      <div class="ribbon-stat">
+        <span class="stat-label">SIGNAL VELOCITY:</span>
+        <span class="stat-val">4,820 ticks/sec</span>
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 16px; align-items: center;">
+      <span style="color: #64748b; font-size: 10.5px;">ACTIVE REGIME: <strong style="color: #fff;">TREND CONTINUATION & VOLATILITY EXPANSION</strong></span>
+      <span style="color: var(--neon-green); font-size: 10.5px; font-weight: 700;">● RMS SAFE</span>
+    </div>
+  </div>
+
+  <!-- 14-Bot Agent Grid -->
+  <main class="grid-container" id="bot-grid">
+    <!-- Bot 01 -->
+    <div class="bot-card highlighted" id="bot-card-1" onclick="openBotModal(1)">
+      <div class="bot-card-top">
+        <span class="bot-id-pill">BOT 01</span>
+        <span class="bot-signal-badge sig-buy">● BUY (11/2)</span>
+      </div>
+      <div>
+        <div class="bot-name">Momentum Bot</div>
+        <div class="bot-asset">NIFTY 50 Futures</div>
+      </div>
+      <div class="bot-price-row">
+        <span class="bot-price">₹24,730.50</span>
+        <span class="bot-pnl">+₹4,850.00</span>
+      </div>
+      <canvas class="sparkline-canvas" id="spark-1"></canvas>
+      <div class="bot-card-footer">
+        <div class="bot-vote-counts">
+          <span class="vote-b">11B</span>
+          <span class="vote-s">2S</span>
+          <span class="vote-h">0H</span>
+        </div>
+        <span>Win 78.4%</span>
+      </div>
+    </div>
+
+    <!-- Bot 02 -->
+    <div class="bot-card" id="bot-card-2" onclick="openBotModal(2)">
+      <div class="bot-card-top">
+        <span class="bot-id-pill">BOT 02</span>
+        <span class="bot-signal-badge sig-buy">● BUY (10/3)</span>
+      </div>
+      <div>
+        <div class="bot-name">EMA Trend Bot</div>
+        <div class="bot-asset">BANKNIFTY Futures</div>
+      </div>
+      <div class="bot-price-row">
+        <span class="bot-price">₹52,410.20</span>
+        <span class="bot-pnl">+₹2,310.00</span>
+      </div>
+      <canvas class="sparkline-canvas" id="spark-2"></canvas>
+      <div class="bot-card-footer">
+        <div class="bot-vote-counts"><span class="vote-b">10B</span><span class="vote-s">3S</span></div>
+        <span>Win 74.2%</span>
+      </div>
+    </div>
+
+    <!-- Bot 03 -->
+    <div class="bot-card" id="bot-card-3" onclick="openBotModal(3)">
+      <div class="bot-card-top">
+        <span class="bot-id-pill">BOT 03</span>
+        <span class="bot-signal-badge sig-buy">● BUY (9/4)</span>
+      </div>
+      <div>
+        <div class="bot-name">RSI Reversal Bot</div>
+        <div class="bot-asset">RELIANCE EQ</div>
+      </div>
+      <div class="bot-price-row">
+        <span class="bot-price">₹2,950.60</span>
+        <span class="bot-pnl">+₹1,420.00</span>
+      </div>
+      <canvas class="sparkline-canvas" id="spark-3"></canvas>
+      <div class="bot-card-footer">
+        <div class="bot-vote-counts"><span class="vote-b">9B</span><span class="vote-s">4S</span></div>
+        <span>Win 71.0%</span>
+      </div>
+    </div>
+
+    <!-- Bot 04 -->
+    <div class="bot-card" id="bot-card-4" onclick="openBotModal(4)">
+      <div class="bot-card-top">
+        <span class="bot-id-pill">BOT 04</span>
+        <span class="bot-signal-badge sig-buy">● BUY (11/2)</span>
+      </div>
+      <div>
+        <div class="bot-name">Breakout Bot</div>
+        <div class="bot-asset">TATA MOTORS EQ</div>
+      </div>
+      <div class="bot-price-row">
+        <span class="bot-price">₹980.20</span>
+        <span class="bot-pnl">+₹3,180.00</span>
+      </div>
+      <canvas class="sparkline-canvas" id="spark-4"></canvas>
+      <div class="bot-card-footer">
+        <div class="bot-vote-counts"><span class="vote-b">11B</span><span class="vote-s">2S</span></div>
+        <span>Win 82.5%</span>
+      </div>
+    </div>
+
+    <!-- Bot 05 -->
+    <div class="bot-card" id="bot-card-5" onclick="openBotModal(5)">
+      <div class="bot-card-top">
+        <span class="bot-id-pill">BOT 05</span>
+        <span class="bot-signal-badge sig-buy">● BUY (9/4)</span>
+      </div>
+      <div>
+        <div class="bot-name">Mean Reversion</div>
+        <div class="bot-asset">FINNIFTY Futures</div>
+      </div>
+      <div class="bot-price-row">
+        <span class="bot-price">₹23,450.60</span>
+        <span class="bot-pnl">+₹1,150.00</span>
+      </div>
+      <canvas class="sparkline-canvas" id="spark-5"></canvas>
+      <div class="bot-card-footer">
+        <div class="bot-vote-counts"><span class="vote-b">9B</span><span class="vote-s">4S</span></div>
+        <span>Win 69.8%</span>
+      </div>
+    </div>
+
+    <!-- Bot 06 -->
+    <div class="bot-card" id="bot-card-6" onclick="openBotModal(6)">
+      <div class="bot-card-top">
+        <span class="bot-id-pill">BOT 06</span>
+        <span class="bot-signal-badge sig-buy">● BUY (8/5)</span>
+      </div>
+      <div>
+        <div class="bot-name">VWAP Momentum</div>
+        <div class="bot-asset">HDFCBANK EQ</div>
+      </div>
+      <div class="bot-price-row">
+        <span class="bot-price">₹1,720.50</span>
+        <span class="bot-pnl">+₹980.00</span>
+      </div>
+      <canvas class="sparkline-canvas" id="spark-6"></canvas>
+      <div class="bot-card-footer">
+        <div class="bot-vote-counts"><span class="vote-b">8B</span><span class="vote-s">5S</span></div>
+        <span>Win 73.0%</span>
+      </div>
+    </div>
+
+    <!-- Bot 07 -->
+    <div class="bot-card" id="bot-card-7" onclick="openBotModal(7)">
+      <div class="bot-card-top">
+        <span class="bot-id-pill">BOT 07</span>
+        <span class="bot-signal-badge sig-buy">● BUY (10/3)</span>
+      </div>
+      <div>
+        <div class="bot-name">Volume Spike Bot</div>
+        <div class="bot-asset">INFY EQ</div>
+      </div>
+      <div class="bot-price-row">
+        <span class="bot-price">₹1,520.30</span>
+        <span class="bot-pnl">+₹1,840.00</span>
+      </div>
+      <canvas class="sparkline-canvas" id="spark-7"></canvas>
+      <div class="bot-card-footer">
+        <div class="bot-vote-counts"><span class="vote-b">10B</span><span class="vote-s">3S</span></div>
+        <span>Win 76.5%</span>
+      </div>
+    </div>
+
+    <!-- Bot 08 -->
+    <div class="bot-card" id="bot-card-8" onclick="openBotModal(8)">
+      <div class="bot-card-top">
+        <span class="bot-id-pill">BOT 08</span>
+        <span class="bot-signal-badge sig-buy">● BUY (9/4)</span>
+      </div>
+      <div>
+        <div class="bot-name">SuperTrend Wave</div>
+        <div class="bot-asset">CRUDE OIL MCX</div>
+      </div>
+      <div class="bot-price-row">
+        <span class="bot-price">₹6,520.30</span>
+        <span class="bot-pnl">+₹2,900.00</span>
+      </div>
+      <canvas class="sparkline-canvas" id="spark-8"></canvas>
+      <div class="bot-card-footer">
+        <div class="bot-vote-counts"><span class="vote-b">9B</span><span class="vote-s">4S</span></div>
+        <span>Win 70.4%</span>
+      </div>
+    </div>
+
+    <!-- Bot 09 -->
+    <div class="bot-card" id="bot-card-9" onclick="openBotModal(9)">
+      <div class="bot-card-top">
+        <span class="bot-id-pill">BOT 09</span>
+        <span class="bot-signal-badge sig-buy">● BUY (8/5)</span>
+      </div>
+      <div>
+        <div class="bot-name">Bollinger Squeeze</div>
+        <div class="bot-asset">GOLD COMEX</div>
+      </div>
+      <div class="bot-price-row">
+        <span class="bot-price">₹2,653.40</span>
+        <span class="bot-pnl">+₹890.00</span>
+      </div>
+      <canvas class="sparkline-canvas" id="spark-9"></canvas>
+      <div class="bot-card-footer">
+        <div class="bot-vote-counts"><span class="vote-b">8B</span><span class="vote-s">5S</span></div>
+        <span>Win 68.2%</span>
+      </div>
+    </div>
+
+    <!-- Bot 10 -->
+    <div class="bot-card" id="bot-card-10" onclick="openBotModal(10)">
+      <div class="bot-card-top">
+        <span class="bot-id-pill">BOT 10</span>
+        <span class="bot-signal-badge sig-buy">● BUY (8/5/1)</span>
+      </div>
+      <div>
+        <div class="bot-name">Pivot Reversal</div>
+        <div class="bot-asset">SILVER MCX</div>
+      </div>
+      <div class="bot-price-row">
+        <span class="bot-price">₹32.45</span>
+        <span class="bot-pnl">+₹1,210.00</span>
+      </div>
+      <canvas class="sparkline-canvas" id="spark-10"></canvas>
+      <div class="bot-card-footer">
+        <div class="bot-vote-counts"><span class="vote-b">8B</span><span class="vote-s">5S</span></div>
+        <span>Win 66.7%</span>
+      </div>
+    </div>
+
+    <!-- Bot 11 -->
+    <div class="bot-card" id="bot-card-11" onclick="openBotModal(11)">
+      <div class="bot-card-top">
+        <span class="bot-id-pill">BOT 11</span>
+        <span class="bot-signal-badge sig-hold">● HOLD (7/6/1)</span>
+      </div>
+      <div>
+        <div class="bot-name">MTF Confluence</div>
+        <div class="bot-asset">USDINR F&O</div>
+      </div>
+      <div class="bot-price-row">
+        <span class="bot-price">₹84.05</span>
+        <span class="bot-pnl">+₹320.00</span>
+      </div>
+      <canvas class="sparkline-canvas" id="spark-11"></canvas>
+      <div class="bot-card-footer">
+        <div class="bot-vote-counts"><span class="vote-b">7B</span><span class="vote-s">6S</span></div>
+        <span>Win 64.0%</span>
+      </div>
+    </div>
+
+    <!-- Bot 12 -->
+    <div class="bot-card" id="bot-card-12" onclick="openBotModal(12)">
+      <div class="bot-card-top">
+        <span class="bot-id-pill">BOT 12</span>
+        <span class="bot-signal-badge sig-buy">● BUY (11/2)</span>
+      </div>
+      <div>
+        <div class="bot-name">Gamma Scalper</div>
+        <div class="bot-asset">NIFTY 24700 CE</div>
+      </div>
+      <div class="bot-price-row">
+        <span class="bot-price">₹185.60</span>
+        <span class="bot-pnl">+₹12,450.00</span>
+      </div>
+      <canvas class="sparkline-canvas" id="spark-12"></canvas>
+      <div class="bot-card-footer">
+        <div class="bot-vote-counts"><span class="vote-b">11B</span><span class="vote-s">2S</span></div>
+        <span>Win 84.6%</span>
+      </div>
+    </div>
+
+    <!-- Bot 13 -->
+    <div class="bot-card" id="bot-card-13" onclick="openBotModal(13)">
+      <div class="bot-card-top">
+        <span class="bot-id-pill">BOT 13</span>
+        <span class="bot-signal-badge sig-buy">● BUY (10/3)</span>
+      </div>
+      <div>
+        <div class="bot-name">Order Flow Imbalance</div>
+        <div class="bot-asset">BANKNIFTY 52400 CE</div>
+      </div>
+      <div class="bot-price-row">
+        <span class="bot-price">₹340.50</span>
+        <span class="bot-pnl">+₹9,840.00</span>
+      </div>
+      <canvas class="sparkline-canvas" id="spark-13"></canvas>
+      <div class="bot-card-footer">
+        <div class="bot-vote-counts"><span class="vote-b">10B</span><span class="vote-s">3S</span></div>
+        <span>Win 81.2%</span>
+      </div>
+    </div>
+
+    <!-- Bot 14 -->
+    <div class="bot-card" id="bot-card-14" onclick="openBotModal(14)">
+      <div class="bot-card-top">
+        <span class="bot-id-pill">BOT 14</span>
+        <span class="bot-signal-badge sig-buy">● BUY (9/4)</span>
+      </div>
+      <div>
+        <div class="bot-name">Delta Hedger</div>
+        <div class="bot-asset">SENSEX Basket</div>
+      </div>
+      <div class="bot-price-row">
+        <span class="bot-price">₹80,210.15</span>
+        <span class="bot-pnl">+₹7,000.00</span>
+      </div>
+      <canvas class="sparkline-canvas" id="spark-14"></canvas>
+      <div class="bot-card-footer">
+        <div class="bot-vote-counts"><span class="vote-b">9B</span><span class="vote-s">4S</span></div>
+        <span>Win 79.1%</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- Bottom Analytics Bar -->
+  <footer class="bottom-bar">
+    <div class="metrics-group">
+      <div class="metric-item">
+        <span class="metric-label">GROSS SYSTEM P&L</span>
+        <span class="metric-value pnl-pos">+₹48,500.00</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">STATUTORY CHARGES</span>
+        <span class="metric-value" style="color: #94a3b8;">-₹188.00</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">NET REALIZED ALPHA</span>
+        <span class="metric-value" style="color: var(--neon-green);">+₹48,312.00</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">PORTFOLIO CAPITAL</span>
+        <span class="metric-value">₹5,00,000.00</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">WIN PROBABILITY</span>
+        <span class="metric-value" style="color: var(--neon-cyan);">85.7%</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">RMS RISK GATEWAY</span>
+        <span class="metric-value" style="color: var(--neon-green);">CLEAR (0.42% DD)</span>
+      </div>
+    </div>
+
+    <button class="risk-btn" id="risk-pnl-btn" onclick="toggleStatutoryDrawer(true)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+      </svg>
+      <span>AUDIT STATUTORY CHARGES (STT/GST)</span>
+    </button>
+  </footer>
+
+  <!-- Step Cinematic HUD Caption Banner -->
+  <div class="cinematic-banner">
+    <div class="caption-left">
+      <div class="step-badge" id="step-badge">STEP 01 / 05</div>
+      <div class="caption-content">
+        <div class="caption-title" id="step-title">AUTONOMOUS COMMAND HUD • 14-BOT CONSENSUS MESH</div>
+        <div class="caption-desc" id="step-desc">
+          Fourteen active bot agents coordinate live trades, streaming real-time momentum, breakout, and delta scalping logic with unified voting quorum.
+        </div>
+      </div>
+    </div>
+
+    <div class="voice-visual-pill">
+      <div class="wave-bars">
+        <div class="w-bar"></div>
+        <div class="w-bar"></div>
+        <div class="w-bar"></div>
+        <div class="w-bar"></div>
+        <div class="w-bar"></div>
+      </div>
+      <span style="font-size: 10.5px; font-weight: 700; color: var(--neon-cyan); letter-spacing: 0.8px;">AI NARRATOR ACTIVE</span>
+    </div>
+  </div>
+
+  <!-- DRAWER 1: Angel One Broker Conduit -->
+  <div class="drawer-overlay" id="broker-overlay" onclick="toggleBrokerDrawer(false)"></div>
+  <aside class="drawer-right" id="broker-drawer">
+    <div class="drawer-header">
+      <div class="drawer-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00FF9D" stroke-width="2">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="m9 12 2 2 4-4"></path>
+        </svg>
+        <span>ANGEL ONE DMA GATEWAY</span>
+      </div>
+      <button class="drawer-close" onclick="toggleBrokerDrawer(false)">✕</button>
+    </div>
+
+    <div style="font-size: 11px; color: #94a3b8; margin-bottom: 16px;">
+      Direct SmartAPI Feed • Host: <code style="color: var(--neon-cyan);">wss://smartapisocket.angelone.in</code>
+      <div style="display: flex; gap: 8px; margin-top: 6px;">
+        <span class="badge-live" style="background: rgba(0,255,157,0.1); border-color: rgba(0,255,157,0.3); color: var(--neon-green);">LATENCY: 11ms</span>
+        <span class="badge-live" style="background: rgba(0,240,255,0.1); border-color: rgba(0,240,255,0.3); color: var(--neon-cyan);">CLIENT: VEERESH_77291</span>
+      </div>
+    </div>
+
+    <!-- Margin Utilization Ladder -->
+    <div class="margin-ladder">
+      <div style="font-size: 11px; font-weight: 800; color: #fff; margin-bottom: 12px; letter-spacing: 0.5px;">
+        REAL-TIME MARGIN LADDER
+      </div>
+      <div class="ladder-row">
+        <span class="ladder-label">Total Allocated Margin:</span>
+        <span class="ladder-val">₹5,00,000.00</span>
+      </div>
+      <div class="ladder-row">
+        <span class="ladder-label">Utilized Margin (Active Orders):</span>
+        <span class="ladder-val" style="color: var(--neon-cyan);">₹82,450.00 (16.5%)</span>
+      </div>
+      <div class="ladder-row">
+        <span class="ladder-label">Free Cash Margin Available:</span>
+        <span class="ladder-val" style="color: var(--neon-green);">₹4,17,550.00</span>
+      </div>
+      <div class="ladder-row">
+        <span class="ladder-label">Approved Collateral Value:</span>
+        <span class="ladder-val">₹2,50,000.00</span>
+      </div>
+      <div class="ladder-row">
+        <span class="ladder-label">Peak Intraday Leverage Gating:</span>
+        <span class="ladder-val" style="color: #cbd5e1;">1.8x Max Risk Locked</span>
+      </div>
+    </div>
+
+    <!-- Live Cash Ledger Table -->
+    <div style="font-size: 11px; font-weight: 800; color: #fff; margin: 16px 0 8px 0;">
+      SETTLEMENT LEDGER (TODAY)
+    </div>
+    <div style="background: rgba(11,20,38,0.7); border: 1px solid rgba(0,240,255,0.15); border-radius: 8px; padding: 12px; font-size: 11px;">
+      <div class="ladder-row">
+        <span class="ladder-label">Opening Cash Balance:</span>
+        <span class="ladder-val">₹5,00,000.00</span>
+      </div>
+      <div class="ladder-row">
+        <span class="ladder-label">MTM Mark-to-Market Realized:</span>
+        <span class="ladder-val" style="color: var(--neon-green);">+₹48,500.00</span>
+      </div>
+      <div class="ladder-row">
+        <span class="ladder-label">Statutory Charges Deducted:</span>
+        <span class="ladder-val" style="color: var(--neon-crimson);">-₹188.00</span>
+      </div>
+      <div class="ladder-row" style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px; margin-top: 6px;">
+        <span class="ladder-label">Closing Net Equity:</span>
+        <span class="ladder-val" style="color: var(--neon-green); font-weight: 800;">₹5,48,312.00</span>
+      </div>
+    </div>
+
+    <!-- Live Order Depth Ladder -->
+    <div style="font-size: 11px; font-weight: 800; color: #fff; margin: 16px 0 4px 0;">
+      STREAMING MARKET DEPTH (NIFTY 50)
+    </div>
+    <table class="depth-table">
+      <thead>
+        <tr>
+          <th>BIDS (QTY)</th>
+          <th>BUY PRICE</th>
+          <th>SELL PRICE</th>
+          <th>ASKS (QTY)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="bid-c">2,450</td>
+          <td class="bid-c">24,730.00</td>
+          <td class="ask-c">24,730.50</td>
+          <td class="ask-c">1,800</td>
+        </tr>
+        <tr>
+          <td class="bid-c">3,100</td>
+          <td class="bid-c">24,729.50</td>
+          <td class="ask-c">24,731.00</td>
+          <td class="ask-c">2,250</td>
+        </tr>
+        <tr>
+          <td class="bid-c">4,800</td>
+          <td class="bid-c">24,729.00</td>
+          <td class="ask-c">24,731.50</td>
+          <td class="ask-c">3,400</td>
+        </tr>
+        <tr>
+          <td class="bid-c">1,950</td>
+          <td class="bid-c">24,728.50</td>
+          <td class="ask-c">24,732.00</td>
+          <td class="ask-c">1,600</td>
+        </tr>
+        <tr>
+          <td class="bid-c">6,200</td>
+          <td class="bid-c">24,728.00</td>
+          <td class="ask-c">24,732.50</td>
+          <td class="ask-c">5,100</td>
+        </tr>
+      </tbody>
+    </table>
+  </aside>
+
+  <!-- MODAL: TradingView-Style Interactive Candlestick Chart -->
+  <div class="modal-chart-wrap" id="chart-modal">
+    <div class="modal-chart-card">
+      <div class="chart-modal-header">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="font-size: 14px; font-weight: 800; color: #fff;">
+            BOT 01 :: NIFTY 50 1-MIN MICRO MOMENTUM SCALPING
+          </div>
+          <span class="badge-live" style="background: rgba(0,255,157,0.15); border-color: rgba(0,255,157,0.4); color: var(--neon-green);">
+            ● SIGNAL: STRONG BUY (11 BOTS)
+          </span>
+          <div class="chart-ctrl-row">
+            <button class="chart-tbtn active">1m</button>
+            <button class="chart-tbtn">5m</button>
+            <button class="chart-tbtn">15m</button>
+          </div>
+          <div class="chart-ctrl-row" style="margin-left: 10px;">
+            <button class="chart-tbtn active" id="btn-supertrend" onclick="toggleIndicator('supertrend')">SuperTrend (10,2)</button>
+            <button class="chart-tbtn active" id="btn-ema" onclick="toggleIndicator('ema')">EMA (9,21)</button>
+            <button class="chart-tbtn active" id="btn-vwap" onclick="toggleIndicator('vwap')">VWAP</button>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="chart-ctrl-row">
+            <button class="chart-tbtn" id="chart-zoom-in" onclick="zoomChart(1.2)" style="font-weight: 800; font-size: 13px;">🔍 + ZOOM</button>
+            <button class="chart-tbtn" id="chart-zoom-out" onclick="zoomChart(0.8)" style="font-weight: 800; font-size: 13px;">🔍 − ZOOM</button>
+          </div>
+          <button class="drawer-close" onclick="closeBotModal()">✕</button>
+        </div>
+      </div>
+
+      <div class="chart-main-body">
+        <div class="chart-canvas-area">
+          <canvas id="main-candlestick-canvas"></canvas>
+        </div>
+
+        <div class="chart-side-ladder">
+          <div style="font-size: 11px; font-weight: 800; color: #fff; letter-spacing: 0.5px;">
+            EXECUTION PARAMETERS
+          </div>
+
+          <div style="background: rgba(11,20,38,0.7); border: 1px solid rgba(0,240,255,0.15); border-radius: 8px; padding: 12px; font-size: 11px;">
+            <div class="ladder-row">
+              <span class="ladder-label">Last Traded Price:</span>
+              <span class="ladder-val" style="color: var(--neon-green);">24,730.50</span>
+            </div>
+            <div class="ladder-row">
+              <span class="ladder-label">SuperTrend Pivot:</span>
+              <span class="ladder-val" style="color: var(--neon-green);">24,685.00 (BUY)</span>
+            </div>
+            <div class="ladder-row">
+              <span class="ladder-label">Dynamic Target:</span>
+              <span class="ladder-val" style="color: var(--neon-cyan);">24,820.00 (+0.36%)</span>
+            </div>
+            <div class="ladder-row">
+              <span class="ladder-label">Stop-Loss Protection:</span>
+              <span class="ladder-val" style="color: var(--neon-crimson);">24,680.00 (-0.20%)</span>
+            </div>
+            <div class="ladder-row">
+              <span class="ladder-label">Execution Lot Size:</span>
+              <span class="ladder-val">50 Qty (1 Lot)</span>
+            </div>
+          </div>
+
+          <div style="font-size: 11px; font-weight: 800; color: #fff;">
+            ACTIVE CONSENSUS SIGNALS
+          </div>
+          <div style="font-size: 10.5px; display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between; background: rgba(0,255,157,0.06); padding: 5px 8px; border-radius: 5px; border-left: 2px solid var(--neon-green);">
+              <span>EMA Trend Bot:</span>
+              <strong style="color: var(--neon-green);">BUY (94% Conf)</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; background: rgba(0,255,157,0.06); padding: 5px 8px; border-radius: 5px; border-left: 2px solid var(--neon-green);">
+              <span>Breakout Bot:</span>
+              <strong style="color: var(--neon-green);">BUY (88% Conf)</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; background: rgba(0,255,157,0.06); padding: 5px 8px; border-radius: 5px; border-left: 2px solid var(--neon-green);">
+              <span>Gamma Scalper:</span>
+              <strong style="color: var(--neon-green);">BUY (91% Conf)</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; background: rgba(255,46,99,0.06); padding: 5px 8px; border-radius: 5px; border-left: 2px solid var(--neon-crimson);">
+              <span>News Sentiment:</span>
+              <strong style="color: var(--neon-crimson);">SELL (54% Conf)</strong>
+            </div>
+          </div>
+
+          <button style="margin-top: auto; background: linear-gradient(135deg, rgba(0,255,157,0.25), rgba(0,240,255,0.2)); border: 1px solid var(--neon-green); color: #fff; padding: 10px; border-radius: 8px; font-weight: 800; font-size: 11px; cursor: pointer; font-family: inherit;">
+            ⚡ FORCE IMMEDIATE EXECUTION
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DRAWER 3: Statutory Cost & P&L Audit Drawer -->
+  <div class="drawer-overlay" id="statutory-overlay" onclick="toggleStatutoryDrawer(false)"></div>
+  <aside class="statutory-drawer" id="statutory-drawer">
+    <div class="drawer-header">
+      <div class="drawer-title" style="color: var(--neon-green);">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+        </svg>
+        <span>STATUTORY FEE AUDIT (SEBI/NSE)</span>
+      </div>
+      <button class="drawer-close" onclick="toggleStatutoryDrawer(false)">✕</button>
+    </div>
+
+    <div style="font-size: 11.5px; color: #94a3b8; margin-bottom: 16px;">
+      Transparent Indian regulatory cost deduction calculation conforming to SEBI master circular for F&O & Equity.
+    </div>
+
+    <!-- PnL Summary Box -->
+    <div style="background: rgba(0,255,157,0.08); border: 1px solid rgba(0,255,157,0.3); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+      <div class="ladder-row">
+        <span class="ladder-label" style="font-size: 12px; font-weight: 700; color: #fff;">Gross System Yield:</span>
+        <span class="ladder-val" style="font-size: 14px; color: var(--neon-green);">+₹48,500.00</span>
+      </div>
+      <div class="ladder-row">
+        <span class="ladder-label">Total Regulatory Deductions:</span>
+        <span class="ladder-val" style="color: var(--neon-crimson);">-₹188.00</span>
+      </div>
+      <div class="ladder-row" style="border-top: 1px solid rgba(0,255,157,0.2); padding-top: 8px; margin-top: 8px;">
+        <span class="ladder-label" style="font-size: 13px; font-weight: 800; color: #fff;">Net In-Hand Alpha:</span>
+        <span class="ladder-val" style="font-size: 16px; color: var(--neon-green); font-weight: 900;">+₹48,312.00</span>
+      </div>
+      <div style="font-size: 10px; color: #94a3b8; margin-top: 4px; text-align: right;">
+        Retention Efficiency: <strong style="color: var(--neon-cyan);">99.61%</strong>
+      </div>
+    </div>
+
+    <!-- Itemized Deductions -->
+    <div style="font-size: 11px; font-weight: 800; color: #fff; margin-bottom: 8px;">
+      ITEMIZED REGULATORY BREAKDOWN
+    </div>
+    <div style="background: rgba(11,20,38,0.7); border: 1px solid rgba(0,240,255,0.15); border-radius: 8px; padding: 12px; font-size: 11px;">
+      <div class="ladder-row">
+        <span class="ladder-label">Securities Transaction Tax (STT @ 0.0125%):</span>
+        <span class="ladder-val">₹58.20</span>
+      </div>
+      <div class="ladder-row">
+        <span class="ladder-label">NSE Exchange Turnover Charges:</span>
+        <span class="ladder-val">₹32.15</span>
+      </div>
+      <div class="ladder-row">
+        <span class="ladder-label">SEBI Regulatory Turnover Fee (₹10/Cr):</span>
+        <span class="ladder-val">₹1.45</span>
+      </div>
+      <div class="ladder-row">
+        <span class="ladder-label">Central GST (CGST 9%):</span>
+        <span class="ladder-val">₹5.60</span>
+      </div>
+      <div class="ladder-row">
+        <span class="ladder-label">State GST (SGST 9%):</span>
+        <span class="ladder-val">₹5.60</span>
+      </div>
+      <div class="ladder-row">
+        <span class="ladder-label">Stamp Duty Charges:</span>
+        <span class="ladder-val">₹8.00</span>
+      </div>
+      <div class="ladder-row">
+        <span class="ladder-label">Angel One Brokerage (Flat ₹20/order):</span>
+        <span class="ladder-val">₹77.00</span>
+      </div>
+    </div>
+
+    <!-- Institutional Risk Metrics -->
+    <div style="font-size: 11px; font-weight: 800; color: #fff; margin: 16px 0 8px 0;">
+      QUANTITATIVE RISK SENTINEL
+    </div>
+    <div style="background: rgba(11,20,38,0.7); border: 1px solid rgba(0,240,255,0.15); border-radius: 8px; padding: 12px; font-size: 11px;">
+      <div class="ladder-row">
+        <span class="ladder-label">Maximum Intraday Drawdown:</span>
+        <span class="ladder-val" style="color: var(--neon-green);">0.42% (Max Allowed: 2.0%)</span>
+      </div>
+      <div class="ladder-row">
+        <span class="ladder-label">Sharpe Ratio (Annualized):</span>
+        <span class="ladder-val" style="color: var(--neon-cyan);">3.84 (Institutional Grade)</span>
+      </div>
+      <div class="ladder-row">
+        <span class="ladder-label">Value at Risk (99% VaR):</span>
+        <span class="ladder-val">₹3,200.00</span>
+      </div>
+      <div class="ladder-row">
+        <span class="ladder-label">RMS Fail-Safe Status:</span>
+        <span class="ladder-val" style="color: var(--neon-green); font-weight: 800;">ACTIVE & SECURED</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- PANEL 5: Jarvis AI Voice Co-Pilot -->
+  <div class="jarvis-modal-wrap" id="jarvis-modal">
+    <div class="jarvis-card">
+      <div class="chart-modal-header" style="background: rgba(6,12,24,0.98);">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div class="pulse-dot" style="background: var(--neon-cyan); box-shadow: 0 0 10px var(--neon-cyan);"></div>
+          <div style="font-size: 13px; font-weight: 800; color: #fff; letter-spacing: 1px;">
+            JARVIS AI QUANTITATIVE VOICE CO-PILOT
+          </div>
+          <span class="badge-live" style="background: rgba(0,240,255,0.15); border-color: rgba(0,240,255,0.4); color: var(--neon-cyan);">
+            NEURAL AUDIO INTERFACE
+          </span>
+        </div>
+        <button class="drawer-close" onclick="toggleJarvisModal(false)">✕</button>
+      </div>
+
+      <!-- Fluid Soundwave Visualizer Canvas -->
+      <canvas id="jarvis-canvas"></canvas>
+
+      <!-- Live Voice Telemetry Logs -->
+      <div style="flex: 1; background: #040812; padding: 16px 20px; border-top: 1px solid rgba(0,240,255,0.2); overflow-y: auto; font-size: 11px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="color: var(--neon-cyan); font-weight: 700;">
+          [09:15:02] JARVIS: Autonomous network online. Scanning 14 bot nodes for volatility breakout.
+        </div>
+        <div style="color: #cbd5e1;">
+          [09:15:05] TELEMETRY: Quorum reached (12 BUY / 1 HOLD / 1 SELL). NIFTY micro momentum scalp activated.
+        </div>
+        <div style="color: var(--neon-green);">
+          [09:15:08] EXECUTION: Angel One DMA conduit confirmed fill @ 24,730.50. Latency: 11 milliseconds.
+        </div>
+        <div style="color: #94a3b8;">
+          [09:15:12] RISK SENTINEL: Capital preservation lock active. Trailing stop-loss pegged at 24,680.00.
+        </div>
+        <div style="color: var(--neon-amber);">
+          [09:15:15] CO-PILOT: Audio telemetry streaming. Real-time voice commands enabled for operator Veeresh.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 1. Draw Sparklines on all 14 bot cards
+    function drawSparklines() {
+      for (let i = 1; i <= 14; i++) {
+        const cvs = document.getElementById('spark-' + i);
+        if (!cvs) continue;
+        cvs.width = cvs.offsetWidth || 180;
+        cvs.height = cvs.offsetHeight || 34;
+        const ctx = cvs.getContext('2d');
+        const w = cvs.width;
+        const h = cvs.height;
+
+        // Generate synthetic smooth trend
+        const points = [];
+        let cur = 20 + Math.random() * 10;
+        for (let p = 0; p < 16; p++) {
+          cur += (Math.random() - 0.42) * 5;
+          points.push(cur);
+        }
+
+        const min = Math.min(...points);
+        const max = Math.max(...points);
+        const range = max - min || 1;
+
+        ctx.clearRect(0, 0, w, h);
+        ctx.beginPath();
+        points.forEach((val, idx) => {
+          const x = (idx / (points.length - 1)) * w;
+          const y = h - ((val - min) / range) * (h - 8) - 4;
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+
+        const isPositive = i !== 11;
+        ctx.strokeStyle = isPositive ? '#00FF9D' : '#FFB800';
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+
+        // Area glow
+        ctx.lineTo(w, h);
+        ctx.lineTo(0, h);
+        ctx.closePath();
+        const grad = ctx.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, isPositive ? 'rgba(0, 255, 157, 0.2)' : 'rgba(255, 184, 0, 0.2)');
+        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = grad;
+        ctx.fill();
+      }
+    }
+
+    // 2. Interactive Candlestick Chart Engine
+    let chartScale = 1.0;
+    let indicators = { supertrend: true, ema: true, vwap: true };
+
+    function drawCandlestickChart() {
+      const cvs = document.getElementById('main-candlestick-canvas');
+      if (!cvs) return;
+      cvs.width = cvs.offsetWidth || 1160;
+      cvs.height = cvs.offsetHeight || 720;
+      const ctx = cvs.getContext('2d');
+      const w = cvs.width;
+      const h = cvs.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Grid background
+      ctx.strokeStyle = 'rgba(0, 240, 255, 0.05)';
+      ctx.lineWidth = 1;
+      for (let x = 40; x < w; x += 60) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+      for (let y = 30; y < h; y += 40) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      // Generate 45 realistic candlesticks
+      const candleCount = 42;
+      const candleWidth = Math.max(6, 14 * chartScale);
+      const gap = Math.max(4, 8 * chartScale);
+      const totalWidth = candleCount * (candleWidth + gap);
+      const startX = w - totalWidth - 40;
+
+      let basePrice = 24650;
+      const candles = [];
+      for (let i = 0; i < candleCount; i++) {
+        const change = (Math.random() - 0.45) * 8 + (i > 25 ? 2.5 : 0.8);
+        const open = basePrice;
+        const close = open + change;
+        const high = Math.max(open, close) + Math.random() * 4;
+        const low = Math.min(open, close) - Math.random() * 4;
+        basePrice = close;
+        candles.push({ open, close, high, low });
+      }
+
+      const allLows = candles.map(c => c.low);
+      const allHighs = candles.map(c => c.high);
+      const minP = Math.min(...allLows) - 5;
+      const maxP = Math.max(...allHighs) + 5;
+      const pRange = maxP - minP;
+
+      const priceToY = (p) => h - 60 - ((p - minP) / pRange) * (h - 140);
+
+      // Draw Candlesticks & Volume
+      candles.forEach((c, idx) => {
+        const x = startX + idx * (candleWidth + gap);
+        const yOpen = priceToY(c.open);
+        const yClose = priceToY(c.close);
+        const yHigh = priceToY(c.high);
+        const yLow = priceToY(c.low);
+        const isUp = c.close >= c.open;
+        const color = isUp ? '#00FF9D' : '#FF2E63';
+
+        // Wick
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x + candleWidth / 2, yHigh);
+        ctx.lineTo(x + candleWidth / 2, yLow);
+        ctx.stroke();
+
+        // Body
+        ctx.fillStyle = color;
+        const bodyTop = Math.min(yOpen, yClose);
+        const bodyHeight = Math.max(3, Math.abs(yClose - yOpen));
+        ctx.fillRect(x, bodyTop, candleWidth, bodyHeight);
+
+        // Volume bar at bottom
+        const volH = Math.random() * 45 + 10;
+        ctx.fillStyle = isUp ? 'rgba(0, 255, 157, 0.25)' : 'rgba(255, 46, 99, 0.25)';
+        ctx.fillRect(x, h - 20 - volH, candleWidth, volH);
+      });
+
+      // Indicators
+      if (indicators.ema) {
+        ctx.strokeStyle = '#00F0FF';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        candles.forEach((c, idx) => {
+          const x = startX + idx * (candleWidth + gap) + candleWidth / 2;
+          const y = priceToY(c.close - 2.5);
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        ctx.strokeStyle = '#D946EF';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        candles.forEach((c, idx) => {
+          const x = startX + idx * (candleWidth + gap) + candleWidth / 2;
+          const y = priceToY(c.close - 5.5);
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      }
+
+      if (indicators.supertrend) {
+        ctx.strokeStyle = '#00FF9D';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        candles.forEach((c, idx) => {
+          const x = startX + idx * (candleWidth + gap) + candleWidth / 2;
+          const y = priceToY(c.low - 4);
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      if (indicators.vwap) {
+        ctx.strokeStyle = '#FFB800';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        candles.forEach((c, idx) => {
+          const x = startX + idx * (candleWidth + gap) + candleWidth / 2;
+          const y = priceToY(c.open - 1.2);
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      }
+
+      // Crosshair coordinate line
+      const crossY = priceToY(24730.50);
+      ctx.strokeStyle = 'rgba(0, 240, 255, 0.6)';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(0, crossY);
+      ctx.lineTo(w, crossY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Price Tag on Right
+      ctx.fillStyle = '#00F0FF';
+      ctx.fillRect(w - 75, crossY - 10, 75, 20);
+      ctx.fillStyle = '#05070B';
+      ctx.font = 'bold 11px monospace';
+      ctx.fillText('24,730.50', w - 70, crossY + 4);
+    }
+
+    function zoomChart(factor) {
+      chartScale = Math.max(0.6, Math.min(2.5, chartScale * factor));
+      drawCandlestickChart();
+    }
+
+    function toggleIndicator(ind) {
+      indicators[ind] = !indicators[ind];
+      const btn = document.getElementById('btn-' + ind);
+      if (btn) btn.classList.toggle('active', indicators[ind]);
+      drawCandlestickChart();
+    }
+
+    // 3. Fluid Reactive Soundwave Visualizer for Jarvis
+    let jarvisAnimId = null;
+    function startJarvisWaves() {
+      const cvs = document.getElementById('jarvis-canvas');
+      if (!cvs) return;
+      cvs.width = cvs.offsetWidth || 1080;
+      cvs.height = cvs.offsetHeight || 260;
+      const ctx = cvs.getContext('2d');
+      let step = 0;
+
+      function renderWave() {
+        ctx.clearRect(0, 0, cvs.width, cvs.height);
+        const w = cvs.width;
+        const h = cvs.height;
+        const midY = h / 2;
+        step += 0.05;
+
+        // Draw 4 harmonic sine waves
+        const waves = [
+          { color: 'rgba(0, 240, 255, 0.8)', freq: 0.015, amp: 38, speed: 1.2 },
+          { color: 'rgba(0, 255, 157, 0.7)', freq: 0.022, amp: 26, speed: -1.0 },
+          { color: 'rgba(217, 70, 239, 0.6)', freq: 0.010, amp: 46, speed: 0.8 },
+          { color: 'rgba(56, 189, 248, 0.5)', freq: 0.030, amp: 18, speed: -1.5 },
+        ];
+
+        waves.forEach(wave => {
+          ctx.strokeStyle = wave.color;
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          for (let x = 0; x < w; x += 4) {
+            // Apply gaussian envelope so waves taper at ends
+            const normX = (x / w) * 2 - 1;
+            const envelope = Math.exp(-normX * normX * 2.8);
+            const y = midY + Math.sin(x * wave.freq + step * wave.speed) * wave.amp * envelope;
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+        });
+
+        // Pulsing core orb
+        ctx.beginPath();
+        ctx.arc(w / 2, midY, 12 + Math.sin(step * 3) * 4, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 240, 255, 0.85)';
+        ctx.shadowColor = '#00F0FF';
+        ctx.shadowBlur = 20;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        jarvisAnimId = requestAnimationFrame(renderWave);
+      }
+      renderWave();
+    }
+
+    // Modal & Drawer toggles
+    function toggleBrokerDrawer(open) {
+      document.getElementById('broker-overlay').classList.toggle('open', open);
+      document.getElementById('broker-drawer').classList.toggle('open', open);
+      document.getElementById('broker-btn').classList.toggle('active', open);
+    }
+
+    function openBotModal(id) {
+      document.getElementById('chart-modal').classList.add('open');
+      setTimeout(drawCandlestickChart, 50);
+    }
+
+    function closeBotModal() {
+      document.getElementById('chart-modal').classList.remove('open');
+    }
+
+    function toggleStatutoryDrawer(open) {
+      document.getElementById('statutory-overlay').classList.toggle('open', open);
+      document.getElementById('statutory-drawer').classList.toggle('open', open);
+    }
+
+    function toggleJarvisModal(open) {
+      document.getElementById('jarvis-modal').classList.toggle('open', open);
+      if (open) {
+        startJarvisWaves();
+      } else if (jarvisAnimId) {
+        cancelAnimationFrame(jarvisAnimId);
+      }
+    }
+
+    // Step Orchestration API for Automated Video Recording
+    const stepsConfig = {
+      1: {
+        badge: "STEP 01 / 05",
+        title: "AUTONOMOUS COMMAND HUD • 14-BOT CONSENSUS MESH",
+        desc: "Fourteen active bot agents coordinate live trades, streaming real-time momentum, breakout, and delta scalping logic with unified voting quorum."
+      },
+      2: {
+        badge: "STEP 02 / 05",
+        title: "BROKER INTEGRATION • ANGEL ONE SMARTAPI CONDUIT",
+        desc: "Smoothly sliding out real-time institutional margin ladder, intraday settlement ledger, and live market depth order book."
+      },
+      3: {
+        badge: "STEP 03 / 05",
+        title: "BOT AGENT DIAGNOSTICS • TRADINGVIEW-GRADE INTERACTIVE CHART",
+        desc: "Full interactive candlestick chart with dynamic candle zooming, SuperTrend envelopes, 9/21 EMA lines, and volume absorption."
+      },
+      4: {
+        badge: "STEP 04 / 05",
+        title: "STATUTORY RISK & P&L SENTINEL • REGULATORY AUDIT",
+        desc: "Transparent Indian regulatory fee deductions (STT, GST, Exchange turnover) verified against net alpha yield retention."
+      },
+      5: {
+        badge: "STEP 05 / 05",
+        title: "JARVIS AI QUANTITATIVE CO-PILOT • NEURAL AUDIO INTERFACE",
+        desc: "Reactive fluid soundwave visualizer responding to voice telemetry, autonomous execution commands, and risk locking."
+      }
+    };
+
+    window.setStep = function(stepNum) {
+      const cfg = stepsConfig[stepNum];
+      if (!cfg) return;
+      document.getElementById('step-badge').innerText = cfg.badge;
+      document.getElementById('step-title').innerText = cfg.title;
+      document.getElementById('step-desc').innerText = cfg.desc;
+
+      if (stepNum === 1) {
+        toggleBrokerDrawer(false);
+        closeBotModal();
+        toggleStatutoryDrawer(false);
+        toggleJarvisModal(false);
+      } else if (stepNum === 2) {
+        closeBotModal();
+        toggleStatutoryDrawer(false);
+        toggleJarvisModal(false);
+        toggleBrokerDrawer(true);
+      } else if (stepNum === 3) {
+        toggleBrokerDrawer(false);
+        toggleStatutoryDrawer(false);
+        toggleJarvisModal(false);
+        openBotModal(1);
+      } else if (stepNum === 4) {
+        toggleBrokerDrawer(false);
+        closeBotModal();
+        toggleJarvisModal(false);
+        toggleStatutoryDrawer(true);
+      } else if (stepNum === 5) {
+        toggleBrokerDrawer(false);
+        closeBotModal();
+        toggleStatutoryDrawer(false);
+        toggleJarvisModal(true);
+      }
+    };
+
+    // Virtual cursor mover for automation recording
+    window.moveCursorTo = function(x, y, click = false) {
+      const cur = document.getElementById('virtual-cursor');
+      const ping = document.getElementById('cursor-ping');
+      if (!cur) return;
+      cur.style.left = x + 'px';
+      cur.style.top = y + 'px';
+      if (click && ping) {
+        setTimeout(() => {
+          ping.classList.add('active');
+          setTimeout(() => ping.classList.remove('active'), 350);
+        }, 350);
+      }
+    };
+
+    // Initialize layout
+    window.addEventListener('load', () => {
+      drawSparklines();
+      window.setStep(1);
+    });
+  </script>
+</body>
+</html>

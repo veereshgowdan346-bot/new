@@ -1,0 +1,38 @@
+{
+  "phase": "PHASE_8",
+  "created_at": "2026-10-18T09:46:01.569856+00:00",
+  "artifacts": {
+    "bot_readiness_matrix.md": {
+      "size_bytes": 5037,
+      "sha256": "9af4728a83e1b86f8ff72e5dee4ed8e0cc3888c2ee21357368961570b90c04b2"
+    },
+    "capital_and_margin_audit.md": {
+      "size_bytes": 7730,
+      "sha256": "b9113652d9c35a02a44005c5ad4176767da2029cf41575e01a8f93d8ce34fa4a"
+    },
+    "database_integrity_report.md": {
+      "size_bytes": 3275,
+      "sha256": "47006b662b7d39b3f0362fae0469891ac3f115b33f41b64393002e9ce37d90b8"
+    },
+    "final_report.md": {
+      "size_bytes": 5028,
+      "sha256": "38ff332d37dc3448f826adfa81f39e164edda5e1367daa16f099aef2035625ab"
+    },
+    "market_eligibility_matrix.md": {
+      "size_bytes": 5359,
+      "sha256": "1b525922ee7e1ccc8abdccb227bb5e77bc378b6ebbe271705def9c9d4dd70cb2"
+    },
+    "net_profit_validation.md": {
+      "size_bytes": 4954,
+      "sha256": "55ec655ae53514a628551ffab91d2e694c4ef5bae6727d257b4a35d42b1d5d3b"
+    },
+    "paper_operational_validation.md": {
+      "size_bytes": 5340,
+      "sha256": "4b06b855e1453ff68fd2a681398aa804ac4af453facef27ea46098a61b25a775"
+    },
+    "regression_results.md": {
+      "size_bytes": 5322,
+      "sha256": "f8008a712bee89dd690081cc16aa72d812d723ccd3e7ac7a7cfa55b9df171271"
+    }
+  }
+}

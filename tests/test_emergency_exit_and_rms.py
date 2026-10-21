@@ -47,6 +47,18 @@ class FakeBroker:
 class TestPhase1EmergencyExitAndRMS(unittest.TestCase):
 
     def setUp(self):
+        import tempfile
+        self.temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        self.temp_db_path = self.temp_db.name
+        self.temp_db.close()
+        import memory_db
+        from server import memory_db as server_memory_db
+        self.orig_db_path = memory_db.DB_PATH
+        memory_db.DB_PATH = self.temp_db_path
+        server_memory_db.DB_PATH = self.temp_db_path
+        pss.memory_db.DB_PATH = self.temp_db_path
+        memory_db.init_db()
+
         # Save original states
         self.orig_mode = pss.execution_mode
         self.orig_rms = pss.rms_state.copy()
@@ -68,6 +80,17 @@ class TestPhase1EmergencyExitAndRMS(unittest.TestCase):
         pss.broker_state["angel_one"] = self.orig_broker_state
         pss.active_smart_connect = self.orig_active_smart_connect
         pss.in_flight_exits = self.orig_in_flight
+
+        import memory_db
+        from server import memory_db as server_memory_db
+        memory_db.DB_PATH = self.orig_db_path
+        server_memory_db.DB_PATH = self.orig_db_path
+        pss.memory_db.DB_PATH = self.orig_db_path
+        if os.path.exists(self.temp_db_path):
+            try:
+                os.unlink(self.temp_db_path)
+            except Exception:
+                pass
 
     def test_quorum_bypassed_for_emergency_exit(self):
         """Emergency exit orders must NEVER be vetoed by peer mesh quorum."""

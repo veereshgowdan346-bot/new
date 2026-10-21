@@ -1,0 +1,80 @@
+{
+  "audit_phase": "Phase 3 - Independent Verification & Authentic Paper-Feed Gate",
+  "verified_at": "2026-10-18T10:49:19.181065",
+  "execution_safety": {
+    "execution_mode": "PAPER",
+    "live_trading_locked": true,
+    "angel_one_placeOrder_reachable": false,
+    "market_feed_status": "BLOCKED / OFFLINE (Market closed Sunday, credentials unconfigured)",
+    "production_db_path": "server/chintu_memory.db",
+    "production_db_sha256": "262F1C0F78ABE0E00555B97FC5F7F27DFA57C345D5F22FA084C4E504AE95FE33",
+    "production_db_size_bytes": 1306624,
+    "production_db_unmutated": true
+  },
+  "historical_database_accounting": {
+    "total_records": 759,
+    "records_partition": {
+      "level_1_clean_closed_trades": 267,
+      "level_2_quarantined_option_trades": 102,
+      "level_3_emergency_stress_tests": 4,
+      "level_4_non_trade_orders": {
+        "rms_pre_order_rejections": 198,
+        "initial_entry_orders": 122,
+        "mock_test_doubles": 66,
+        "total_level_4": 386
+      },
+      "partition_sum": 759,
+      "partition_matches_total": true
+    },
+    "closed_trades_pnl_classification": {
+      "winning_trades": 210,
+      "losing_trades": 159,
+      "breakeven_trades": 4,
+      "sum_closed_trades": 373,
+      "sum_matches_closed_total": true
+    },
+    "historical_provenance_breakdown": {
+      "SYNTHETIC_REPLAY": 303,
+      "RMS_PRE_ORDER_REJECTION": 198,
+      "INITIAL_ENTRY_ORDER": 122,
+      "MOCK_BROKER": 66,
+      "TELEMETRY_TEST": 48,
+      "UNKNOWN_PROVENANCE": 18,
+      "SYNTHETIC_STRESS_TEST": 4,
+      "AUTHENTIC_FEED_PAPER": 0,
+      "REAL_BROKER_EXECUTION": 0,
+      "total_provenance_sum": 759
+    },
+    "qualification_gate_result": {
+      "status": "NO_QUALIFIED_BOT",
+      "qualified": false,
+      "reason": "No bot meets the qualification criteria (minimum 5 verified closed trades and positive net PnL).",
+      "highest_profit_bot": null,
+      "canonical_bots_analyzed": 14,
+      "qualified_bot_count": 0
+    }
+  },
+  "exploratory_dataset_accounting": {
+    "dataset_type": "SYNTHETIC_SIMULATION (Randomized Slippage Offline Script)",
+    "total_records": 65,
+    "provenance_assigned": "SYNTHETIC_SIMULATION",
+    "participating_bots": 14,
+    "aggregate_synthetic_gross_pnl_inr": 7574.7,
+    "aggregate_statutory_charges_inr": 5321.2,
+    "aggregate_synthetic_net_pnl_inr": 2253.5,
+    "accounting_identity_verified": true,
+    "qualification_gate_result": {
+      "status": "NO_QUALIFIED_BOT",
+      "qualified": false,
+      "reason": "No bot meets the qualification criteria (minimum 5 verified closed trades and positive net PnL).",
+      "highest_profit_bot": null,
+      "qualified_bot_count": 0
+    }
+  },
+  "release_gate_summary": {
+    "paper_feed_ready": "BLOCKED (Feed Offline, Sunday)",
+    "paper_trading_validated": "NOT VERIFIED (Authentic Feed Missing)",
+    "live_trading_eligible": "BLOCKED (0/14 Bots Qualified on Authentic Tape)",
+    "ready_for_live_deployment": false
+  }
+}

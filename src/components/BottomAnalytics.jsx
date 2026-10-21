@@ -30,8 +30,45 @@ export default function BottomAnalytics({
   const [hoveredCandle, setHoveredCandle] = useState(null);
   const [hoveredSlice, setHoveredSlice] = useState(null);
 
+  const [provenanceFilter, setProvenanceFilter] = useState('ALL'); // 'ALL' | 'AUTHENTIC' | 'SYNTHETIC'
+
+  // Count authentic vs synthetic executions
+  const authenticCount = recentTrades.filter((t) => {
+    const prov = t.provenance || '';
+    return prov === 'REAL_BROKER_EXECUTION' || prov === 'AUTHENTIC_FEED_PAPER';
+  }).length;
+
+  const syntheticCount = recentTrades.filter((t) => {
+    const prov = t.provenance || '';
+    return (
+      prov === 'SYNTHETIC_SIMULATION' ||
+      prov === 'SYNTHETIC_REPLAY' ||
+      prov === 'TELEMETRY_TEST' ||
+      prov === 'SYNTHETIC_STRESS_TEST' ||
+      prov === 'MOCK_BROKER'
+    );
+  }).length;
+
+  const filteredTrades = recentTrades.filter((t) => {
+    const prov = t.provenance || '';
+    if (provenanceFilter === 'AUTHENTIC') {
+      return prov === 'REAL_BROKER_EXECUTION' || prov === 'AUTHENTIC_FEED_PAPER';
+    }
+    if (provenanceFilter === 'SYNTHETIC') {
+      return (
+        prov === 'SYNTHETIC_SIMULATION' ||
+        prov === 'SYNTHETIC_REPLAY' ||
+        prov === 'TELEMETRY_TEST' ||
+        prov === 'SYNTHETIC_STRESS_TEST' ||
+        prov === 'MOCK_BROKER'
+      );
+    }
+    return true;
+  });
+
   // Calculate Net Profit after Indian Regulatory Deductions (SEBI, NSE, GST, Stamp, STT)
-  const parsedTrades = recentTrades.map((t) => {
+  const parsedTrades = filteredTrades.map((t) => {
+    const isUnresolved = t.charges_status === 'UNRESOLVED' || t.chargesStatus === 'UNRESOLVED' || t.is_quarantined || t.isQuarantined;
     const rawPnl = typeof t.pnl === 'string'
       ? parseFloat(t.pnl.replace(/[^\d.-]/g, '')) || 0
       : Number(t.pnl) || 0;
@@ -45,12 +82,14 @@ export default function BottomAnalytics({
     });
     return {
       ...t,
+      isUnresolved,
       charges
     };
   });
 
   const aggregateGrossPnl = parsedTrades.reduce((sum, t) => sum + t.charges.grossPnl, 0);
-  const aggregateCharges = parsedTrades.reduce((sum, t) => sum + t.charges.totalCharges, 0);
+  const aggregateCharges = parsedTrades.reduce((sum, t) => t.isUnresolved ? sum : sum + t.charges.totalCharges, 0);
+  const unresolvedCount = parsedTrades.filter((t) => t.isUnresolved).length;
   const aggregateNetProfit = aggregateGrossPnl - aggregateCharges;
 
   // Expanded Widescreen Candlestick Calculations (Full Width SVG)
@@ -373,6 +412,40 @@ export default function BottomAnalytics({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Provenance Filter Pills */}
+            <div className="flex items-center gap-1 bg-[#09152e] p-1 rounded-lg border border-[#1e3a6e]">
+              <button
+                onClick={() => setProvenanceFilter('ALL')}
+                className={`px-2 py-0.5 rounded text-[10px] font-sans font-bold transition-all ${
+                  provenanceFilter === 'ALL'
+                    ? 'bg-blue-600 text-white shadow'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                All ({recentTrades.length})
+              </button>
+              <button
+                onClick={() => setProvenanceFilter('AUTHENTIC')}
+                className={`px-2 py-0.5 rounded text-[10px] font-sans font-bold transition-all ${
+                  provenanceFilter === 'AUTHENTIC'
+                    ? 'bg-emerald-600 text-white shadow'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Authentic ({authenticCount})
+              </button>
+              <button
+                onClick={() => setProvenanceFilter('SYNTHETIC')}
+                className={`px-2 py-0.5 rounded text-[10px] font-sans font-bold transition-all ${
+                  provenanceFilter === 'SYNTHETIC'
+                    ? 'bg-purple-600 text-white shadow'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Synthetic ({syntheticCount})
+              </button>
+            </div>
+
             {recentTrades.length > 0 && (
               <div className="flex items-center gap-2 font-mono text-[11px]">
                 <span className="px-2.5 py-1 rounded-lg bg-[#09152e] border border-[#1e3a6e] text-slate-300">
@@ -383,12 +456,17 @@ export default function BottomAnalytics({
                 <span className="px-2.5 py-1 rounded-lg bg-[#09152e] border border-amber-500/30 text-amber-300" title="Brokerage (₹20/order) + STT (0.0125%/0.0625%) + Exchange (0.00325%) + GST (18%) + SEBI + Stamp">
                   Taxes/Brokerage: <strong className="text-amber-400">-₹{aggregateCharges.toFixed(2)}</strong>
                 </span>
+                {unresolvedCount > 0 && (
+                  <span className="px-2.5 py-1 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-300 text-[10.5px] font-bold">
+                    ⚠️ {unresolvedCount} Unresolved
+                  </span>
+                )}
                 <span className={`px-2.5 py-1 rounded-lg border font-bold ${
                   aggregateNetProfit >= 0
                     ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 shadow-[0_0_10px_rgba(16,185,129,0.2)]'
                     : 'bg-rose-500/15 border-rose-500/40 text-rose-300 shadow-[0_0_10px_rgba(244,63,94,0.2)]'
                 }`}>
-                  Net Withdrawable: <strong>{aggregateNetProfit >= 0 ? '+' : ''}₹{aggregateNetProfit.toFixed(2)}</strong>
+                  Net Realized P/L: <strong>{aggregateNetProfit >= 0 ? '+' : ''}₹{aggregateNetProfit.toFixed(2)}</strong>
                 </span>
               </div>
             )}
@@ -397,7 +475,7 @@ export default function BottomAnalytics({
                 ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
                 : 'bg-slate-800 text-slate-400 border-slate-700'
             }`}>
-              {recentTrades.length > 0 ? `${recentTrades.length} Active Trades` : '0 Live Executions'}
+              {recentTrades.length > 0 ? `${parsedTrades.length} Filtered` : '0 Live Executions'}
             </span>
           </div>
         </div>
@@ -421,6 +499,7 @@ export default function BottomAnalytics({
               <thead>
                 <tr className="bg-[#09152e] border-b border-[#1e3a6e]/60 text-[10.5px] font-sans text-slate-400 uppercase tracking-wider">
                   <th className="py-2.5 px-3.5">Timestamp</th>
+                  <th className="py-2.5 px-3.5">Provenance</th>
                   <th className="py-2.5 px-3.5">Bot Identity</th>
                   <th className="py-2.5 px-3.5">Market Segment</th>
                   <th className="py-2.5 px-3.5">Asset Symbol</th>
@@ -435,6 +514,35 @@ export default function BottomAnalytics({
               <tbody className="divide-y divide-[#1e3a6e]/30">
                 {parsedTrades.map((trade) => {
                   const isBuy = trade.action === 'BUY';
+                  const prov = trade.provenance || 'UNKNOWN_PROVENANCE';
+                  let provBadge = 'bg-slate-800 text-slate-300 border-slate-700';
+                  let provLabel = 'HISTORICAL';
+                  if (prov === 'REAL_BROKER_EXECUTION') {
+                    provBadge = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+                    provLabel = 'LIVE BROKER';
+                  } else if (prov === 'AUTHENTIC_FEED_PAPER') {
+                    provBadge = 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40';
+                    provLabel = 'AUTH PAPER';
+                  } else if (prov === 'SYNTHETIC_SIMULATION') {
+                    provBadge = 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/40';
+                    provLabel = 'SYNTH SIM';
+                  } else if (prov === 'SYNTHETIC_REPLAY') {
+                    provBadge = 'bg-purple-500/20 text-purple-300 border-purple-500/40';
+                    provLabel = 'SYNTH REPLAY';
+                  } else if (prov === 'TELEMETRY_TEST') {
+                    provBadge = 'bg-blue-500/20 text-blue-300 border-blue-500/40';
+                    provLabel = 'TELEMETRY';
+                  } else if (prov === 'MOCK_BROKER') {
+                    provBadge = 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+                    provLabel = 'MOCK';
+                  } else if (prov === 'SYNTHETIC_STRESS_TEST') {
+                    provBadge = 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+                    provLabel = 'STRESS TEST';
+                  } else if (prov === 'RMS_PRE_ORDER_REJECTION') {
+                    provBadge = 'bg-red-500/20 text-red-300 border-red-500/40';
+                    provLabel = 'RMS BLOCK';
+                  }
+
                   const seg =
                     trade.segment ||
                     (trade.symbol.includes('CE') || trade.symbol.includes('FUT') || trade.symbol.includes('NIFTY')
@@ -464,6 +572,11 @@ export default function BottomAnalytics({
                     >
                       <td className="py-2.5 px-3.5 text-slate-400 text-[11px] whitespace-nowrap">
                         {trade.time}
+                      </td>
+                      <td className="py-2.5 px-3.5 whitespace-nowrap">
+                        <span className={`px-2 py-0.5 rounded text-[9.5px] font-sans font-bold border ${provBadge}`}>
+                          {provLabel}
+                        </span>
                       </td>
                       <td className="py-2.5 px-3.5 font-bold text-slate-200 whitespace-nowrap">
                         {trade.bot}
@@ -496,11 +609,23 @@ export default function BottomAnalytics({
                       <td className="py-2.5 px-3.5 text-right text-slate-300 font-semibold whitespace-nowrap">
                         {trade.charges.grossPnl >= 0 ? '+' : ''}₹{trade.charges.grossPnl.toFixed(2)}
                       </td>
-                      <td className="py-2.5 px-3.5 text-right text-amber-400/90 font-mono text-[11px] whitespace-nowrap">
-                        -₹{trade.charges.totalCharges.toFixed(2)}
+                      <td className="py-2.5 px-3.5 text-right font-mono text-[11px] whitespace-nowrap">
+                        {trade.isUnresolved ? (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-sans font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40" title="Missing strikes/dates or mislabeled option contract. Regulatory charges unresolved.">
+                            UNRESOLVED
+                          </span>
+                        ) : (
+                          <span className="text-amber-400/90">-₹{trade.charges.totalCharges.toFixed(2)}</span>
+                        )}
                       </td>
-                      <td className={`py-2.5 px-3.5 text-right font-bold whitespace-nowrap ${isNetPositive ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {isNetPositive ? '+' : ''}₹{netPnlVal.toFixed(2)}
+                      <td className={`py-2.5 px-3.5 text-right font-bold whitespace-nowrap ${trade.isUnresolved ? 'text-amber-400' : (isNetPositive ? 'text-emerald-400' : 'text-rose-400')}`}>
+                        {trade.isUnresolved ? (
+                          <span className="font-mono text-[11px] text-amber-300 font-semibold" title="Net profit cannot be certified while regulatory charges remain unresolved.">
+                            UNRESOLVED
+                          </span>
+                        ) : (
+                          `${isNetPositive ? '+' : ''}₹${netPnlVal.toFixed(2)}`
+                        )}
                       </td>
                     </tr>
                   );

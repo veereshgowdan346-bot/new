@@ -1,0 +1,74 @@
+{
+  "preflight_phase": "Phase 4 - Authentic Market Feed Preflight & Gating Audit",
+  "timestamp_ist": "2026-10-18 11:03:39 IST",
+  "iso_timestamp": "2026-10-18T11:03:39.611127+05:30",
+  "execution_safety_mode": "PAPER",
+  "live_trading_locked": true,
+  "credential_availability": {
+    "status": "MISSING_CREDENTIALS",
+    "has_api_key": false,
+    "has_client_id": false,
+    "has_pin": false,
+    "has_totp_secret": false,
+    "missing_configurations": [
+      "ANGEL_API_KEY",
+      "ANGEL_CLIENT_ID",
+      "ANGEL_PIN",
+      "ANGEL_TOTP_SECRET"
+    ],
+    "sources_inspected": [
+      "os_environment",
+      "dotenv_file",
+      "sqlite_system_config"
+    ],
+    "security_compliance": "Zero plaintext secrets logged or exposed"
+  },
+  "exchange_market_session": {
+    "weekday": "Sunday",
+    "is_weekend": true,
+    "session_status": "MARKET_CLOSED",
+    "is_open": false,
+    "nse_open": false,
+    "mcx_open": false,
+    "reason": "Indian stock exchanges (NSE/BSE/MCX) are closed on Sunday.",
+    "regular_trading_window": "Monday-Friday 09:15 - 15:30 IST (Equity/F&O), 09:00 - 23:30 IST (MCX)"
+  },
+  "broker_sdk_connection_status": {
+    "sdk_smartconnect_installed": true,
+    "sdk_smartwebsocket_v2_installed": true,
+    "connection_state": "DISCONNECTED",
+    "is_authenticated": false,
+    "jwt_session_token": null,
+    "feed_token": null,
+    "subscribed_tokens_count": 0
+  },
+  "fail_closed_thresholds_and_reconnection": {
+    "stale_tick_threshold_seconds": 15.0,
+    "future_timestamp_threshold_seconds": 5.0,
+    "max_reconnection_attempts": 5,
+    "exponential_backoff_delays_seconds": [
+      2.0,
+      4.0,
+      8.0,
+      16.0,
+      32.0
+    ],
+    "unknown_token_policy": "FAIL_CLOSED (Rejected, ticks_rejected incremented)",
+    "truncated_binary_packet_policy": "FAIL_CLOSED (Minimum 51 bytes required)",
+    "zero_or_negative_price_policy": "FAIL_CLOSED (INVALID_PRICE rejected)"
+  },
+  "paper_feed_readiness_decision": {
+    "status": "BLOCKED",
+    "ready_for_paper_streaming": false,
+    "blocking_reasons": [
+      "Angel One SmartAPI credentials unconfigured in environment",
+      "Exchange session is closed on Sunday (no live tick stream available)",
+      "Authentic tick origin cannot be verified while broker gateway is offline"
+    ],
+    "action_required_for_activation": [
+      "Securely provision ANGEL_API_KEY, ANGEL_CLIENT_ID, ANGEL_PIN, ANGEL_TOTP_SECRET in .env",
+      "Wait for exchange opening session (Monday at 09:15:00 IST)",
+      "Authenticate via SmartConnect and verify WebSocket tick subscription handshake"
+    ]
+  }
+}
