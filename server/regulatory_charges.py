@@ -486,3 +486,96 @@ def compute_instrument_regulatory_charges(
         "stamp_duty": float(dec_stamp),
         "total_charges": float(round_cur(total_charges))
     }
+
+
+def validate_net_profit_guardrail(
+    symbol: str,
+    price: float,
+    qty: int,
+    action: str = "BUY",
+    target_price: Optional[float] = None,
+    segment: Optional[str] = None,
+    exchange: Optional[str] = None,
+    product_type: str = "INTRADAY",
+    safety_buffer_pct: float = 20.0
+) -> Tuple[bool, str, Dict[str, Any]]:
+    """
+    STRICT BROKERAGE & TAX NET-PROFIT GUARDRAIL
+    Algorithmically calculates all anticipated broker fees, exchange turnover charges,
+    SEBI turnover fees, GST, and STT before trade submission.
+    Aborts and rejects any trade signal where expected gross movement fails to cover
+    statutory and brokerage costs with a mandatory safety buffer.
+    """
+    p = max(0.0, float(price or 0.0))
+    q = max(1, int(qty or 1))
+
+    if p <= 0.0 or q <= 0:
+        return False, "Input validation failed: Price and quantity must be positive.", {}
+
+    # Calculate round-trip charges (entry + exit)
+    charges_res = compute_instrument_regulatory_charges(
+        symbol=symbol,
+        price=p,
+        qty=q,
+        action="ROUND_TRIP",
+        segment=segment,
+        exchange=exchange,
+        product_type=product_type
+    )
+
+    roundtrip_charges = float(charges_res.get("total_charges", 0.0))
+
+    # Determine expected target price
+    if target_price is not None and float(target_price) > 0:
+        eff_target = float(target_price)
+    else:
+        # Default conservative target movement based on segment
+        seg_lower = (segment or "").lower()
+        if "option" in seg_lower:
+            move_pct = 0.040  # 4.0% premium move
+        elif "future" in seg_lower:
+            move_pct = 0.005  # 0.5% futures move
+        elif "mcx" in seg_lower or "commodity" in seg_lower:
+            move_pct = 0.006  # 0.6% commodity move
+        else:
+            move_pct = 0.007  # 0.7% equity move
+
+        eff_target = p * (1.0 + move_pct) if action.upper() == "BUY" else p * (1.0 - move_pct)
+
+    expected_gross_profit = abs(eff_target - p) * q
+    expected_net_profit = expected_gross_profit - roundtrip_charges
+
+    breakeven_delta = roundtrip_charges / q if q > 0 else 0.0
+    breakeven_pct = (breakeven_delta / p) * 100.0 if p > 0 else 0.0
+
+    safety_threshold = roundtrip_charges * (1.0 + safety_buffer_pct / 100.0)
+
+    is_approved = expected_gross_profit >= safety_threshold and expected_net_profit > 0.0
+
+    telemetry = {
+        "symbol": symbol,
+        "entry_price": p,
+        "target_price": eff_target,
+        "qty": q,
+        "roundtrip_charges": roundtrip_charges,
+        "charges_breakdown": charges_res,
+        "expected_gross_profit": round(expected_gross_profit, 2),
+        "expected_net_profit": round(expected_net_profit, 2),
+        "breakeven_delta": round(breakeven_delta, 2),
+        "breakeven_pct": round(breakeven_pct, 2),
+        "safety_threshold": round(safety_threshold, 2),
+        "safety_buffer_pct": safety_buffer_pct
+    }
+
+    if not is_approved:
+        rejection_reason = (
+            f"Strict Net-Profit Guardrail Abort: Expected gross gain (₹{expected_gross_profit:,.2f}) "
+            f"fails to safely cover roundtrip statutory taxes & brokerage (₹{roundtrip_charges:,.2f} "
+            f"+ {safety_buffer_pct:.0f}% safety buffer = ₹{safety_threshold:,.2f}). "
+            f"Breakeven requires at least ₹{breakeven_delta:.2f} ({breakeven_pct:.2f}%) movement. "
+            f"Order aborted to prevent guaranteed net loss."
+        )
+        return False, rejection_reason, telemetry
+
+    return True, "Net-profit guardrail passed with positive expected net profit.", telemetry
+

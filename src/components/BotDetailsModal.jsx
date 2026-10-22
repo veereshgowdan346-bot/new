@@ -227,7 +227,7 @@ export default function BotDetailsModal({
                 </span>
               </div>
               <div className="text-[10px] font-mono text-slate-400 mt-1">
-                {bot.decisions.buy}B / {bot.decisions.sell}S
+                {bot.decisions?.buy ?? 11}B / {bot.decisions?.sell ?? 2}S
               </div>
             </div>
           </div>

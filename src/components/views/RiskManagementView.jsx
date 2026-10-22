@@ -17,9 +17,12 @@ import {
   Layers,
   ArrowRight,
   TrendingUp,
-  Cpu
+  Cpu,
+  Sparkles,
+  X
 } from 'lucide-react';
 import { apiFetch } from '../../utils/api';
+import PortfolioRebalancer from '../PortfolioRebalancer';
 
 const STORAGE_KEY = 'chintu_risk_settings';
 
@@ -50,6 +53,7 @@ export default function RiskManagementView({
   });
 
   const [savedFeedback, setSavedFeedback] = useState(false);
+  const [showRebalancerModal, setShowRebalancerModal] = useState(false);
 
   // Sync riskSettings helper & backend RMS
   const updateSetting = (key, value) => {
@@ -223,6 +227,61 @@ export default function RiskManagementView({
           </div>
         </div>
       </div>
+
+      {/* 1.5 Portfolio Allocation Drift & Rebalancer Strip */}
+      <div className="bg-[#081224] border border-cyan-500/30 rounded-xl p-3.5 shadow-lg flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="p-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+            <Layers className="w-4 h-4 text-cyan-400" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-white tracking-wide">
+                200+ MULTI-ASSET PORTFOLIO REBALANCER
+              </span>
+              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+                DRIFT AUDITOR LIVE
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+              Continuously audits weight deviations against All-Weather, Alpha, and Custom models · Generates tax-audited Buy/Sell actions
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowRebalancerModal(true)}
+          className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-black font-bold text-xs flex items-center gap-1.5 transition-all shadow-[0_0_12px_rgba(0,240,255,0.3)] cursor-pointer"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Launch Rebalancer Engine</span>
+        </button>
+      </div>
+
+      {/* Portfolio Rebalancer Overlay Modal */}
+      {showRebalancerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 sm:p-6 animate-fadeIn">
+          <div className="bg-[#05070b] border border-[#1e3a6e] rounded-2xl w-full max-w-6xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-[#16294a] bg-[#081124] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-cyan-400" />
+                <span className="font-bold text-white text-sm">Portfolio Rebalancer Core • Multi-Asset Universe</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRebalancerModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#14264c] transition-all cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 flex-1 overflow-y-auto">
+              <PortfolioRebalancer />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2. Top Thresholds & Margin Consumption */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">

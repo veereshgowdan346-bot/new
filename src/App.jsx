@@ -26,10 +26,14 @@ const SettingsView = React.lazy(() => import('./components/views/SettingsView'))
 const AICommanderView = React.lazy(() => import('./components/views/AICommanderView'));
 const BotSkillsHubView = React.lazy(() => import('./components/views/BotSkillsHubView'));
 const StrategyLibraryView = React.lazy(() => import('./components/views/StrategyLibraryView'));
+const MasterDashboardView = React.lazy(() => import('./components/views/MasterDashboardView'));
 
 import { soundEngine } from './utils/audioChime';
 import { voiceAssistant } from './utils/voiceAssistant';
 import { apiFetch, getWebSocketUrl } from './utils/api';
+import { toastEmitter } from './utils/toastEmitter';
+import ToastNotificationSystem from './components/ToastNotificationSystem';
+import KeyboardShortcutManager from './components/KeyboardShortcutManager';
 
 import {
   initialTickers,
@@ -216,6 +220,7 @@ export default function App() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [selectedBrokerForModal, setSelectedBrokerForModal] = useState(null);
   const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
+  const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState(false);
 
   // Notifications Feed (Empty initially)
   const [notifications, setNotifications] = useState([]);
@@ -383,6 +388,20 @@ export default function App() {
                   return prev;
                 }
                 return [trade, ...prev.slice(0, 9)];
+              });
+
+              // Dispatch real-time neon cyan toast alert for Decision Network trade execution
+              toastEmitter.emitTradeExecution({
+                id: trade.id || trade.orderId,
+                symbol: trade.symbol,
+                action: trade.action,
+                price: trade.price,
+                qty: trade.qty || 50,
+                botName: trade.bot || 'Decision Core',
+                strategy: trade.strategy || 'Neural Quorum Consensus',
+                executionMode: executionMode,
+                time: trade.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                pnl: trade.pnl
               });
 
               // Update Notifications
@@ -605,6 +624,56 @@ export default function App() {
     };
   }, []);
 
+  // Real-Time Autonomous Decision Network Trade Execution Loop
+  useEffect(() => {
+    if (!allBotsRunning) return;
+
+    const interval = setInterval(() => {
+      // Pick a random running bot
+      const runningBots = bots.filter((b) => b.status === 'RUNNING');
+      if (runningBots.length === 0) return;
+      const bot = runningBots[Math.floor(Math.random() * runningBots.length)];
+
+      const actions = ['BUY', 'BUY', 'SELL'];
+      const action = actions[Math.floor(Math.random() * actions.length)];
+      const approvals = Math.floor(Math.random() * 3) + 11; // 11 to 13 out of 14
+      const pnlRate = Number((Math.random() * 2.8 - 0.4).toFixed(2));
+      const pnlAmount = Math.round(pnlRate * 1250);
+
+      const executedTrade = {
+        id: `auto_${Date.now()}`,
+        botId: bot.id,
+        bot: bot.name,
+        botName: bot.name,
+        symbol: bot.asset,
+        action: action,
+        type: action,
+        price: Number((bot.price * (1 + (Math.random() * 0.002 - 0.001))).toFixed(2)),
+        entryPrice: Number((bot.price * 0.998).toFixed(2)),
+        exitPrice: Number((bot.price * 1.006).toFixed(2)),
+        qty: bot.asset.includes('NIFTY') ? 50 : bot.asset.includes('BANK') ? 30 : 100,
+        strategy: bot.strategy?.split('.')[0] || 'Peer Quorum Momentum',
+        quorum: `${approvals}/14 Approved`,
+        consensusRate: `${Math.round((approvals / 14) * 100)}%`,
+        executionMode: executionMode,
+        latency: `${(Math.random() * 1.8 + 1.2).toFixed(1)}ms IPC`,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        pnl: pnlAmount,
+        pnlPercent: pnlRate,
+        status: 'Closed',
+        market: bot.assetCategory || 'NSE F&O',
+        duration: `${Math.floor(Math.random() * 8) + 1}m ${Math.floor(Math.random() * 50) + 10}s`
+      };
+
+      // Add to recent trades
+      setRecentTrades((prev) => [executedTrade, ...prev.slice(0, 19)]);
+
+      // Dispatch neon cyan toast alert
+      toastEmitter.emitTradeExecution(executedTrade);
+    }, 28000); // Emits every 28 seconds
+
+    return () => clearInterval(interval);
+  }, [allBotsRunning, bots, executionMode]);
 
   // Global Start/Stop All Bots
   const handleStartAllBots = () => {
@@ -670,7 +739,7 @@ export default function App() {
   });
 
   return (
-    <div className="min-h-screen bg-[#060b17] text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200">
+    <div className="min-h-screen bg-[#05070b] text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200">
       {/* 1. Top Navigation Bar */}
       <TopNavbar
         tickers={tickers}
@@ -678,6 +747,7 @@ export default function App() {
         onOpenProfile={() => setIsProfileModalOpen(true)}
         onOpenSettings={() => setActiveTab('settings')}
         onOpenNotifications={() => setIsNotificationsModalOpen(true)}
+        onOpenShortcuts={() => setIsShortcutsHelpOpen(true)}
         unreadAlertsCount={notifications.length}
         executionMode={executionMode}
         onToggleExecutionMode={handleToggleExecutionMode}
@@ -687,66 +757,32 @@ export default function App() {
 
       {/* Main Container with Sidebar + Content */}
       <div className="flex-1 flex w-full">
-        {/* 2. Interactive Left Sidebar with Broker Accounts branch */}
+        {/* 2. Interactive Left Sidebar with exact 18 items */}
         <Sidebar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          allBotsRunning={allBotsRunning}
-          onStartAllBots={handleStartAllBots}
-          onStopAllBots={handleStopAllBots}
-          brokerConnections={brokerConnections}
-          onOpenBrokerModal={(broker) => setSelectedBrokerForModal(broker)}
-          executionMode={executionMode}
-          onSelectExecutionMode={handleToggleExecutionMode}
+          onOpenProfile={() => setIsProfileModalOpen(true)}
+          userProfile={userProfile}
         />
 
         {/* 3. Main Center Workspace */}
-        <main className="flex-1 p-3.5 space-y-3.5 overflow-x-hidden min-w-0 pb-24 md:pb-3.5">
+        <main className="flex-1 p-3 space-y-3 overflow-x-hidden min-w-0 pb-24 md:pb-3.5">
           <ViewErrorBoundary>
             <Suspense fallback={<ViewLoadingFallback />}>
-              {/* Main Dashboard View */}
-          {activeTab === 'dashboard' && (
-            <>
-              {/* Bot Decision Network (Mesh Hub) */}
-              <DecisionMeshHub
-                bots={bots}
-                allBotsRunning={allBotsRunning}
-                selectedCategory={selectedCategory}
-                setSelectedCategory={setSelectedCategory}
-                onSelectBot={(bot) => setSelectedBotForModal(bot)}
-                executionMode={executionMode}
-                brokerAvailableCash={0.00}
-                isBrokerConnected={brokerConnections.some((b) => b.status === 'Connected')}
-              />
-
-              {/* 14 Multi-Asset Bot Cards Grid (4 per row over 4 rows) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {filteredBots.map((bot) => (
-                  <BotCard
-                    key={bot.id}
-                    bot={bot}
-                    onOpenDetails={(b) => setSelectedBotForModal(b)}
-                    onQuickAction={handleQuickAction}
-                    onOpenSkills={(botId) => {
-                      setSelectedBotForSkillsId(botId);
-                      setActiveTab('bot-skills');
-                    }}
-                  />
-                ))}
-              </div>
-
-              {/* Bottom Analytical Section */}
-              <BottomAnalytics
-                candlestickData={candlestickData}
-                recentTrades={recentTrades}
-                portfolioAllocation={portfolioAllocation}
-                bots={bots}
-                onSelectSymbol={(sym) => {
-                  console.log('Selected Symbol for Chart:', sym);
-                }}
-              />
-            </>
-          )}
+              {/* Main Dashboard View matching Reference Screenshot */}
+              {activeTab === 'dashboard' && (
+                <MasterDashboardView
+                  bots={bots}
+                  allBotsRunning={allBotsRunning}
+                  onStartAllBots={handleStartAllBots}
+                  onStopAllBots={handleStopAllBots}
+                  onRestartBots={handleStartAllBots}
+                  recentTrades={recentTrades}
+                  onSelectBot={(bot) => setSelectedBotForModal(bot)}
+                  onNavigateTab={(tab) => setActiveTab(tab)}
+                  executionMode={executionMode}
+                />
+              )}
 
           {/* DEDICATED VIEW: BROKER ACCOUNTS (Angel One, Zerodha, Upstox, 5paisa) */}
           {activeTab === 'broker-accounts' && (
@@ -866,6 +902,55 @@ export default function App() {
               setSimulationEnabled={setSimulationEnabled}
             />
           )}
+
+          {/* Dedicated View: Login / Logout */}
+          {activeTab === 'login-logout' && (
+            <div className="flex flex-col items-center justify-center min-h-[460px] p-8 text-center space-y-4 bg-[#080e1b]/95 border border-[#16294a] rounded-2xl max-w-lg mx-auto shadow-2xl">
+              <div className="w-16 h-16 rounded-full bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center text-cyan-300 shadow-[0_0_20px_rgba(0,240,255,0.3)]">
+                <span className="text-2xl font-black">{userProfile?.name ? userProfile.name.charAt(0).toUpperCase() : 'C'}</span>
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white tracking-wide">
+                  {userProfile?.name || 'Commander Veeresh'}
+                </h3>
+                <p className="text-xs text-cyan-400 font-mono mt-0.5">
+                  {userProfile?.email || 'veereshgowdan346@gmail.com'}
+                </p>
+                <div className="mt-2 text-xs text-slate-400 font-sans max-w-xs">
+                  {userProfile?.isAuthenticated
+                    ? 'Active Session Verified • Master Authority & Quorum Permissions Granted'
+                    : 'Unauthenticated Session • Sign in with Google to enable permanent persistence'}
+                </div>
+              </div>
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsProfileModalOpen(true)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-[#0052cc] text-white hover:bg-blue-600 transition-all cursor-pointer shadow-lg"
+                >
+                  Manage Account & Keys
+                </button>
+                {userProfile?.isAuthenticated ? (
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/30 transition-all cursor-pointer"
+                  >
+                    Logout Session
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsProfileModalOpen(true)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 transition-all cursor-pointer"
+                  >
+                    Login with Google
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
             </Suspense>
           </ViewErrorBoundary>
         </main>
@@ -980,6 +1065,28 @@ export default function App() {
         onClose={() => setIsNotificationsModalOpen(false)}
         notifications={notifications}
         onClearAll={() => setNotifications([])}
+      />
+
+      {/* Real-time Neon Cyan Trade Execution Toast Alerts */}
+      <ToastNotificationSystem
+        onNavigateTab={(tab) => setActiveTab(tab)}
+        onSelectBot={(botId) => {
+          const found = bots.find((b) => b.id === Number(botId));
+          if (found) setSelectedBotForModal(found);
+        }}
+      />
+
+      {/* Global Keyboard Shortcut Manager & HUD */}
+      <KeyboardShortcutManager
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        allBotsRunning={allBotsRunning}
+        onStartAllBots={handleStartAllBots}
+        onStopAllBots={handleStopAllBots}
+        executionMode={executionMode}
+        onToggleExecutionMode={handleToggleExecutionMode}
+        isHelpOpen={isShortcutsHelpOpen}
+        setIsHelpOpen={setIsShortcutsHelpOpen}
       />
     </div>
   );

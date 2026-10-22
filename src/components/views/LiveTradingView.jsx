@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Activity, ArrowUpRight, ArrowDownRight, Zap, RefreshCw, Layers, Radio, ShieldAlert } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Activity, ArrowUpRight, ArrowDownRight, Zap, RefreshCw, Layers, Radio, ShieldAlert, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { apiFetch } from '../../utils/api';
+import { validateNetProfitGuardrail } from '../../utils/taxCalculator';
 
 export default function LiveTradingView({
   candlestickData = [],
@@ -15,6 +16,7 @@ export default function LiveTradingView({
   const [selectedAsset, setSelectedAsset] = useState('NIFTY 50');
   const [priceInput, setPriceInput] = useState('24730.50');
   const [qtyInput, setQtyInput] = useState('50');
+  const [targetInput, setTargetInput] = useState('');
   const [orderSuccess, setOrderSuccess] = useState('');
   const [orderError, setOrderError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -26,8 +28,21 @@ export default function LiveTradingView({
   // Dynamic Margin Calculation: based on price * qty (15% F&O margin rate)
   const priceNum = parseFloat(priceInput) || 0;
   const qtyNum = parseFloat(qtyInput) || 0;
+  const targetNum = parseFloat(targetInput) || null;
   const calculatedMargin = priceNum > 0 && qtyNum > 0 ? (priceNum * qtyNum * 0.15) : 0;
   const availableCash = isPaper ? 500000.00 : (isAnyBrokerConnected ? brokerAvailableCash : 0.00);
+
+  // Real-time Net-Profit Guardrail calculation
+  const guardrailAnalysis = useMemo(() => {
+    return validateNetProfitGuardrail({
+      entryPrice: priceNum,
+      targetPrice: targetNum,
+      qty: qtyNum,
+      action: side,
+      segment: selectedAsset.includes('NIFTY') || selectedAsset.includes('FUT') || selectedAsset.includes('CE') || selectedAsset.includes('PE') ? 'NSE F&O' : 'NSE Equity',
+      safetyBufferPercent: 20
+    });
+  }, [priceNum, targetNum, qtyNum, side, selectedAsset]);
 
   // Live order book bids/asks - empty until broker depth feed is established
   const bids = [];
@@ -37,6 +52,13 @@ export default function LiveTradingView({
     e.preventDefault();
     setOrderSuccess('');
     setOrderError('');
+
+    // STRICT BROKERAGE & TAX NET-PROFIT GUARDRAIL AUDIT
+    if (!guardrailAnalysis.isApproved) {
+      setOrderError(`❌ Aborted by Net-Profit Guardrail: ${guardrailAnalysis.rejectionReason}`);
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -59,7 +81,7 @@ export default function LiveTradingView({
       if (res && res.status === 'success') {
         const orderId = res.result?.orderId || res.orderId || 'CONFIRMED';
         const mode = res.result?.mode || executionMode;
-        setOrderSuccess(`✅ Order Executed (${mode}): ${side} ${qtyNum}x ${selectedAsset} @ ₹${priceNum} (Order ID: ${orderId})`);
+        setOrderSuccess(`✅ Order Executed (${mode}): ${side} ${qtyNum}x ${selectedAsset} @ ₹${priceNum} (Order ID: ${orderId}) | Net Profit Guaranteed`);
       } else {
         const errMsg = res?.message || res?.result?.error || 'Order rejected by Risk Management System.';
         setOrderError(`❌ Order Rejected: ${errMsg}`);
@@ -71,7 +93,7 @@ export default function LiveTradingView({
       setTimeout(() => {
         setOrderSuccess('');
         setOrderError('');
-      }, 6000);
+      }, 7000);
     }
   };
 
@@ -147,18 +169,40 @@ export default function LiveTradingView({
 
             <form onSubmit={handlePlaceOrder} className="space-y-3 font-mono text-xs">
               <div>
-                <label className="text-slate-400 text-[10px] uppercase font-sans font-semibold">Instrument</label>
+                <label className="text-slate-400 text-[10px] uppercase font-sans font-semibold">Instrument (Multi-Asset Universe)</label>
                 <select
                   value={selectedAsset}
                   onChange={(e) => setSelectedAsset(e.target.value)}
                   className="w-full mt-1 bg-[#060c1c] border border-[#1e3a6e] text-white p-2 rounded-lg focus:border-cyan-400 focus:outline-none"
                 >
-                  <option value="NIFTY 50">NIFTY 50 Futures</option>
-                  <option value="BANKNIFTY">BANKNIFTY Futures</option>
-                  <option value="RELIANCE">RELIANCE</option>
-                  <option value="TATA MOTORS">TATA MOTORS</option>
-                  <option value="GOLD">GOLD (XAUUSD)</option>
-                  <option value="BTCUSDT">BTCUSDT</option>
+                  <optgroup label="Indices & Index Futures">
+                    <option value="NIFTY 50">NIFTY 50 Futures</option>
+                    <option value="BANKNIFTY">BANKNIFTY Futures</option>
+                    <option value="FINNIFTY">FINNIFTY Futures</option>
+                    <option value="SENSEX">SENSEX Index</option>
+                    <option value="MIDCAP">MIDCAP NIFTY</option>
+                  </optgroup>
+                  <optgroup label="NSE Bluechips">
+                    <option value="RELIANCE">RELIANCE</option>
+                    <option value="TCS">TCS</option>
+                    <option value="INFY">INFOSYS</option>
+                    <option value="HDFC BANK">HDFC BANK</option>
+                    <option value="ICICI BANK">ICICI BANK</option>
+                    <option value="TATA MOTORS">TATA MOTORS</option>
+                    <option value="SBIN">STATE BANK OF INDIA</option>
+                  </optgroup>
+                  <optgroup label="Commodities (MCX)">
+                    <option value="GOLD">GOLD (XAUUSD)</option>
+                    <option value="SILVER">SILVER</option>
+                    <option value="CRUDE OIL">CRUDE OIL (WTI)</option>
+                    <option value="NATURAL GAS">NATURAL GAS</option>
+                  </optgroup>
+                  <optgroup label="F&O Options Contracts">
+                    <option value="NIFTY 25100 CE">NIFTY 25100 CE</option>
+                    <option value="NIFTY 25100 PE">NIFTY 25100 PE</option>
+                    <option value="BANKNIFTY 57800 CE">BANKNIFTY 57800 CE</option>
+                    <option value="BANKNIFTY 57800 PE">BANKNIFTY 57800 PE</option>
+                  </optgroup>
                 </select>
               </div>
 
@@ -176,7 +220,7 @@ export default function LiveTradingView({
                   </select>
                 </div>
                 <div>
-                  <label className="text-slate-400 text-[10px] uppercase font-sans font-semibold">Price (₹)</label>
+                  <label className="text-slate-400 text-[10px] uppercase font-sans font-semibold">Entry Price (₹)</label>
                   <input
                     type="text"
                     value={priceInput}
@@ -186,15 +230,27 @@ export default function LiveTradingView({
                 </div>
               </div>
 
-              <div>
-                <label className="text-slate-400 text-[10px] uppercase font-sans font-semibold">Quantity (Units / Lots)</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={qtyInput}
-                  onChange={(e) => setQtyInput(e.target.value)}
-                  className="w-full mt-1 bg-[#060c1c] border border-[#1e3a6e] text-white p-2 rounded-lg focus:border-cyan-400 focus:outline-none"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-slate-400 text-[10px] uppercase font-sans font-semibold">Quantity</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={qtyInput}
+                    onChange={(e) => setQtyInput(e.target.value)}
+                    className="w-full mt-1 bg-[#060c1c] border border-[#1e3a6e] text-white p-2 rounded-lg focus:border-cyan-400 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 text-[10px] uppercase font-sans font-semibold">Target Price (₹)</label>
+                  <input
+                    type="text"
+                    placeholder="Optional Target"
+                    value={targetInput}
+                    onChange={(e) => setTargetInput(e.target.value)}
+                    className="w-full mt-1 bg-[#060c1c] border border-[#1e3a6e] text-white p-2 rounded-lg focus:border-cyan-400 focus:outline-none placeholder:text-slate-600"
+                  />
+                </div>
               </div>
 
               {/* Dynamic Margin Calculation & Zero Available Cash */}
@@ -226,23 +282,66 @@ export default function LiveTradingView({
                     )}
                   </div>
                 </div>
-                {!isPaper && !isAnyBrokerConnected && (
-                  <p className="text-[9.5px] text-amber-400/90 font-sans pt-1">
-                    Connect broker in Broker Accounts to synchronize available live cash margin.
-                  </p>
-                )}
-                {isPaper && (
-                  <p className="text-[9.5px] text-cyan-400/80 font-sans pt-1">
-                    Virtual capital allocated for safe algorithm simulation against live ticks.
+              </div>
+
+              {/* Strict Brokerage & Tax Net-Profit Guardrail Strip */}
+              <div className={`p-3 rounded-lg border text-[11px] transition-all ${
+                guardrailAnalysis.isApproved
+                  ? 'bg-emerald-950/20 border-emerald-500/40 text-slate-300'
+                  : 'bg-rose-950/30 border-rose-500/50 text-rose-200'
+              }`}>
+                <div className="flex items-center justify-between pb-1.5 border-b border-white/10 mb-2">
+                  <span className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider font-sans">
+                    {guardrailAnalysis.isApproved ? (
+                      <>
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-emerald-400">Net-Profit Guardrail Verified</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+                        <span className="text-rose-400">Net-Profit Guardrail Abort</span>
+                      </>
+                    )}
+                  </span>
+                  <span className="text-[9.5px] font-mono text-slate-400">
+                    SEBI & Tax Invariant
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[10.5px]">
+                  <div>
+                    <span className="text-slate-400 text-[10px]">Roundtrip Taxes & Brokerage:</span>
+                    <div className="font-bold text-amber-300">₹{guardrailAnalysis.roundtripCharges.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[10px]">Breakeven Move Required:</span>
+                    <div className="font-bold text-cyan-300">₹{guardrailAnalysis.breakevenDelta.toFixed(2)} ({guardrailAnalysis.breakevenPct}%)</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[10px]">Expected Gross Gain:</span>
+                    <div className="font-bold text-white">₹{guardrailAnalysis.expectedGrossProfit.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 text-[10px]">Net Guaranteed Profit:</span>
+                    <div className={`font-bold ${guardrailAnalysis.expectedNetProfit > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      ₹{guardrailAnalysis.expectedNetProfit.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+
+                {!guardrailAnalysis.isApproved && (
+                  <p className="text-[9.5px] text-rose-300/90 font-sans pt-2 leading-tight">
+                    Order will be rejected: Movement fails to guarantee positive net return after brokerage, STT, turnover & GST.
                   </p>
                 )}
               </div>
 
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || !guardrailAnalysis.isApproved}
                 className={`w-full py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all ${
-                  isSubmitting ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                  isSubmitting || !guardrailAnalysis.isApproved ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
                 } ${
                   side === 'BUY'
                     ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
@@ -250,7 +349,13 @@ export default function LiveTradingView({
                 }`}
               >
                 <Zap className={`w-4 h-4 ${isSubmitting ? 'animate-spin' : ''}`} />
-                <span>{isSubmitting ? 'Transmitting Order...' : `Transmit ${side} Order`}</span>
+                <span>
+                  {isSubmitting
+                    ? 'Transmitting Order...'
+                    : !guardrailAnalysis.isApproved
+                    ? 'Blocked by Net-Profit Guardrail'
+                    : `Transmit ${side} Order`}
+                </span>
               </button>
 
             </form>

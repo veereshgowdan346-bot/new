@@ -21,10 +21,10 @@ except ImportError:
 logger = logging.getLogger("CHINTU_VOTING_ENGINE")
 
 DEFAULT_VOTING_CONFIG = {
-    "voting_scope": "peer_mesh",        # "peer_mesh" (3 correlated peers) or "global" (all 14 bots)
-    "threshold_mode": "percentage",     # "percentage" or "count"
-    "min_quorum_percentage": 66.6,      # >= 66.6% approvals required
-    "min_approval_count": 2,            # >= 2 approvals required for peer mesh (or 8 for global)
+    "voting_scope": "global",           # "global" (all 14 bots in decision matrix)
+    "threshold_mode": "count",          # "count" (strict 9/14 approvals required)
+    "min_quorum_percentage": 64.28,     # 9 out of 14 = 64.28%
+    "min_approval_count": 9,            # Strict 9/14 Quorum Consensus voting rule
     "max_signal_age_seconds": 60.0,     # Max acceptable age of bot signal (freshness gate)
     "conflict_policy": "ABSTAIN",       # "ABSTAIN" | "MAJORITY_DIRECTION" | "HIGHEST_CONFIDENCE"
     "emergency_exit_bypass": True       # Emergency exits immediately bypass entry quorum

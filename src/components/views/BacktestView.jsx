@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   PlaySquare,
   Play,
@@ -281,6 +281,10 @@ export default function BacktestView() {
       soundEngine.playBuyChime();
     }, 600);
   };
+
+  useEffect(() => {
+    handleRun();
+  }, []);
 
   return (
     <div className="space-y-4 animate-fadeIn select-none">

@@ -1,0 +1,8 @@
+{
+  "name": "CHINTU AI Trading System",
+  "description": "Autonomous multi-bot algorithmic trading network and quant decision engine with real-time decision mesh, strategy library, and broker connectivity.",
+  "permissions": [],
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

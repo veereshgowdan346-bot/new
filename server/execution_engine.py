@@ -888,6 +888,24 @@ class CentralizedExecutionEngine:
                 return _reject(f"Insufficient available margin: Required INR {margin_required:,.2f}, Available INR {avail_margin:,.2f}.", "GATE_4_MARGIN")
 
         # -------------------------------------------------------------
+        # GATE 4b: Strict Brokerage & Tax Net-Profit Guardrail
+        # -------------------------------------------------------------
+        if not is_emergency_exit and act_upper in ("BUY", "SELL"):
+            from server.regulatory_charges import validate_net_profit_guardrail
+            net_profit_ok, net_profit_msg, net_profit_telem = validate_net_profit_guardrail(
+                symbol=clean_sym,
+                price=price if price > 0 else 100.0,
+                qty=qty,
+                action=act_upper,
+                segment=spec.get("segment", "NSE Equity"),
+                exchange=spec.get("exchange", "NSE"),
+                product_type=producttype or "INTRADAY",
+                safety_buffer_pct=20.0
+            )
+            if not net_profit_ok:
+                return _reject(net_profit_msg, "GATE_4B_NET_PROFIT_GUARDRAIL", extra={"guardrail": net_profit_telem})
+
+        # -------------------------------------------------------------
         # GATE 5: Position Conflict & Concurrent Order Check
         # -------------------------------------------------------------
         open_positions = get_open_positions()

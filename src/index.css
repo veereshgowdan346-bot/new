@@ -4,10 +4,10 @@
 
 @layer base {
   * {
-    border-color: rgba(30, 58, 110, 0.4);
+    border-color: rgba(22, 41, 74, 0.6);
   }
   body {
-    background-color: #060b17;
+    background-color: #05070b;
     color: #e2e8f0;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
@@ -94,7 +94,8 @@
   }
 }
 
-.animate-slide-in-right {
+.animate-slide-in-right,
+.animate-slideInRight {
   animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
