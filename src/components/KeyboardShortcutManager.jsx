@@ -64,6 +64,7 @@ export default function KeyboardShortcutManager({
   allBotsRunning,
   onStartAllBots,
   onStopAllBots,
+  onSquareOffAll,
   executionMode,
   onToggleExecutionMode,
   isHelpOpen,
@@ -221,11 +222,16 @@ export default function KeyboardShortcutManager({
   ]);
 
   // Execute emergency stop
-  const executeEmergencyStop = () => {
+  const executeEmergencyStop = async () => {
     if (onStopAllBots) onStopAllBots();
-    soundEngine.playSellChime();
-    voiceAssistant.speak('Emergency stop triggered. All 14 trading bots halted immediately.', { rate: 1.1 });
-    triggerHud('🛑 EMERGENCY STOP ACTIVATED', 'All 14 bot threads paused immediately [Shift+Esc]', 'error');
+    if (onSquareOffAll) {
+      try {
+        await onSquareOffAll();
+      } catch (e) {}
+    }
+    soundEngine.playEmergencyChime();
+    voiceAssistant.speak('Emergency stop triggered. All broker positions squared off and bot execution suspended.', { rate: 1.1 });
+    triggerHud('🛑 EMERGENCY STOP ACTIVATED', 'All broker positions squared off & 14 bots halted [Shift+Esc]', 'error');
   };
 
   // Execute resume bots

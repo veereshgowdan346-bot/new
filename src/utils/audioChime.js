@@ -93,6 +93,41 @@ class SoundEngine {
       osc.stop(now + 0.25);
     } catch (e) {}
   }
+
+  playEmergencyChime() {
+    if (!this.enabled) return;
+    try {
+      this.init();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+
+      // Pulse 1: Urgent 880Hz alert
+      const osc1 = this.ctx.createOscillator();
+      const gain1 = this.ctx.createGain();
+      osc1.type = 'sawtooth';
+      osc1.frequency.setValueAtTime(880, now);
+      osc1.frequency.exponentialRampToValueAtTime(587, now + 0.14);
+      gain1.gain.setValueAtTime(0.12, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      osc1.connect(gain1);
+      gain1.connect(this.ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.15);
+
+      // Pulse 2: Secondary punch tone at 1175Hz
+      const osc2 = this.ctx.createOscillator();
+      const gain2 = this.ctx.createGain();
+      osc2.type = 'square';
+      osc2.frequency.setValueAtTime(1174.66, now + 0.16);
+      osc2.frequency.exponentialRampToValueAtTime(440, now + 0.32);
+      gain2.gain.setValueAtTime(0.10, now + 0.16);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      osc2.connect(gain2);
+      gain2.connect(this.ctx.destination);
+      osc2.start(now + 0.16);
+      osc2.stop(now + 0.35);
+    } catch (e) {}
+  }
 }
 
 export const soundEngine = new SoundEngine();

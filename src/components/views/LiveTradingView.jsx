@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Activity, ArrowUpRight, ArrowDownRight, Zap, RefreshCw, Layers, Radio, ShieldAlert, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { apiFetch } from '../../utils/api';
-import { validateNetProfitGuardrail } from '../../utils/taxCalculator';
+import { validateNetProfitGuardrail, INSTITUTIONAL_HURDLE_ROI_PCT } from '../../utils/taxCalculator';
+import { evaluate14BotQuorumConsensus, QUORUM_DECISION_TYPES } from '../../utils/quorumConsensusEngine';
 
 export default function LiveTradingView({
   candlestickData = [],
@@ -32,7 +33,16 @@ export default function LiveTradingView({
   const calculatedMargin = priceNum > 0 && qtyNum > 0 ? (priceNum * qtyNum * 0.15) : 0;
   const availableCash = isPaper ? 500000.00 : (isAnyBrokerConnected ? brokerAvailableCash : 0.00);
 
-  // Real-time Net-Profit Guardrail calculation
+  // Real-time 14-Bot Quorum Consensus for instrument
+  const quorumAnalysis = useMemo(() => {
+    return evaluate14BotQuorumConsensus({
+      symbol: selectedAsset,
+      action: side,
+      price: priceNum || 25000
+    });
+  }, [selectedAsset, side, priceNum]);
+
+  // Real-time Net-Profit Guardrail calculation (1.5% institutional hurdle)
   const guardrailAnalysis = useMemo(() => {
     return validateNetProfitGuardrail({
       entryPrice: priceNum,
@@ -40,7 +50,8 @@ export default function LiveTradingView({
       qty: qtyNum,
       action: side,
       segment: selectedAsset.includes('NIFTY') || selectedAsset.includes('FUT') || selectedAsset.includes('CE') || selectedAsset.includes('PE') ? 'NSE F&O' : 'NSE Equity',
-      safetyBufferPercent: 20
+      safetyBufferPercent: 20,
+      hurdleNetRoiPct: INSTITUTIONAL_HURDLE_ROI_PCT
     });
   }, [priceNum, targetNum, qtyNum, side, selectedAsset]);
 
@@ -53,7 +64,17 @@ export default function LiveTradingView({
     setOrderSuccess('');
     setOrderError('');
 
-    // STRICT BROKERAGE & TAX NET-PROFIT GUARDRAIL AUDIT
+    // 1. STRICT 14-BOT QUORUM GATE (9/14 Threshold & 7-8 Veto Check)
+    if (!quorumAnalysis.isApproved) {
+      const isVeto = quorumAnalysis.decision === QUORUM_DECISION_TYPES.QUORUM_VETO;
+      const msg = isVeto
+        ? `❌ Order Vetoed: ${quorumAnalysis.matchingVotes}/14 AI Bots agreed on ${selectedAsset}. 7-8 vote range triggers strict Quorum Veto.`
+        : `❌ Order Rejected: Only ${quorumAnalysis.matchingVotes}/14 AI Bots approved ${side} on ${selectedAsset} (minimum 9 required).`;
+      setOrderError(msg);
+      return;
+    }
+
+    // 2. STRICT BROKERAGE & TAX NET-PROFIT GUARDRAIL AUDIT (1.5% Net ROI)
     if (!guardrailAnalysis.isApproved) {
       setOrderError(`❌ Aborted by Net-Profit Guardrail: ${guardrailAnalysis.rejectionReason}`);
       return;
@@ -284,13 +305,28 @@ export default function LiveTradingView({
                 </div>
               </div>
 
-              {/* Strict Brokerage & Tax Net-Profit Guardrail Strip */}
-              <div className={`p-3 rounded-lg border text-[11px] transition-all ${
-                guardrailAnalysis.isApproved
+              {/* 14-Bot Quorum Consensus & Statutory Net-Profit Guardrail Strip */}
+              <div className={`p-3 rounded-lg border text-[11px] transition-all space-y-2 ${
+                guardrailAnalysis.isApproved && quorumAnalysis.isApproved
                   ? 'bg-emerald-950/20 border-emerald-500/40 text-slate-300'
                   : 'bg-rose-950/30 border-rose-500/50 text-rose-200'
               }`}>
-                <div className="flex items-center justify-between pb-1.5 border-b border-white/10 mb-2">
+                {/* Quorum Consensus Row */}
+                <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
+                  <span className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider font-sans">
+                    <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                    <span className="text-cyan-300">14-Bot Quorum:</span>
+                    <span className={quorumAnalysis.isApproved ? 'text-emerald-400' : 'text-amber-400'}>
+                      {quorumAnalysis.matchingVotes}/14 {side} ({quorumAnalysis.isApproved ? 'PASSED' : quorumAnalysis.decision === QUORUM_DECISION_TYPES.QUORUM_VETO ? '7-8 VETO' : 'INSUFFICIENT'})
+                    </span>
+                  </span>
+                  <span className="text-[9.5px] font-mono text-slate-400">
+                    &ge;9/14 Required
+                  </span>
+                </div>
+
+                {/* Pre-trade Tax & ROI Guardrail Row */}
+                <div className="flex items-center justify-between pb-1.5 border-b border-white/10">
                   <span className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider font-sans">
                     {guardrailAnalysis.isApproved ? (
                       <>
@@ -304,8 +340,8 @@ export default function LiveTradingView({
                       </>
                     )}
                   </span>
-                  <span className="text-[9.5px] font-mono text-slate-400">
-                    SEBI & Tax Invariant
+                  <span className="text-[9.5px] font-mono text-cyan-400">
+                    Hurdle: &ge; 1.50% Net ROI
                   </span>
                 </div>
 
@@ -319,8 +355,10 @@ export default function LiveTradingView({
                     <div className="font-bold text-cyan-300">₹{guardrailAnalysis.breakevenDelta.toFixed(2)} ({guardrailAnalysis.breakevenPct}%)</div>
                   </div>
                   <div>
-                    <span className="text-slate-400 text-[10px]">Expected Gross Gain:</span>
-                    <div className="font-bold text-white">₹{guardrailAnalysis.expectedGrossProfit.toFixed(2)}</div>
+                    <span className="text-slate-400 text-[10px]">Expected Net ROI:</span>
+                    <div className={`font-bold ${guardrailAnalysis.expectedNetRoiPct >= 1.5 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {guardrailAnalysis.expectedNetRoiPct}%
+                    </div>
                   </div>
                   <div>
                     <span className="text-slate-400 text-[10px]">Net Guaranteed Profit:</span>
@@ -330,9 +368,13 @@ export default function LiveTradingView({
                   </div>
                 </div>
 
-                {!guardrailAnalysis.isApproved && (
-                  <p className="text-[9.5px] text-rose-300/90 font-sans pt-2 leading-tight">
-                    Order will be rejected: Movement fails to guarantee positive net return after brokerage, STT, turnover & GST.
+                {(!guardrailAnalysis.isApproved || !quorumAnalysis.isApproved) && (
+                  <p className="text-[9.5px] text-rose-300/90 font-sans pt-1 leading-tight">
+                    {!quorumAnalysis.isApproved
+                      ? (quorumAnalysis.decision === QUORUM_DECISION_TYPES.QUORUM_VETO
+                          ? 'Strict Quorum Veto: Agreement is in the 7-8 marginal zone. Order aborted by institutional consensus gate.'
+                          : 'Order blocked: Quorum consensus below 9/14 bot threshold.')
+                      : guardrailAnalysis.rejectionReason}
                   </p>
                 )}
               </div>

@@ -24,6 +24,7 @@ import NewsSentimentSidebarModule from './NewsSentimentSidebarModule';
 
 export const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'trading-dashboard', label: 'Trading Dashboard', icon: TrendingUp },
   { id: 'bots-monitor', label: 'Bots Monitor', icon: Bot },
   { id: 'ai-commander', label: 'AI Commander (Jarvis)', icon: Sparkles },
   { id: 'bot-skills', label: 'Bot Skills Hub', icon: Zap },
@@ -42,6 +43,29 @@ export const navItems = [
   { id: 'settings', label: 'Settings', icon: Settings },
   { id: 'login-logout', label: 'Login / Logout', icon: LogOut },
 ];
+
+class SidebarErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(err) {
+    console.warn('[SidebarErrorBoundary] Recovered from sidebar sub-module error:', err);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-3 text-[11px] text-slate-400 font-mono text-center">
+          News Feed Standby
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function Sidebar({
   activeTab,
@@ -91,11 +115,13 @@ export default function Sidebar({
           })}
         </div>
 
-        {/* Real-time News Sentiment Sidebar Module */}
+        {/* Real-time News Sentiment Sidebar Module wrapped in Error Boundary */}
         <div className="mt-auto shrink-0 pb-3 pt-1 border-t border-[#16294a]/60">
-          <NewsSentimentSidebarModule
-            onNavigateToDecisionNetwork={() => setActiveTab('decision-network')}
-          />
+          <SidebarErrorBoundary>
+            <NewsSentimentSidebarModule
+              onNavigateToDecisionNetwork={() => setActiveTab('decision-network')}
+            />
+          </SidebarErrorBoundary>
         </div>
       </aside>
 

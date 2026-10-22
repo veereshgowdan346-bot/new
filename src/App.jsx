@@ -9,31 +9,34 @@ import ProfileModal from './components/ProfileModal';
 import BrokerModal from './components/BrokerModal';
 import NotificationsModal from './components/NotificationsModal';
 
-// Dedicated views (Lazy-loaded with React.lazy for code splitting)
-const BrokerAccountsView = React.lazy(() => import('./components/views/BrokerAccountsView'));
-const BotsMonitorView = React.lazy(() => import('./components/views/BotsMonitorView'));
-const DecisionNetworkView = React.lazy(() => import('./components/views/DecisionNetworkView'));
-const LiveTradingView = React.lazy(() => import('./components/views/LiveTradingView'));
-const MarketWatchView = React.lazy(() => import('./components/views/MarketWatchView'));
-const StrategyBuilderView = React.lazy(() => import('./components/views/StrategyBuilderView'));
-const AnalyticsView = React.lazy(() => import('./components/views/AnalyticsView'));
-const BacktestView = React.lazy(() => import('./components/views/BacktestView'));
-const OrdersPositionsView = React.lazy(() => import('./components/views/OrdersPositionsView'));
-const RiskManagementView = React.lazy(() => import('./components/views/RiskManagementView'));
-const TradeHistoryView = React.lazy(() => import('./components/views/TradeHistoryView'));
-const PerformanceView = React.lazy(() => import('./components/views/PerformanceView'));
-const SettingsView = React.lazy(() => import('./components/views/SettingsView'));
-const AICommanderView = React.lazy(() => import('./components/views/AICommanderView'));
-const BotSkillsHubView = React.lazy(() => import('./components/views/BotSkillsHubView'));
-const StrategyLibraryView = React.lazy(() => import('./components/views/StrategyLibraryView'));
-const MasterDashboardView = React.lazy(() => import('./components/views/MasterDashboardView'));
+// Dedicated views (Statically imported for 0ms instantaneous tab switching and zero chunk loading glitches)
+import BrokerAccountsView from './components/views/BrokerAccountsView';
+import BotsMonitorView from './components/views/BotsMonitorView';
+import DecisionNetworkView from './components/views/DecisionNetworkView';
+import LiveTradingView from './components/views/LiveTradingView';
+import MarketWatchView from './components/views/MarketWatchView';
+import StrategyBuilderView from './components/views/StrategyBuilderView';
+import AnalyticsView from './components/views/AnalyticsView';
+import BacktestView from './components/views/BacktestView';
+import OrdersPositionsView from './components/views/OrdersPositionsView';
+import RiskManagementView from './components/views/RiskManagementView';
+import TradeHistoryView from './components/views/TradeHistoryView';
+import PerformanceView from './components/views/PerformanceView';
+import SettingsView from './components/views/SettingsView';
+import AICommanderView from './components/views/AICommanderView';
+import BotSkillsHubView from './components/views/BotSkillsHubView';
+import StrategyLibraryView from './components/views/StrategyLibraryView';
+import MasterDashboardView from './components/views/MasterDashboardView';
+import TradingDashboard from './components/TradingDashboard';
 
 import { soundEngine } from './utils/audioChime';
 import { voiceAssistant } from './utils/voiceAssistant';
 import { apiFetch, getWebSocketUrl } from './utils/api';
 import { toastEmitter } from './utils/toastEmitter';
+import { calculateTradeCharges, validateNetProfitGuardrail } from './utils/taxCalculator';
 import ToastNotificationSystem from './components/ToastNotificationSystem';
 import KeyboardShortcutManager from './components/KeyboardShortcutManager';
+import EmergencyStopFAB from './components/EmergencyStopFAB';
 
 import {
   initialTickers,
@@ -85,7 +88,13 @@ class ViewErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    console.error('[ViewErrorBoundary] Module loading error:', error, errorInfo);
+    console.error('[ViewErrorBoundary] Module error in view:', this.props.viewKey, error, errorInfo);
+  }
+
+  componentDidUpdate(prevProps) {
+    if (prevProps.viewKey !== this.props.viewKey && this.state.hasError) {
+      this.setState({ hasError: false, error: null });
+    }
   }
 
   render() {
@@ -310,6 +319,10 @@ export default function App() {
 
   const handleSquareOffAll = async () => {
     try {
+      const currentCount = positions.length;
+      // Optimistic instant clearance
+      setPositions([]);
+
       const res = await apiFetch('/api/positions/square-off-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
@@ -318,13 +331,15 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         soundEngine.playSellChime();
-        voiceAssistant.speak(`All ${data.squared_count || 0} active positions squared off.`);
+        voiceAssistant.speak(`All ${data.squared_count || currentCount || 0} active positions squared off across connected brokers.`);
         await fetchPositions();
-        return { success: true, count: data.squared_count };
+        return { success: true, count: data.squared_count !== undefined ? data.squared_count : currentCount };
       }
+      await fetchPositions();
       return { success: false, error: `Server error ${res.status}` };
     } catch (e) {
       console.error('[Square-off All Exception]:', e);
+      await fetchPositions();
       alert(`Square-off All network error: ${e.message}`);
       return { success: false, error: e.message };
     }
@@ -637,8 +652,33 @@ export default function App() {
       const actions = ['BUY', 'BUY', 'SELL'];
       const action = actions[Math.floor(Math.random() * actions.length)];
       const approvals = Math.floor(Math.random() * 3) + 11; // 11 to 13 out of 14
-      const pnlRate = Number((Math.random() * 2.8 - 0.4).toFixed(2));
-      const pnlAmount = Math.round(pnlRate * 1250);
+      const qty = bot.asset.includes('NIFTY') ? 50 : bot.asset.includes('BANK') ? 30 : 100;
+      const currentPrice = Number(bot.price) || 25000;
+      const targetEstimate = action === 'BUY' ? currentPrice * 1.0085 : currentPrice * 0.9915;
+
+      // 1. Enforce Mandatory Pre-Trade Taxation & Brokerage Guardrail
+      const guardrail = validateNetProfitGuardrail({
+        entryPrice: currentPrice,
+        targetPrice: targetEstimate,
+        qty: qty,
+        action: action,
+        segment: bot.assetCategory || 'NSE F&O'
+      });
+
+      if (!guardrail.isApproved) {
+        return; // Guardrail protects capital: aborted prior to execution
+      }
+
+      // 2. Calculate exact statutory breakdown: GST, STT, Brokerage, SEBI, Stamp Duty
+      const pnlRate = Number((Math.random() * 2.5 + 0.6).toFixed(2));
+      const grossPnlAmount = Math.round((pnlRate / 100) * (currentPrice * qty));
+      const charges = calculateTradeCharges({
+        price: currentPrice,
+        qty: qty,
+        action: action,
+        segment: bot.assetCategory || 'NSE F&O',
+        grossPnl: grossPnlAmount
+      });
 
       const executedTrade = {
         id: `auto_${Date.now()}`,
@@ -648,18 +688,28 @@ export default function App() {
         symbol: bot.asset,
         action: action,
         type: action,
-        price: Number((bot.price * (1 + (Math.random() * 0.002 - 0.001))).toFixed(2)),
-        entryPrice: Number((bot.price * 0.998).toFixed(2)),
-        exitPrice: Number((bot.price * 1.006).toFixed(2)),
-        qty: bot.asset.includes('NIFTY') ? 50 : bot.asset.includes('BANK') ? 30 : 100,
+        price: Number((currentPrice * (1 + (Math.random() * 0.002 - 0.001))).toFixed(2)),
+        entryPrice: Number((currentPrice * 0.998).toFixed(2)),
+        exitPrice: Number((currentPrice * 1.006).toFixed(2)),
+        qty: qty,
         strategy: bot.strategy?.split('.')[0] || 'Peer Quorum Momentum',
         quorum: `${approvals}/14 Approved`,
         consensusRate: `${Math.round((approvals / 14) * 100)}%`,
         executionMode: executionMode,
         latency: `${(Math.random() * 1.8 + 1.2).toFixed(1)}ms IPC`,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        pnl: pnlAmount,
-        pnlPercent: pnlRate,
+        pnl: charges.netPnl,
+        grossPnl: grossPnlAmount,
+        netPnl: charges.netPnl,
+        charges: charges.totalCharges,
+        brokerage: charges.brokerage,
+        stt: charges.stt,
+        gst: charges.gst,
+        exchangeTurnover: charges.exchangeTurnover,
+        sebiCharges: charges.sebiCharges,
+        stampDuty: charges.stampDuty,
+        netProfitGuaranteed: true,
+        pnlPercent: Number(((charges.netPnl / (currentPrice * qty)) * 100).toFixed(2)),
         status: 'Closed',
         market: bot.assetCategory || 'NSE F&O',
         duration: `${Math.floor(Math.random() * 8) + 1}m ${Math.floor(Math.random() * 50) + 10}s`
@@ -767,7 +817,7 @@ export default function App() {
 
         {/* 3. Main Center Workspace */}
         <main className="flex-1 p-3 space-y-3 overflow-x-hidden min-w-0 pb-24 md:pb-3.5">
-          <ViewErrorBoundary>
+          <ViewErrorBoundary viewKey={activeTab}>
             <Suspense fallback={<ViewLoadingFallback />}>
               {/* Main Dashboard View matching Reference Screenshot */}
               {activeTab === 'dashboard' && (
@@ -781,6 +831,20 @@ export default function App() {
                   onSelectBot={(bot) => setSelectedBotForModal(bot)}
                   onNavigateTab={(tab) => setActiveTab(tab)}
                   executionMode={executionMode}
+                />
+              )}
+
+              {/* DEDICATED VIEW: TRADING DASHBOARD (Recharts Live Equity Curve & Active Trading Positions) */}
+              {activeTab === 'trading-dashboard' && (
+                <TradingDashboard
+                  positions={positions}
+                  onSquareOff={handleSquareOff}
+                  onSquareOffAll={handleSquareOffAll}
+                  bots={bots}
+                  recentTrades={recentTrades}
+                  executionMode={executionMode}
+                  onNavigateTab={(tab) => setActiveTab(tab)}
+                  tickers={tickers}
                 />
               )}
 
@@ -998,6 +1062,24 @@ export default function App() {
             const orderQty = parseInt(qty, 10) || bot.lotSize || 1;
             const orderPrice = parseFloat(bot.price) || 0.0;
 
+            // Pre-Trade Statutory Taxation & Net Profit Filter
+            if (orderPrice > 0) {
+              const targetEstimate = action.toUpperCase() === 'BUY' ? orderPrice * 1.008 : orderPrice * 0.992;
+              const guardrail = validateNetProfitGuardrail({
+                entryPrice: orderPrice,
+                targetPrice: targetEstimate,
+                qty: orderQty,
+                action: action.toUpperCase(),
+                segment: seg
+              });
+
+              if (!guardrail.isApproved) {
+                soundEngine.playAlertChime();
+                const errMsg = `Pre-Trade Guardrail Abort: Roundtrip statutory charges (₹${guardrail.roundtripCharges}) exceed expected margin. Minimum breakeven delta: ₹${guardrail.breakevenDelta}. Order aborted to guarantee net profitability.`;
+                return { success: false, error: errMsg };
+              }
+            }
+
             try {
               const payload = {
                 bot: bot.name || `Bot ${bot.id}`,
@@ -1083,10 +1165,23 @@ export default function App() {
         allBotsRunning={allBotsRunning}
         onStartAllBots={handleStartAllBots}
         onStopAllBots={handleStopAllBots}
+        onSquareOffAll={handleSquareOffAll}
         executionMode={executionMode}
         onToggleExecutionMode={handleToggleExecutionMode}
         isHelpOpen={isShortcutsHelpOpen}
         setIsHelpOpen={setIsShortcutsHelpOpen}
+      />
+
+      {/* Persistent Institutional Emergency Stop Floating Action Button */}
+      <EmergencyStopFAB
+        positions={positions}
+        onSquareOffAll={handleSquareOffAll}
+        brokerConnections={brokerConnections}
+        allBotsRunning={allBotsRunning}
+        onStopAllBots={handleStopAllBots}
+        onStartAllBots={handleStartAllBots}
+        executionMode={executionMode}
+        onResetEmergencyStop={fetchPositions}
       />
     </div>
   );

@@ -55,6 +55,25 @@ class ToastEmitter {
       ...trade
     });
   }
+
+  // Helper method for Emergency Stop & All-Positions Square-off alert
+  emitEmergencyStop(details = {}) {
+    this.emit({
+      action: 'EMERGENCY_STOP',
+      type: 'EMERGENCY_STOP',
+      symbol: details.symbol || 'ALL ASSETS',
+      price: 'SQUARE-OFF',
+      qty: details.count || 0,
+      botName: 'RMS CIRCUIT BREAKER',
+      strategy: details.message || 'Immediate All-Positions Square-Off Activated',
+      quorum: 'RMS OVERRIDE',
+      consensusRate: '100%',
+      executionMode: details.executionMode || 'BROKER API',
+      latency: '0.8ms FASTPATH',
+      durationMs: 7000,
+      ...details
+    });
+  }
 }
 
 export const toastEmitter = new ToastEmitter();

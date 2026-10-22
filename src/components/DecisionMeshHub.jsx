@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Cpu, CheckCircle2, ChevronDown, Filter, Zap, ArrowUpRight, ShieldCheck, Activity, BarChart2 } from 'lucide-react';
+import { Cpu, CheckCircle2, ChevronDown, Filter, Zap, ArrowUpRight, ShieldCheck, Activity, BarChart2, AlertTriangle, Scale } from 'lucide-react';
+import { INSTITUTIONAL_HURDLE_ROI_PCT } from '../utils/taxCalculator';
 
 export default function DecisionMeshHub({
   bots,
@@ -13,7 +14,7 @@ export default function DecisionMeshHub({
 }) {
   const [hoveredBotId, setHoveredBotId] = useState(null);
 
-  // SVG dimensions for a wide, spacious node bus
+  // SVG dimensions for wide, spacious node bus
   const nodeCount = 14;
   const width = 840;
   const height = 125;
@@ -35,10 +36,17 @@ export default function DecisionMeshHub({
     };
   });
 
+  // Calculate live 14-bot consensus stats
+  const buyVotesCount = bots.filter((b) => b.action === 'BUY').length;
+  const sellVotesCount = bots.filter((b) => b.action === 'SELL').length;
+  const dominantVotes = Math.max(buyVotesCount, sellVotesCount);
+  const dominantDirection = buyVotesCount >= sellVotesCount ? 'BUY' : 'SELL';
+  const isQuorumPassed = dominantVotes >= 9;
+  const isQuorumVeto = dominantVotes >= 7 && dominantVotes <= 8;
+
   // Calculate dynamic metrics from bots
   const totalAllocatedCapital = bots.reduce((acc, b) => acc + (Number(b.allocatedCapital) || 0), 0);
   const runningBots = bots.filter((b) => b.status === 'RUNNING');
-  const liveExecutingBots = bots.filter((b) => b.status === 'RUNNING' && (Number(b.allocatedCapital) || 0) > 0);
   const totalPnl = bots.reduce((acc, b) => acc + (b.pnlToday || 0), 0);
   const totalTradesCount = bots.reduce((acc, b) => acc + (b.trades || 0), 0);
   const avgWinRate = totalTradesCount > 0
@@ -46,57 +54,51 @@ export default function DecisionMeshHub({
     : 0;
 
   return (
-    <div className="space-y-3.5 select-none">
-      {/* 1. Spacious Dedicated Container for the Bot Decision Network Visualizer */}
-      <div className="glass-panel rounded-2xl p-5 border border-[#1e3a6e]/60 shadow-[0_4px_25px_rgba(0,0,0,0.6)] relative overflow-hidden">
+    <div className="space-y-3.5 select-none font-sans">
+      {/* 1. Dedicated Container for the 14-Bot Quorum Consensus Mesh */}
+      <div className="glass-panel rounded-2xl p-5 border border-[#1e3a6e]/60 shadow-[0_4px_25px_rgba(0,0,0,0.8)] relative overflow-hidden bg-[#05070b]">
         {/* Background ambient glow */}
         <div className="absolute top-0 left-1/4 w-96 h-36 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute top-0 right-1/4 w-96 h-36 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-        {/* Top Header & Legend */}
+        {/* Top Header & Quorum Telemetry */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-3">
             <h2 className="text-sm font-bold text-slate-100 flex items-center gap-2 tracking-wide">
               <span className={`w-2.5 h-2.5 rounded-full ${allBotsRunning ? 'bg-cyan-400 shadow-[0_0_8px_#00f0ff]' : 'bg-amber-400 shadow-[0_0_8px_#f59e0b]'}`}></span>
-              Bot Decision Network <span className="text-cyan-400 font-semibold">(14 Bots Configured)</span>
+              14-Bot Quorum Consensus Network <span className="text-cyan-400 font-semibold font-mono text-xs">(9/14 Rule Active)</span>
             </h2>
 
-            {/* Legend */}
-            <div className="hidden md:flex items-center gap-3.5 text-[11px] font-medium text-slate-300 ml-4">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]"></span>
-                Buy Signal
+            {/* Zero-pill metadata indicators */}
+            <div className="hidden lg:flex items-center gap-2 text-xs font-mono text-slate-400 ml-3">
+              <span className="text-slate-500">/</span>
+              <span className={isQuorumPassed ? 'text-emerald-400 font-bold' : isQuorumVeto ? 'text-rose-400 font-bold' : 'text-slate-300'}>
+                {dominantVotes}/14 Consensus ({dominantDirection})
               </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_6px_#f43f5e]"></span>
-                Sell Signal
+              <span className="text-slate-500">·</span>
+              <span className="text-cyan-400 font-semibold">
+                {isQuorumPassed ? 'Quorum Passed (Gate Open)' : isQuorumVeto ? '7-8 Quorum Veto (Strictly Rejected)' : 'Consensus Gate Closed'}
               </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_6px_#f59e0b]"></span>
-                Hold
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rotate-45 bg-cyan-400 shadow-[0_0_6px_#00f0ff]"></span>
-                Connected
-              </span>
+              <span className="text-slate-500">·</span>
+              <span className="text-emerald-300">Net-Profit &gt; 1.5% Hurdle</span>
             </div>
           </div>
 
-          {/* Filter Dropdown */}
+          {/* Asset Category Filter */}
           <div className="flex items-center gap-2">
             <div className="relative">
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
                 aria-label="Filter assets"
-                className="appearance-none bg-[#0e1b38] hover:bg-[#122349] border border-[#1e3a6e] hover:border-cyan-500/50 text-xs font-semibold text-slate-200 py-1.5 pl-3 pr-8 rounded-lg cursor-pointer focus:outline-none focus:border-cyan-400 transition-all shadow-sm"
+                className="appearance-none bg-[#0a1122] hover:bg-[#0e1b38] border border-[#1e3a6e] hover:border-cyan-500/50 text-xs font-semibold text-slate-200 py-1.5 pl-3 pr-8 rounded-lg cursor-pointer focus:outline-none focus:border-cyan-400 transition-all shadow-sm font-mono"
               >
-                <option value="All">All Assets</option>
-                <option value="Indices">Indices</option>
-                <option value="Equities">Equities</option>
-                <option value="Commodities">Commodities</option>
-                <option value="Derivatives">Derivatives</option>
-                <option value="Crypto">Crypto & FX</option>
+                <option value="All">All 200+ Assets</option>
+                <option value="Indices">Indices (Nifty/Sensex)</option>
+                <option value="Equities">NSE Bluechips</option>
+                <option value="Commodities">MCX Bullion & Energy</option>
+                <option value="Derivatives">F&O Options/Futures</option>
+                <option value="Crypto">Forex CDS & Macro</option>
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
@@ -218,29 +220,56 @@ export default function DecisionMeshHub({
           </svg>
 
           {/* Central AI Decision Engine Card Box */}
-          <div className="relative -mt-6 bg-gradient-to-r from-[#091733]/95 via-[#0d224d]/95 to-[#091733]/95 border border-cyan-500/50 rounded-xl px-6 py-2.5 shadow-[0_0_25px_rgba(0,240,255,0.25)] flex items-center gap-3.5 backdrop-blur-md">
+          <div className="relative -mt-6 bg-[#081226]/95 border border-cyan-500/50 rounded-xl px-6 py-2.5 shadow-[0_0_25px_rgba(0,240,255,0.25)] flex items-center gap-3.5 backdrop-blur-md">
             <div className="w-9 h-9 rounded-lg bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center text-cyan-300 shadow-[0_0_12px_rgba(0,240,255,0.5)]">
               <Cpu className={`w-5 h-5 ${allBotsRunning ? 'animate-spin' : 'text-slate-400'}`} style={{ animationDuration: '10s' }} />
             </div>
             <div>
               <div className="text-xs font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-sky-200 to-blue-400 uppercase drop-shadow-[0_0_8px_rgba(0,240,255,0.5)]">
-                AI DECISION ENGINE
+                AI DECISION ENGINE • 14-BOT QUORUM
               </div>
               <div className="text-[10px] font-medium text-slate-300 leading-tight">
-                All Bots Share Analysis • Real-time Consensus
+                9/14 Strict Threshold • 7-8 Veto Gate • Pre-Trade Net Profit Audit
               </div>
-              <div className="text-[9.5px] text-cyan-400 font-mono">
-                {allBotsRunning ? 'Active Consensus Processing • 11/13 Quorum Scanning' : 'LIVE PAPER TRADING ACTIVE'}
+              <div className="text-[9.5px] text-cyan-400 font-mono mt-0.5">
+                {allBotsRunning
+                  ? `Active Quorum: ${dominantVotes}/14 ${dominantDirection} · ${isQuorumPassed ? 'ORDER APPROVED' : isQuorumVeto ? 'QUORUM VETO (ABORT)' : 'ACCUMULATING'}`
+                  : 'SYSTEM STANDBY'}
               </div>
             </div>
           </div>
         </div>
+
+        {/* Quorum Consensus Gate Bar Visualizer */}
+        <div className="mt-4 pt-3 border-t border-[#1e3a6e]/40 flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+          <div className="flex items-center gap-2">
+            <span className="text-slate-400">Consensus Meter:</span>
+            <div className="w-36 h-2 bg-[#09152b] rounded-full overflow-hidden flex border border-[#1e3a6e]/60">
+              <div
+                className={`h-full transition-all duration-500 ${isQuorumPassed ? 'bg-emerald-400 shadow-[0_0_8px_#10b981]' : isQuorumVeto ? 'bg-amber-400' : 'bg-cyan-500'}`}
+                style={{ width: `${Math.round((dominantVotes / 14) * 100)}%` }}
+              ></div>
+            </div>
+            <span className="text-slate-200 font-bold">{dominantVotes}/14</span>
+          </div>
+
+          <div className="flex items-center gap-3 text-[11px]">
+            <span className="text-slate-400">Rules:</span>
+            <span className="text-emerald-400 font-semibold">&ge;9 Pass Gate</span>
+            <span className="text-slate-500">·</span>
+            <span className="text-amber-400 font-semibold">7-8 Quorum Veto</span>
+            <span className="text-slate-500">·</span>
+            <span className="text-rose-400 font-semibold">&le;6 Insufficient</span>
+            <span className="text-slate-500">·</span>
+            <span className="text-cyan-300 font-semibold">Min 1.5% Net ROI</span>
+          </div>
+        </div>
       </div>
 
-      {/* 2. Separate, Well-Padded Cards for the 5 Core Metrics */}
+      {/* 2. Well-Padded Cards for the 5 Core Metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
         {/* Metric 1: System Status */}
-        <div className="glass-panel rounded-xl p-4 border border-[#1e3a6e]/50 flex flex-col justify-between shadow-md hover:border-cyan-500/40 transition-all">
+        <div className="glass-panel rounded-xl p-4 border border-[#1e3a6e]/50 flex flex-col justify-between shadow-md hover:border-cyan-500/40 transition-all bg-[#05070b]">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
             <span>System Status</span>
             <ShieldCheck className={`w-4 h-4 ${executionMode === 'LIVE' ? 'text-rose-400' : 'text-cyan-400'}`} />
@@ -254,22 +283,18 @@ export default function DecisionMeshHub({
             </div>
             <div className="text-xs text-slate-400 font-mono mt-1">
               {executionMode === 'LIVE'
-                ? (isBrokerConnected ? 'Angel One SmartAPI Bridge • Armed' : 'Broker Disconnected (Authenticate)')
-                : '14/14 Bots Online • 11/13 Quorum'}
+                ? (isBrokerConnected ? 'Angel One SmartAPI Bridge · Armed' : 'Broker Disconnected (Authenticate)')
+                : '14/14 Bots Online · 9/14 Quorum'}
             </div>
           </div>
         </div>
 
         {/* Metric 2: Total Portfolio */}
-        <div className="glass-panel rounded-xl p-4 border border-[#1e3a6e]/50 flex flex-col justify-between shadow-md hover:border-cyan-500/40 transition-all">
+        <div className="glass-panel rounded-xl p-4 border border-[#1e3a6e]/50 flex flex-col justify-between shadow-md hover:border-cyan-500/40 transition-all bg-[#05070b]">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
             <span>Total Portfolio</span>
-            <span className={`font-bold font-mono text-[10px] px-1.5 py-0.5 rounded border ${
-              executionMode === 'LIVE'
-                ? (isBrokerConnected ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40' : 'bg-rose-500/15 text-rose-300 border-rose-500/40')
-                : 'bg-cyan-500/15 text-cyan-300 border-cyan-500/40'
-            }`}>
-              {executionMode === 'LIVE' ? (isBrokerConnected ? 'REAL' : 'OFFLINE') : 'VIRTUAL'}
+            <span className="font-mono text-xs font-semibold text-cyan-400">
+              {executionMode === 'LIVE' ? (isBrokerConnected ? 'REAL DMA' : 'OFFLINE') : 'SIMULATED'}
             </span>
           </div>
           <div className="mt-2.5">
@@ -280,16 +305,16 @@ export default function DecisionMeshHub({
             </div>
             <div className="text-xs text-slate-400 font-mono mt-1">
               {executionMode === 'LIVE'
-                ? (isBrokerConnected ? 'Verified Broker Capital' : '₹0.00 (Connect Broker in Accounts)')
-                : 'Paper Capital (₹4,90,000 Allocated)'}
+                ? (isBrokerConnected ? 'Verified Broker Capital' : 'Connect Broker in Accounts')
+                : 'Paper Capital (Dynamic Kelly Scaled)'}
             </div>
           </div>
         </div>
 
         {/* Metric 3: Today's P&L */}
-        <div className="glass-panel rounded-xl p-4 border border-[#1e3a6e]/50 flex flex-col justify-between shadow-md hover:border-cyan-500/40 transition-all">
+        <div className="glass-panel rounded-xl p-4 border border-[#1e3a6e]/50 flex flex-col justify-between shadow-md hover:border-cyan-500/40 transition-all bg-[#05070b]">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Today's P&L</span>
+            <span>Today's P&L (Net)</span>
             <ArrowUpRight className={`w-4 h-4 ${totalPnl > 0 ? 'text-emerald-400' : totalPnl < 0 ? 'text-rose-400' : 'text-slate-400'}`} />
           </div>
           <div className="mt-2.5">
@@ -297,13 +322,13 @@ export default function DecisionMeshHub({
               {totalPnl >= 0 ? '+' : ''}₹{totalPnl.toFixed(2)}
             </div>
             <div className="text-xs text-slate-400 font-mono mt-1">
-              ({totalPnl >= 0 ? '+' : ''}0.00% Session ROI)
+              After SEBI, GST & Brokerage Deductions
             </div>
           </div>
         </div>
 
         {/* Metric 4: Total Trades */}
-        <div className="glass-panel rounded-xl p-4 border border-[#1e3a6e]/50 flex flex-col justify-between shadow-md hover:border-cyan-500/40 transition-all">
+        <div className="glass-panel rounded-xl p-4 border border-[#1e3a6e]/50 flex flex-col justify-between shadow-md hover:border-cyan-500/40 transition-all bg-[#05070b]">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
             <span>Total Trades</span>
             <Activity className="w-4 h-4 text-cyan-400" />
@@ -313,15 +338,15 @@ export default function DecisionMeshHub({
               {totalTradesCount}
             </div>
             <div className="text-xs text-slate-400 font-mono mt-1">
-              Executed Today
+              100% Quorum Verified
             </div>
           </div>
         </div>
 
         {/* Metric 5: Success Rate */}
-        <div className="glass-panel rounded-xl p-4 border border-[#1e3a6e]/50 flex flex-col justify-between shadow-md hover:border-cyan-500/40 transition-all col-span-2 sm:col-span-1">
+        <div className="glass-panel rounded-xl p-4 border border-[#1e3a6e]/50 flex flex-col justify-between shadow-md hover:border-cyan-500/40 transition-all col-span-2 sm:col-span-1 bg-[#05070b]">
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-            <span>Success Rate</span>
+            <span>Win Rate</span>
             <BarChart2 className="w-4 h-4 text-slate-400" />
           </div>
           <div className="mt-2.5">
@@ -329,7 +354,7 @@ export default function DecisionMeshHub({
               {avgWinRate}%
             </div>
             <div className="text-xs text-slate-400 font-mono mt-1">
-              {totalTradesCount > 0 ? 'Verified Accuracy' : 'No Closed Trades'}
+              {totalTradesCount > 0 ? 'Verified Net Profitable' : 'No Closed Trades'}
             </div>
           </div>
         </div>

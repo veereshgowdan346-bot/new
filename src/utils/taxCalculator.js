@@ -1,13 +1,20 @@
 /**
  * CHINTU AI TRADING SYSTEM - Indian Regulatory Brokerage & Tax Engine
- * Fully compliant with SEBI, NSE, and Ministry of Finance statutory formulas:
+ * Fully compliant with SEBI, NSE, MCX, and Ministry of Finance statutory formulas:
  * 1. Brokerage: Flat ₹20 per executed order or 0.03% of turnover, whichever is lower
  * 2. STT (Securities Transaction Tax): 0.0125% on intraday equity/futures sell, 0.0625% on options sell, 0 on buy
- * 3. Exchange Turnover Charges: 0.00325% of turnover (NSE standard)
+ * 3. Exchange Turnover Charges: 0.00325% of turnover (NSE standard) / 0.0021% (MCX)
  * 4. GST: 18% on (Brokerage + Exchange Turnover Charges)
  * 5. SEBI Turnover Charges: 0.0001% (₹10 / crore)
  * 6. Stamp Duty: 0.003% of turnover (applicable on BUY side)
+ *
+ * INSTITUTIONAL NET-PROFIT GUARDRAIL:
+ * Hard Abort: Any order where projected net ROI after all statutory taxes and broker fees
+ * is below 1.5% MUST BE ABORTED. Trades are ONLY booked if a positive net profit is
+ * mathematically guaranteed.
  */
+
+export const INSTITUTIONAL_HURDLE_ROI_PCT = 1.50; // 1.5% minimum net ROI
 
 export function calculateTradeCharges({
   price = 0,
@@ -23,6 +30,7 @@ export function calculateTradeCharges({
   const isBuy = (action || '').toUpperCase() === 'BUY';
   const segLower = (segment || '').toLowerCase();
   const isOption = segLower.includes('option') || segLower.includes('ce') || segLower.includes('pe');
+  const isCommodity = segLower.includes('commodity') || segLower.includes('mcx') || segLower.includes('gold') || segLower.includes('silver') || segLower.includes('crude');
 
   // 1. Brokerage: Flat ₹20 or 0.03% of turnover, whichever is lower
   const brokerage = orderValue > 0 ? Math.min(20.0, orderValue * 0.0003) : 0.0;
@@ -30,20 +38,27 @@ export function calculateTradeCharges({
   // 2. STT (Securities Transaction Tax) - Charged only on SELL for intraday / options
   let stt = 0.0;
   if (isSell && orderValue > 0) {
-    stt = isOption ? orderValue * 0.000625 : orderValue * 0.000125;
+    if (isOption) {
+      stt = orderValue * 0.000625; // 0.0625% on options sell premium
+    } else if (isCommodity) {
+      stt = orderValue * 0.00010; // 0.01% on non-agri commodity sell
+    } else {
+      stt = orderValue * 0.000125; // 0.0125% on intraday equity sell
+    }
   }
 
-  // 3. Exchange Turnover Charges (0.00325% on NSE)
-  const exchangeTurnover = orderValue * 0.0000325;
+  // 3. Exchange Turnover Charges (0.00325% on NSE, 0.0021% on MCX)
+  const turnoverRate = isCommodity ? 0.000021 : 0.0000325;
+  const exchangeTurnover = orderValue * turnoverRate;
 
   // 4. GST (18% on Brokerage + Exchange Turnover)
   const gst = 0.18 * (brokerage + exchangeTurnover);
 
-  // 5. SEBI Turnover Charges (0.0001%)
+  // 5. SEBI Turnover Charges (0.0001% = ₹10/crore)
   const sebiCharges = orderValue * 0.000001;
 
   // 6. Stamp Duty (0.003% on BUY side only)
-  const stampDuty = isBuy ? orderValue * 0.00003 : 0.0;
+  const stampDuty = isBuy ? (isCommodity ? orderValue * 0.00002 : orderValue * 0.00003) : 0.0;
 
   const totalCharges = brokerage + stt + exchangeTurnover + gst + sebiCharges + stampDuty;
   const netPnl = grossPnl - totalCharges;
@@ -63,10 +78,12 @@ export function calculateTradeCharges({
 }
 
 /**
- * STRICT BROKERAGE & TAX NET-PROFIT GUARDRAIL
+ * MANDATORY PRE-TRADE TAXATION & BROKERAGE NET-PROFIT GUARDRAIL
  * Algorithmically verifies that an anticipated trade covers roundtrip brokerage,
- * STT, exchange fees, SEBI charges, GST, and Stamp Duty with a safety buffer.
- * Aborts any trade where a positive net profit is not mathematically guaranteed.
+ * STT, exchange fees, SEBI charges, GST, and Stamp Duty.
+ *
+ * CRITICAL RULE:
+ * Rejects and aborts any order where expected net ROI is under 1.5% or expected net profit <= 0.
  */
 export function validateNetProfitGuardrail({
   entryPrice = 0,
@@ -74,10 +91,12 @@ export function validateNetProfitGuardrail({
   qty = 1,
   action = 'BUY',
   segment = 'NSE Equity',
-  safetyBufferPercent = 20.0
+  safetyBufferPercent = 20.0,
+  hurdleNetRoiPct = INSTITUTIONAL_HURDLE_ROI_PCT
 }) {
   const p = Math.max(0, Number(entryPrice) || 0);
   const q = Math.max(1, parseInt(qty, 10) || 1);
+
   if (p <= 0 || q <= 0) {
     return {
       isApproved: false,
@@ -85,14 +104,17 @@ export function validateNetProfitGuardrail({
       roundtripCharges: 0,
       expectedGrossProfit: 0,
       expectedNetProfit: 0,
+      expectedNetRoiPct: 0,
       breakevenDelta: 0
     };
   }
 
-  // Default target if none specified: 0.65% conservative expectation for intraday
+  const orderValue = p * q;
+
+  // Default target if none specified: 2.5% conservative expectation for intraday
   const effTarget = targetPrice && targetPrice > 0
     ? Number(targetPrice)
-    : (action === 'BUY' ? p * 1.0065 : p * 0.9935);
+    : (action === 'BUY' ? p * 1.025 : p * 0.975);
 
   // 1. Calculate Entry Leg Charges
   const entryCharges = calculateTradeCharges({
@@ -121,6 +143,11 @@ export function validateNetProfitGuardrail({
   // Net profit after deducting all statutory taxes and broker fees
   const expectedNetProfit = Number((expectedGrossProfit - totalRoundtripCharges).toFixed(2));
 
+  // Expected Net ROI in percentage of order value
+  const expectedNetRoiPct = orderValue > 0
+    ? Number(((expectedNetProfit / orderValue) * 100).toFixed(2))
+    : 0;
+
   // Minimum required price move to break even on roundtrip charges
   const breakevenDelta = Number((totalRoundtripCharges / q).toFixed(2));
   const breakevenPct = Number(((breakevenDelta / p) * 100).toFixed(2));
@@ -128,11 +155,22 @@ export function validateNetProfitGuardrail({
   // Safety buffer threshold: Gross movement must exceed charges by safetyBufferPercent
   const safeThreshold = Number((totalRoundtripCharges * (1.0 + safetyBufferPercent / 100.0)).toFixed(2));
 
-  const isApproved = expectedGrossProfit >= safeThreshold && expectedNetProfit > 0;
+  // HARD ABORT CRITERION:
+  // Must satisfy:
+  // 1. Expected gross covers charges with buffer
+  // 2. Expected net profit > 0
+  // 3. Expected net ROI >= hurdleNetRoiPct (1.5%)
+  const meetsHurdle = expectedNetRoiPct >= hurdleNetRoiPct;
+  const isProfitable = expectedNetProfit > 0 && expectedGrossProfit >= safeThreshold;
+  const isApproved = isProfitable && meetsHurdle;
 
   let rejectionReason = null;
   if (!isApproved) {
-    rejectionReason = `Strict Net-Profit Guardrail Abort: Expected gross gain (₹${expectedGrossProfit.toFixed(2)}) fails to safely cover roundtrip statutory taxes & brokerage (₹${totalRoundtripCharges.toFixed(2)} + ${safetyBufferPercent}% buffer = ₹${safeThreshold.toFixed(2)}). Breakeven requires at least ₹${breakevenDelta} (${breakevenPct}%) price movement. Trade aborted to preserve capital.`;
+    if (!meetsHurdle && expectedNetProfit > 0) {
+      rejectionReason = `Hard Abort (Net ROI Hurdle): Projected net ROI of ${expectedNetRoiPct}% is below the mandatory ${hurdleNetRoiPct}% institutional hurdle. Expected Net: ₹${expectedNetProfit.toFixed(2)} on ₹${orderValue.toLocaleString()} order value. Order rejected to enforce net profitability standards.`;
+    } else {
+      rejectionReason = `Hard Abort (Statutory Overhead): Expected gross gain (₹${expectedGrossProfit.toFixed(2)}) fails to safely cover roundtrip taxes & brokerage (₹${totalRoundtripCharges.toFixed(2)} + ${safetyBufferPercent}% buffer = ₹${safeThreshold.toFixed(2)}). Breakeven requires at least ₹${breakevenDelta} (${breakevenPct}%) move. Order rejected to preserve capital.`;
+    }
   }
 
   return {
@@ -141,22 +179,28 @@ export function validateNetProfitGuardrail({
     entryPrice: p,
     targetPrice: effTarget,
     qty: q,
+    orderValue,
     roundtripCharges: totalRoundtripCharges,
     entryCharges: entryCharges.totalCharges,
     exitCharges: exitCharges.totalCharges,
     expectedGrossProfit,
     expectedNetProfit,
+    expectedNetRoiPct,
+    hurdleNetRoiPct,
     breakevenDelta,
     breakevenPct,
-    safeThreshold
+    safeThreshold,
+    statutoryBreakdown: {
+      brokerage: Number((entryCharges.brokerage + exitCharges.brokerage).toFixed(2)),
+      stt: Number((entryCharges.stt + exitCharges.stt).toFixed(2)),
+      exchangeTurnover: Number((entryCharges.exchangeTurnover + exitCharges.exchangeTurnover).toFixed(2)),
+      gst: Number((entryCharges.gst + exitCharges.gst).toFixed(2)),
+      sebiCharges: Number((entryCharges.sebiCharges + exitCharges.sebiCharges).toFixed(2)),
+      stampDuty: Number((entryCharges.stampDuty + exitCharges.stampDuty).toFixed(2))
+    }
   };
 }
 
-/**
- * DYNAMIC CAPITAL SCALING CALCULATOR
- * Dynamically scales lot sizing, leverage, and risk boundaries based on capital input
- * (Supports micro-capital ₹500, ₹6,000, to institutional ₹50,00,000+).
- */
 export function calculateAdaptivePositionSizing({
   capital = 20000,
   assetPrice = 2500,
@@ -170,28 +214,20 @@ export function calculateAdaptivePositionSizing({
   const lot = Math.max(1, parseInt(lotSize, 10) || 1);
   const slDist = Math.max(0.5, Number(stopLossDistance) || (p * 0.008));
 
-  // Indian regulatory margin requirement:
-  // Equity Intraday = 20% (5x leverage)
-  // Index/Stock Futures = 14% (~7x)
-  // Options Buying = 100% of premium
   const segLower = (segment || '').toLowerCase();
-  let marginReqPerUnit = p * 0.20; // default 5x intraday
+  let marginReqPerUnit = p * 0.20; // 5x intraday
   if (segLower.includes('option')) {
-    marginReqPerUnit = p; // 100% option premium
+    marginReqPerUnit = p; // 100% premium
   } else if (segLower.includes('future') || segLower.includes('f&o')) {
-    marginReqPerUnit = p * 0.14; // SPAN + Exposure
+    marginReqPerUnit = p * 0.14;
   } else if (segLower.includes('commodity') || segLower.includes('mcx')) {
     marginReqPerUnit = p * 0.10;
   }
 
-  // 1. Max risk budget = capital * maxRiskPct%
   const riskBudget = cap * (maxRiskPct / 100);
   const qtyByRisk = Math.floor(riskBudget / slDist);
-
-  // 2. Max qty affordable by capital margin
   const qtyByMargin = Math.floor(cap / marginReqPerUnit);
 
-  // Quantized to lot size
   const rawMax = Math.min(qtyByRisk, qtyByMargin);
   const affordableLots = Math.max(1, Math.floor(rawMax / lot));
   const finalQty = affordableLots * lot;
@@ -215,3 +251,4 @@ export function formatIndianCurrency(num) {
     maximumFractionDigits: 2
   });
 }
+

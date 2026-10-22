@@ -4,6 +4,9 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    dedupe: ['react', 'react-dom']
+  },
   build: {
     rollupOptions: {
       output: {
@@ -27,16 +30,6 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 3000,
     allowedHosts: true,
-    proxy: {
-      '/api': {
-        target: 'http://127.0.0.1:8000',
-        changeOrigin: true,
-      },
-      '/chintu-feed': {
-        target: 'ws://127.0.0.1:8000',
-        ws: true,
-      }
-    }
   },
   preview: {
     host: '0.0.0.0',

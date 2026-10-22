@@ -681,6 +681,15 @@ export default function MasterDashboardView({
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => onNavigateTab && onNavigateTab('trading-dashboard')}
+            className="text-xs font-semibold flex items-center gap-1.5 py-1 px-3 rounded-lg bg-gradient-to-r from-cyan-600/30 to-blue-600/30 hover:from-cyan-600/50 hover:to-blue-600/50 text-cyan-200 border border-cyan-400/50 shadow-[0_0_12px_rgba(0,240,255,0.2)] transition-all cursor-pointer"
+          >
+            <TrendingUp className="w-3.5 h-3.5 text-cyan-300" />
+            <span>Live Equity & Positions ↗</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setShowHeatmap(!showHeatmap)}
             className={`text-xs font-semibold flex items-center gap-1.5 py-1 px-3 rounded-lg border transition-all cursor-pointer shadow-sm ${
               showHeatmap

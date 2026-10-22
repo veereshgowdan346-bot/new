@@ -17,6 +17,7 @@ import {
   Terminal
 } from 'lucide-react';
 import { toastEmitter } from '../../utils/toastEmitter';
+import WhatsAppTelegramRemoteModule from '../WhatsAppTelegramRemoteModule';
 
 export default function SettingsView({
   simulationEnabled = true,

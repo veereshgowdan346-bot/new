@@ -36,7 +36,8 @@ function ToastNotificationItem({
   const remainingTimeRef = useRef(toast.durationMs || 5000);
 
   const duration = toast.durationMs || 5000;
-  const isBuy = (toast.action || 'BUY').toUpperCase() === 'BUY';
+  const isEmergency = (toast.action || '').toUpperCase() === 'EMERGENCY_STOP' || (toast.type || '').toUpperCase() === 'EMERGENCY_STOP';
+  const isBuy = !isEmergency && (toast.action || 'BUY').toUpperCase() === 'BUY';
 
   // Handle countdown & auto-dismiss
   useEffect(() => {
@@ -75,8 +76,10 @@ function ToastNotificationItem({
     <div
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className={`relative w-full max-w-[370px] bg-[#060b17]/95 border rounded-xl overflow-hidden backdrop-blur-md shadow-[0_0_25px_rgba(0,240,255,0.22)] transition-all duration-300 pointer-events-auto select-none group animate-slideInRight ${
-        isBuy
+      className={`relative w-full max-w-[370px] bg-[#060b17]/95 border rounded-xl overflow-hidden backdrop-blur-md transition-all duration-300 pointer-events-auto select-none group animate-slideInRight ${
+        isEmergency
+          ? 'border-red-500/80 hover:border-red-400 shadow-[0_0_35px_rgba(239,68,68,0.45)] ring-1 ring-red-500/40'
+          : isBuy
           ? 'border-cyan-500/50 hover:border-cyan-400 shadow-[0_0_20px_rgba(0,240,255,0.25)]'
           : 'border-rose-500/50 hover:border-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.25)]'
       }`}
@@ -84,7 +87,9 @@ function ToastNotificationItem({
       {/* Top Holographic Neon Gradient Accent */}
       <div
         className={`h-1 w-full bg-gradient-to-r ${
-          isBuy
+          isEmergency
+            ? 'from-red-600 via-rose-500 to-amber-500 animate-pulse'
+            : isBuy
             ? 'from-cyan-400 via-teal-300 to-emerald-400'
             : 'from-amber-400 via-rose-500 to-rose-600'
         }`}
@@ -97,22 +102,28 @@ function ToastNotificationItem({
             <span className="relative flex h-2 w-2">
               <span
                 className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                  isBuy ? 'bg-cyan-400' : 'bg-rose-400'
+                  isEmergency ? 'bg-red-400' : isBuy ? 'bg-cyan-400' : 'bg-rose-400'
                 }`}
               />
               <span
                 className={`relative inline-flex rounded-full h-2 w-2 ${
-                  isBuy ? 'bg-cyan-400' : 'bg-rose-500'
+                  isEmergency ? 'bg-red-500' : isBuy ? 'bg-cyan-400' : 'bg-rose-500'
                 }`}
               />
             </span>
 
-            <span className="text-[10px] font-black tracking-widest text-cyan-300 uppercase font-mono">
-              DECISION NETWORK
+            <span className={`text-[10px] font-black tracking-widest uppercase font-mono ${
+              isEmergency ? 'text-red-400 animate-pulse' : 'text-cyan-300'
+            }`}>
+              {isEmergency ? 'RMS CIRCUIT BREAKER' : 'DECISION NETWORK'}
             </span>
 
-            <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-cyan-950/60 text-cyan-300 border border-cyan-800/60">
-              {toast.quorum || '12/14 Quorum'}
+            <span className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border ${
+              isEmergency
+                ? 'bg-red-950/80 text-red-300 border-red-700/80'
+                : 'bg-cyan-950/60 text-cyan-300 border-cyan-800/60'
+            }`}>
+              {toast.quorum || (isEmergency ? 'RMS OVERRIDE' : '12/14 Quorum')}
             </span>
           </div>
 
@@ -134,16 +145,24 @@ function ToastNotificationItem({
         {/* Row 2: Trade Action, Symbol, Price & Mode */}
         <div className="flex items-center justify-between gap-2 bg-[#091325]/90 border border-[#16294d] rounded-lg p-2.5">
           <div className="flex items-center gap-2 min-w-0">
-            {/* BUY / SELL Neon Pill */}
+            {/* BUY / SELL / EMERGENCY STOP Neon Pill */}
             <div
               className={`px-2 py-1 rounded text-[11px] font-black uppercase font-mono tracking-wider flex items-center gap-1 border shrink-0 ${
-                isBuy
+                isEmergency
+                  ? 'bg-red-500/25 text-red-200 border-red-500/70 shadow-[0_0_15px_rgba(239,68,68,0.4)]'
+                  : isBuy
                   ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
                   : 'bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-[0_0_10px_rgba(244,63,94,0.3)]'
               }`}
             >
-              {isBuy ? <ArrowUpRight className="w-3.5 h-3.5 text-emerald-300" /> : <ArrowDownRight className="w-3.5 h-3.5 text-rose-300" />}
-              <span>{toast.action || 'BUY'}</span>
+              {isEmergency ? (
+                <Zap className="w-3.5 h-3.5 text-red-300 animate-bounce" />
+              ) : isBuy ? (
+                <ArrowUpRight className="w-3.5 h-3.5 text-emerald-300" />
+              ) : (
+                <ArrowDownRight className="w-3.5 h-3.5 text-rose-300" />
+              )}
+              <span>{isEmergency ? 'KILL SWITCH' : (toast.action || 'BUY')}</span>
             </div>
 
             <div className="min-w-0">
