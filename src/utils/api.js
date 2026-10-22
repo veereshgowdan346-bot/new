@@ -18,7 +18,7 @@ const getEnvVar = (key, fallback = '') => {
 // Fallback to relative URL or custom VITE_API_URL if explicitly provided
 export const RAW_API_URL = getEnvVar('VITE_API_URL', '').trim();
 export const BACKEND_HOST = getEnvVar('VITE_HOST', getEnvVar('HOST', '127.0.0.1')).trim() || '127.0.0.1';
-export const BACKEND_PORT = Number(getEnvVar('VITE_PORT', getEnvVar('PORT', '8000'))) || 8000;
+export const BACKEND_PORT = Number(getEnvVar('VITE_PORT', getEnvVar('PORT', '3000'))) || 3000;
 
 // Direct local fallback address (used only when direct connection is needed)
 export const DIRECT_BACKEND_URL = RAW_API_URL

@@ -164,177 +164,32 @@ export default function MasterDashboardView({
           Center: Central Bot Decision Network (14 Strategy Bots Holographic Ring)
           Right: Live Trading Status + Top Markets (Live)
          ========================================================================= */}
+      {/* =========================================================================
+          SECTION 1: PRIMARY DEFAULT LANDING VIEW — AI TRADING ENGINE (14 BOTS VISUALIZER)
+          Centerpiece: 14 Strategy Bots Circular Quorum Consensus Ring (Primary Startup View)
+          Right: Live Trading Status & Top Markets (Live)
+         ========================================================================= */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
-        {/* CARD A: AI ENGINE CONTROL (Left Column: 3.5 cols on desktop) */}
-        <div className="lg:col-span-3 bg-[#080e1b]/95 border border-[#16294a] rounded-2xl p-4 flex flex-col justify-between shadow-[0_4px_25px_rgba(0,0,0,0.6)] backdrop-blur-md">
-          {/* Header */}
-          <div>
-            <div className="flex items-center justify-between mb-3.5">
-              <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2 tracking-wide">
-                <span>AI Engine Control</span>
-              </h3>
-              <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Running</span>
-              </div>
-            </div>
-
-            {/* 3 Action Buttons */}
-            <div className="grid grid-cols-3 gap-2 mb-4">
-              <button
-                type="button"
-                onClick={onStartAllBots}
-                className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-400 text-xs font-bold transition-all shadow-[0_0_10px_rgba(16,185,129,0.15)] cursor-pointer"
-              >
-                <Play className="w-3 h-3 fill-emerald-400" />
-                <span>START</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={onStopAllBots}
-                className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-400 text-xs font-bold transition-all cursor-pointer"
-              >
-                <Square className="w-3 h-3 fill-rose-500" />
-                <span>STOP</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={onRestartBots || onStartAllBots}
-                className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 text-xs font-bold transition-all cursor-pointer"
-              >
-                <RotateCw className="w-3 h-3 text-cyan-400" />
-                <span>RESTART</span>
-              </button>
-            </div>
-
-            {/* Engine Status Indicators List */}
-            <div className="space-y-1.5 text-xs">
-              <div className="flex items-center justify-between py-1 px-1.5 rounded-md hover:bg-[#0d1c38]/50 transition-colors">
-                <span className="flex items-center gap-2 text-slate-300">
-                  <span className="text-slate-400">⚙</span> Market Scanning
-                </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  Live
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between py-1 px-1.5 rounded-md hover:bg-[#0d1c38]/50 transition-colors">
-                <span className="flex items-center gap-2 text-slate-300">
-                  <span className="text-slate-400">🛰</span> Signal Analysis
-                </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  Live
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between py-1 px-1.5 rounded-md hover:bg-[#0d1c38]/50 transition-colors">
-                <span className="flex items-center gap-2 text-slate-300">
-                  <span className="text-slate-400">⚖</span> Strategy Voting
-                </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  Live
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between py-1 px-1.5 rounded-md hover:bg-[#0d1c38]/50 transition-colors">
-                <span className="flex items-center gap-2 text-slate-300">
-                  <span className="text-slate-400">⚡</span> Trade Execution
-                </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  Live
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between py-1 px-1.5 rounded-md hover:bg-[#0d1c38]/50 transition-colors">
-                <span className="flex items-center gap-2 text-slate-300">
-                  <span className="text-slate-400">🛡</span> Risk Management
-                </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">
-                  Active
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between py-1 px-1.5 rounded-md hover:bg-[#0d1c38]/50 transition-colors">
-                <span className="flex items-center gap-2 text-slate-300">
-                  <span className="text-slate-400">📊</span> Portfolio Optimization
-                </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">
-                  Active
-                </span>
-              </div>
-
-              <div
-                onClick={() => setShowSentimentWidget(!showSentimentWidget)}
-                className="flex items-center justify-between py-1 px-1.5 rounded-md hover:bg-[#0d1c38]/50 transition-colors cursor-pointer group"
-                title="Click to toggle Fear & Greed Sentiment widget"
-              >
-                <span className="flex items-center gap-2 text-slate-300 group-hover:text-cyan-300 transition-colors">
-                  <Compass className="w-3.5 h-3.5 text-cyan-400 animate-spin [animation-duration:20s]" /> Market Sentiment
-                </span>
-                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 group-hover:bg-cyan-500/30">
-                  {currentSentiment.classification} ({currentSentiment.score})
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Sub-Section: Market Allocation (Active Trades) */}
-          <div className="mt-4 pt-3.5 border-t border-[#16294a]/80">
-            <h4 className="text-xs font-bold text-slate-200 tracking-wide mb-2.5">
-              Market Allocation <span className="text-slate-400 font-normal">(Active Trades)</span>
-            </h4>
-
-            <div className="flex items-center justify-between gap-2">
-              {/* Donut Chart with Center Text */}
-              <div className="relative shrink-0 flex items-center justify-center">
-                <svg width={donutSize} height={donutSize} className="rotate-[-90deg]">
-                  {donutSlices.map((slice, idx) => (
-                    <circle
-                      key={idx}
-                      cx={donutCenter}
-                      cy={donutCenter}
-                      r={donutRadius}
-                      fill="transparent"
-                      stroke={slice.color}
-                      strokeWidth={donutStrokeWidth}
-                      strokeDasharray={slice.strokeDasharray}
-                      strokeDashoffset={slice.strokeDashoffset}
-                      className="transition-all duration-500 hover:opacity-80"
-                    />
-                  ))}
-                </svg>
-                {/* Center Badge */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                  <span className="text-base font-extrabold text-white font-mono leading-none">143</span>
-                  <span className="text-[9px] text-slate-400 font-medium tracking-tight mt-0.5">Active Trades</span>
-                </div>
-              </div>
-
-              {/* Legend List */}
-              <div className="space-y-1 text-[11px] font-medium grow pl-1">
-                {marketAllocation.map((item, idx) => (
-                  <div key={idx} className="flex items-center justify-between text-slate-300">
-                    <span className="flex items-center gap-1.5 truncate">
-                      <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
-                      <span className="truncate">{item.name}</span>
-                    </span>
-                    <span className="font-mono text-slate-200 font-bold ml-1">{item.percent}%</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* CARD B: CENTRAL BOT DECISION NETWORK (Center Column: 5.5 cols on desktop) */}
-        <div className="lg:col-span-5 bg-[#080e1b]/95 border border-[#16294a] rounded-2xl p-4 flex flex-col items-center justify-center relative overflow-hidden shadow-[0_0_35px_rgba(0,240,255,0.1)] backdrop-blur-md">
+        {/* PRIMARY LANDING VIEW: CENTRAL BOT DECISION NETWORK (14 Strategy Bots Holographic Ring) */}
+        <div className="lg:col-span-7 bg-[#080e1b]/95 border border-[#16294a] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center relative overflow-hidden shadow-[0_0_35px_rgba(0,240,255,0.12)] backdrop-blur-md">
           {/* Subtle Cybernetic Background Grid & Radial Glow */}
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-cyan-900/15 via-[#080e1b]/40 to-transparent pointer-events-none" />
 
+          {/* Top Header Label on the Visualizer Card */}
+          <div className="w-full flex items-center justify-between z-10 mb-2 px-1">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+              <span className="text-xs font-mono font-black text-white uppercase tracking-wider">
+                AI TRADING ENGINE • 14 STRATEGY BOTS QUORUM MESH
+              </span>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/40">
+              Primary Autonomous Core
+            </span>
+          </div>
+
           {/* Holographic Radar Constellation Container */}
-          <div className="relative w-full max-w-[420px] aspect-square flex items-center justify-center">
+          <div className="relative w-full max-w-[440px] aspect-square flex items-center justify-center my-1">
             {/* SVG Connecting Radial Neon Lines & Rings */}
             <svg
               viewBox={`0 0 ${hubSize} ${hubSize}`}
@@ -511,15 +366,15 @@ export default function MasterDashboardView({
           </div>
 
           {/* Bottom Caption Pill */}
-          <div className="mt-2 text-center">
-            <span className="text-[10px] font-mono text-cyan-400/90 font-medium tracking-wider">
-              14 AUTONOMOUS BOTS • REAL-TIME CONSENSUS & ARBITRATION
+          <div className="mt-2 text-center z-10">
+            <span className="text-[10.5px] font-mono text-cyan-400/90 font-bold tracking-wider">
+              14 AUTONOMOUS BOTS • REAL-TIME 9/14 STRICT QUORUM CONSENSUS
             </span>
           </div>
         </div>
 
-        {/* CARD C: LIVE TRADING STATUS & TOP MARKETS (Right Column: 3.5 cols on desktop) */}
-        <div className="lg:col-span-4 bg-[#080e1b]/95 border border-[#16294a] rounded-2xl p-4 flex flex-col justify-between shadow-[0_4px_25px_rgba(0,0,0,0.6)] backdrop-blur-md">
+        {/* CARD C: LIVE TRADING STATUS & TOP MARKETS (Right Column: 5 cols on desktop) */}
+        <div className="lg:col-span-5 bg-[#080e1b]/95 border border-[#16294a] rounded-2xl p-4 flex flex-col justify-between shadow-[0_4px_25px_rgba(0,0,0,0.6)] backdrop-blur-md">
           {/* Header */}
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -654,6 +509,129 @@ export default function MasterDashboardView({
                       ))}
                     </div>
                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          SECTION 1.2: AI ENGINE CONTROL PANEL (CLEANLY DOCKED RIGHT BELOW PRIMARY LANDING SECTION)
+          Zero overlap, zero blocking of initial startup view
+         ========================================================================= */}
+      <div className="bg-[#080e1b]/95 border border-[#16294a] rounded-2xl p-4 shadow-[0_4px_25px_rgba(0,0,0,0.6)] backdrop-blur-md">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+          {/* Sub-panel 1: Header + START / STOP / RESTART Buttons (4 cols) */}
+          <div className="lg:col-span-4 border-b lg:border-b-0 lg:border-r border-[#16294a]/80 pb-3 lg:pb-0 lg:pr-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2 tracking-wide">
+                <Cpu className="w-4 h-4 text-cyan-400" />
+                <span>AI Engine Control</span>
+              </h3>
+              <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>{allBotsRunning ? 'Running' : 'Paused'}</span>
+              </div>
+            </div>
+
+            {/* 3 Action Buttons */}
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={onStartAllBots}
+                className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-400 text-xs font-bold transition-all shadow-[0_0_10px_rgba(16,185,129,0.15)] cursor-pointer"
+              >
+                <Play className="w-3.5 h-3.5 fill-emerald-400" />
+                <span>START</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onStopAllBots}
+                className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-400 text-xs font-bold transition-all cursor-pointer"
+              >
+                <Square className="w-3.5 h-3.5 fill-rose-500" />
+                <span>STOP</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onRestartBots || onStartAllBots}
+                className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 text-xs font-bold transition-all cursor-pointer"
+              >
+                <RotateCw className="w-3.5 h-3.5 text-cyan-400" />
+                <span>RESTART</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Sub-panel 2: Engine Status Indicators Grid (5 cols) */}
+          <div className="lg:col-span-5 border-b lg:border-b-0 lg:border-r border-[#16294a]/80 pb-3 lg:pb-0 lg:pr-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[#060c18] border border-[#16294a]/60">
+                <span className="text-[11px] text-slate-300">Market Scanning</span>
+                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-emerald-500/20 text-emerald-400">Live</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[#060c18] border border-[#16294a]/60">
+                <span className="text-[11px] text-slate-300">Signal Analysis</span>
+                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-emerald-500/20 text-emerald-400">Live</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[#060c18] border border-[#16294a]/60">
+                <span className="text-[11px] text-slate-300">Strategy Voting</span>
+                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-emerald-500/20 text-emerald-400">Live</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[#060c18] border border-[#16294a]/60">
+                <span className="text-[11px] text-slate-300">Trade Execution</span>
+                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-emerald-500/20 text-emerald-400">Live</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[#060c18] border border-[#16294a]/60">
+                <span className="text-[11px] text-slate-300">Risk Management</span>
+                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-teal-500/20 text-teal-300">Active</span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[#060c18] border border-[#16294a]/60">
+                <span className="text-[11px] text-slate-300">Portfolio Opt</span>
+                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-teal-500/20 text-teal-300">Active</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Sub-panel 3: Market Allocation Donut & Active Trades (3 cols) */}
+          <div className="lg:col-span-3 flex items-center justify-between gap-3">
+            <div className="relative shrink-0 flex items-center justify-center">
+              <svg width={84} height={84} className="rotate-[-90deg]">
+                {donutSlices.map((slice, idx) => (
+                  <circle
+                    key={idx}
+                    cx={42}
+                    cy={42}
+                    r={32}
+                    fill="transparent"
+                    stroke={slice.color}
+                    strokeWidth={11}
+                    strokeDasharray={`${(slice.percent / 100) * (2 * Math.PI * 32)} ${2 * Math.PI * 32}`}
+                    strokeDashoffset={slice.strokeDashoffset}
+                    className="transition-all duration-500 hover:opacity-80"
+                  />
+                ))}
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span className="text-xs font-black text-white font-mono leading-none">143</span>
+                <span className="text-[8px] text-slate-400 font-medium tracking-tight mt-0.5">Trades</span>
+              </div>
+            </div>
+
+            <div className="space-y-1 text-[10.5px] font-medium grow pl-1">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                Market Allocation
+              </div>
+              {marketAllocation.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between text-slate-300 text-[10px]">
+                  <span className="flex items-center gap-1.5 truncate">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                    <span className="truncate">{item.name}</span>
+                  </span>
+                  <span className="font-mono text-slate-200 font-bold ml-1">{item.percent}%</span>
                 </div>
               ))}
             </div>

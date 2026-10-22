@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Radio, CheckCircle2, RefreshCw, Zap, ShieldCheck } from 'lucide-react';
+import { toastEmitter } from '../utils/toastEmitter';
 
 export default function BrokerModal({ broker, onClose, onRefreshBroker }) {
   const [isPinging, setIsPinging] = useState(false);
@@ -81,10 +82,14 @@ export default function BrokerModal({ broker, onClose, onRefreshBroker }) {
 
             <button
               onClick={() => {
-                alert(`New API Access Token generated and synchronized for ${broker.name}.`);
+                toastEmitter.emitToast({
+                  title: 'Access Token Renewed',
+                  message: `New API Access Token generated and synchronized for ${broker.name}.`,
+                  type: 'success'
+                });
                 onClose();
               }}
-              className="py-2 px-3 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/50 text-xs font-semibold text-cyan-300 flex items-center justify-center gap-1.5 transition-colors"
+              className="py-2 px-3 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/50 text-xs font-semibold text-cyan-300 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span>Renew Token</span>

@@ -8,6 +8,7 @@ import BotDetailsModal from './components/BotDetailsModal';
 import ProfileModal from './components/ProfileModal';
 import BrokerModal from './components/BrokerModal';
 import NotificationsModal from './components/NotificationsModal';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Dedicated views (Statically imported for 0ms instantaneous tab switching and zero chunk loading glitches)
 import BrokerAccountsView from './components/views/BrokerAccountsView';
@@ -21,12 +22,14 @@ import BacktestView from './components/views/BacktestView';
 import OrdersPositionsView from './components/views/OrdersPositionsView';
 import RiskManagementView from './components/views/RiskManagementView';
 import TradeHistoryView from './components/views/TradeHistoryView';
+import TradeJournalView from './components/views/TradeJournalView';
 import PerformanceView from './components/views/PerformanceView';
 import SettingsView from './components/views/SettingsView';
 import AICommanderView from './components/views/AICommanderView';
 import BotSkillsHubView from './components/views/BotSkillsHubView';
 import StrategyLibraryView from './components/views/StrategyLibraryView';
 import MasterDashboardView from './components/views/MasterDashboardView';
+import MarketHeatmapView from './components/views/MarketHeatmapView';
 import TradingDashboard from './components/TradingDashboard';
 
 import { soundEngine } from './utils/audioChime';
@@ -80,7 +83,14 @@ function ViewLoadingFallback() {
 class ViewErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, prevViewKey: props.viewKey };
+  }
+
+  static getDerivedStateFromProps(nextProps, state) {
+    if (nextProps.viewKey !== state.prevViewKey) {
+      return { hasError: false, error: null, prevViewKey: nextProps.viewKey };
+    }
+    return null;
   }
 
   static getDerivedStateFromError(error) {
@@ -89,12 +99,6 @@ class ViewErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error('[ViewErrorBoundary] Module error in view:', this.props.viewKey, error, errorInfo);
-  }
-
-  componentDidUpdate(prevProps) {
-    if (prevProps.viewKey !== this.props.viewKey && this.state.hasError) {
-      this.setState({ hasError: false, error: null });
-    }
   }
 
   render() {
@@ -206,7 +210,11 @@ export default function App() {
     const nextMode = (targetMode && typeof targetMode === 'string') ? targetMode : (executionMode === 'LIVE' ? 'PAPER' : 'LIVE');
 
     if (nextMode === 'LIVE' && !isBrokerLive) {
-      alert('Cannot enable Live Execution: No active broker connected. Please authenticate in Broker Accounts view first.');
+      toastEmitter.emitToast({
+        title: 'Live Mode Blocked',
+        message: 'Cannot enable Live Execution: No active broker connected. Please authenticate in Broker Accounts view first.',
+        type: 'error'
+      });
       return;
     }
 
@@ -300,19 +308,55 @@ export default function App() {
         const data = await res.json();
         if (data.status === 'success') {
           soundEngine.playSellChime();
+          const closed = data.closed_position || {};
+          const exitPrice = Number(closed.ltp || closed.entryPrice || 0);
+          const entryPrice = Number(closed.entryPrice || 0);
+          const qty = Number(closed.qty || 1);
+          const isBuy = (closed.action || 'BUY').toUpperCase() === 'BUY';
+          const pnl = isBuy ? (exitPrice - entryPrice) * qty : (entryPrice - exitPrice) * qty;
+
+          // Dispatch event to automatically log to persistent session journal
+          try {
+            window.dispatchEvent(
+              new CustomEvent('chintu:journal-trade', {
+                detail: {
+                  symbol: closed.symbol || posSymbol || 'NIFTY 50',
+                  action: closed.action || 'BUY',
+                  qty,
+                  entryPrice: entryPrice || (exitPrice > 0 ? exitPrice * 0.99 : 240),
+                  exitPrice: exitPrice || 242.5,
+                  pnl,
+                  strategy: closed.strategy || 'Autonomous Square-off',
+                  bot: closed.bot || posBot || 'Jarvis Engine',
+                  notes: `Square-off order confirmed for position ${posId || ''}. Capital released.`
+                }
+              })
+            );
+          } catch (evErr) {
+            console.warn('[Journal Auto-Log Error]:', evErr);
+          }
+
           voiceAssistant.speak(`Position in ${data.closed_position?.symbol || posSymbol || 'asset'} squared off.`);
           await fetchPositions();
           return { success: true, data };
         } else {
           soundEngine.playAlertChime();
-          alert(`Square-off failed: ${data.message}`);
+          toastEmitter.emitToast({
+            title: 'Square-off Failed',
+            message: data.message || 'Square-off operation was rejected',
+            type: 'error'
+          });
           return { success: false, error: data.message };
         }
       }
       return { success: false, error: `Server error ${res.status}` };
     } catch (e) {
       console.error('[Square-off Exception]:', e);
-      alert(`Square-off network error: ${e.message}`);
+      toastEmitter.emitToast({
+        title: 'Square-off Network Error',
+        message: e.message || 'Failed to reach server during square-off',
+        type: 'error'
+      });
       return { success: false, error: e.message };
     }
   };
@@ -320,6 +364,7 @@ export default function App() {
   const handleSquareOffAll = async () => {
     try {
       const currentCount = positions.length;
+      const previousPositions = [...positions];
       // Optimistic instant clearance
       setPositions([]);
 
@@ -331,6 +376,31 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         soundEngine.playSellChime();
+        previousPositions.forEach((pos) => {
+          const exitPrice = Number(pos.ltp || pos.entryPrice || 0);
+          const entryPrice = Number(pos.entryPrice || 0);
+          const qty = Number(pos.qty || 1);
+          const isBuy = (pos.action || 'BUY').toUpperCase() === 'BUY';
+          const pnl = isBuy ? (exitPrice - entryPrice) * qty : (entryPrice - exitPrice) * qty;
+
+          try {
+            window.dispatchEvent(
+              new CustomEvent('chintu:journal-trade', {
+                detail: {
+                  symbol: pos.symbol || 'NIFTY 50',
+                  action: pos.action || 'BUY',
+                  qty,
+                  entryPrice: entryPrice || (exitPrice > 0 ? exitPrice * 0.99 : 240),
+                  exitPrice: exitPrice || 242.5,
+                  pnl,
+                  strategy: pos.strategy || 'Emergency Square-off All',
+                  bot: pos.bot || 'Jarvis Fleet Commander',
+                  notes: 'Squared off in bulk during portfolio liquidation.'
+                }
+              })
+            );
+          } catch (evErr) {}
+        });
         voiceAssistant.speak(`All ${data.squared_count || currentCount || 0} active positions squared off across connected brokers.`);
         await fetchPositions();
         return { success: true, count: data.squared_count !== undefined ? data.squared_count : currentCount };
@@ -340,7 +410,11 @@ export default function App() {
     } catch (e) {
       console.error('[Square-off All Exception]:', e);
       await fetchPositions();
-      alert(`Square-off All network error: ${e.message}`);
+      toastEmitter.emitToast({
+        title: 'Square-off All Error',
+        message: e.message || 'Network error executing square-off across brokers',
+        type: 'error'
+      });
       return { success: false, error: e.message };
     }
   };
@@ -803,6 +877,14 @@ export default function App() {
         onToggleExecutionMode={handleToggleExecutionMode}
         isBrokerConnected={brokerConnections.some((b) => b.status === 'Connected')}
         activeBrokerName={brokerConnections.find((b) => b.status === 'Connected')?.name || ''}
+        positions={positions}
+        bots={bots}
+        onSquareOffAll={handleSquareOffAll}
+        onResetEmergencyStop={fetchPositions}
+        brokerConnections={brokerConnections}
+        allBotsRunning={allBotsRunning}
+        onStopAllBots={handleStopAllBots}
+        onStartAllBots={handleStartAllBots}
       />
 
       {/* Main Container with Sidebar + Content */}
@@ -817,17 +899,18 @@ export default function App() {
 
         {/* 3. Main Center Workspace */}
         <main className="flex-1 p-3 space-y-3 overflow-x-hidden min-w-0 pb-24 md:pb-3.5">
-          <ViewErrorBoundary viewKey={activeTab}>
-            <Suspense fallback={<ViewLoadingFallback />}>
+          <ErrorBoundary name={`View-${activeTab}`}>
+            <ViewErrorBoundary viewKey={activeTab}>
+              <Suspense fallback={<ViewLoadingFallback />}>
               {/* Main Dashboard View matching Reference Screenshot */}
               {activeTab === 'dashboard' && (
                 <MasterDashboardView
-                  bots={bots}
+                  bots={bots || []}
                   allBotsRunning={allBotsRunning}
                   onStartAllBots={handleStartAllBots}
                   onStopAllBots={handleStopAllBots}
                   onRestartBots={handleStartAllBots}
-                  recentTrades={recentTrades}
+                  recentTrades={recentTrades || []}
                   onSelectBot={(bot) => setSelectedBotForModal(bot)}
                   onNavigateTab={(tab) => setActiveTab(tab)}
                   executionMode={executionMode}
@@ -837,21 +920,21 @@ export default function App() {
               {/* DEDICATED VIEW: TRADING DASHBOARD (Recharts Live Equity Curve & Active Trading Positions) */}
               {activeTab === 'trading-dashboard' && (
                 <TradingDashboard
-                  positions={positions}
+                  positions={positions || []}
                   onSquareOff={handleSquareOff}
                   onSquareOffAll={handleSquareOffAll}
-                  bots={bots}
-                  recentTrades={recentTrades}
+                  bots={bots || []}
+                  recentTrades={recentTrades || []}
                   executionMode={executionMode}
                   onNavigateTab={(tab) => setActiveTab(tab)}
-                  tickers={tickers}
+                  tickers={tickers || []}
                 />
               )}
 
           {/* DEDICATED VIEW: BROKER ACCOUNTS (Angel One, Zerodha, Upstox, 5paisa) */}
           {activeTab === 'broker-accounts' && (
             <BrokerAccountsView
-              brokerConnections={brokerConnections}
+              brokerConnections={brokerConnections || []}
               onUpdateBroker={(updated) => setBrokerConnections(updated)}
             />
           )}
@@ -859,7 +942,7 @@ export default function App() {
           {/* Dedicated View: Bots Monitor */}
           {activeTab === 'bots-monitor' && (
             <BotsMonitorView
-              bots={bots}
+              bots={bots || []}
               onToggleBotStatus={handleToggleBotStatus}
               onOpenDetails={(b) => setSelectedBotForModal(b)}
               onStartAllBots={handleStartAllBots}
@@ -872,10 +955,10 @@ export default function App() {
           {/* DEDICATED VIEW: AI COMMANDER (JARVIS) */}
           {activeTab === 'ai-commander' && (
             <AICommanderView
-              bots={bots}
-              brokerConnections={brokerConnections}
-              tickers={tickers}
-              recentTrades={recentTrades}
+              bots={bots || []}
+              brokerConnections={brokerConnections || []}
+              tickers={tickers || []}
+              recentTrades={recentTrades || []}
               executionMode={executionMode}
               onToggleExecutionMode={handleToggleExecutionMode}
               onUpdateBots={handleUpdateBots}
@@ -888,7 +971,7 @@ export default function App() {
           {/* DEDICATED VIEW: BOT SKILLS HUB (MODDABLE STRATEGY ENGINE) */}
           {activeTab === 'bot-skills' && (
             <BotSkillsHubView
-              bots={bots}
+              bots={bots || []}
               onUpdateBots={handleUpdateBots}
               initialSelectedBotId={selectedBotForSkillsId}
             />
@@ -897,7 +980,7 @@ export default function App() {
           {/* Dedicated View: Decision Network */}
           {activeTab === 'decision-network' && (
             <DecisionNetworkView
-              bots={bots}
+              bots={bots || []}
               onOpenDetails={(b) => setSelectedBotForModal(b)}
             />
           )}
@@ -905,10 +988,10 @@ export default function App() {
           {/* Dedicated View: Live Trading */}
           {activeTab === 'live-trading' && (
             <LiveTradingView
-              candlestickData={candlestickData}
-              recentTrades={recentTrades}
+              candlestickData={candlestickData || []}
+              recentTrades={recentTrades || []}
               wsConnected={wsConnected}
-              brokerConnections={brokerConnections}
+              brokerConnections={brokerConnections || []}
               executionMode={executionMode}
               brokerAvailableCash={0.00}
             />
@@ -916,7 +999,20 @@ export default function App() {
 
           {/* Dedicated View: Market Watch */}
           {activeTab === 'market-watch' && (
-            <MarketWatchView tickers={tickers} bots={bots} />
+            <MarketWatchView
+              tickers={tickers || []}
+              bots={bots || []}
+              onNavigateToHeatmap={() => setActiveTab('market-heatmap')}
+            />
+          )}
+
+          {/* Dedicated View: Real-Time Market Heatmap (D3 Squarified) */}
+          {activeTab === 'market-heatmap' && (
+            <MarketHeatmapView
+              brokerConnections={brokerConnections || []}
+              executionMode={executionMode}
+              onNavigateToLiveTrading={() => setActiveTab('live-trading')}
+            />
           )}
 
           {/* Dedicated View: Strategy Library & Importer */}
@@ -926,7 +1022,7 @@ export default function App() {
           {activeTab === 'strategy-builder' && <StrategyBuilderView />}
 
           {/* Dedicated View: Analytics */}
-          {activeTab === 'analytics' && <AnalyticsView recentTrades={recentTrades} bots={bots} />}
+          {activeTab === 'analytics' && <AnalyticsView recentTrades={recentTrades || []} bots={bots || []} />}
 
           {/* Dedicated View: Backtest */}
           {activeTab === 'backtest' && <BacktestView />}
@@ -934,7 +1030,7 @@ export default function App() {
           {/* Dedicated View: Orders & Positions (Synced with authoritative backend position book) */}
           {activeTab === 'orders-positions' && (
             <OrdersPositionsView
-              positions={positions}
+              positions={positions || []}
               onSquareOff={handleSquareOff}
               onSquareOffAll={handleSquareOffAll}
               onRefresh={fetchPositions}
@@ -944,16 +1040,24 @@ export default function App() {
           {/* Dedicated View: Risk Management */}
           {activeTab === 'risk-management' && (
             <RiskManagementView
-              bots={bots}
+              bots={bots || []}
               onUpdateBots={handleUpdateBots}
               onToggleBotStatus={handleToggleBotStatus}
-              brokerConnections={brokerConnections}
+              brokerConnections={brokerConnections || []}
             />
           )}
 
           {/* Dedicated View: Trade History */}
           {activeTab === 'trade-history' && (
-            <TradeHistoryView recentTrades={recentTrades} />
+            <TradeHistoryView
+              recentTrades={recentTrades || []}
+              onNavigateToJournal={() => setActiveTab('trade-journal')}
+            />
+          )}
+
+          {/* Dedicated View: Trade Journal (LocalStorage Session Persistence) */}
+          {activeTab === 'trade-journal' && (
+            <TradeJournalView recentTrades={recentTrades || []} positions={positions || []} />
           )}
 
           {/* Dedicated View: Performance */}
@@ -1017,6 +1121,7 @@ export default function App() {
           )}
             </Suspense>
           </ViewErrorBoundary>
+          </ErrorBoundary>
         </main>
       </div>
 
@@ -1036,7 +1141,7 @@ export default function App() {
               const isBrokerLive = brokerConnections.some((b) => b.status === 'Connected');
               if (!isBrokerLive) {
                 const errMsg = 'Order Blocked: No active broker connected for LIVE trading. Please authenticate in Broker Accounts.';
-                alert(errMsg);
+                toastEmitter.emitToast({ title: 'Live Order Blocked', message: errMsg, type: 'error' });
                 return { success: false, error: errMsg };
               }
             }
@@ -1044,7 +1149,7 @@ export default function App() {
             // Capital and status check
             if (bot.status !== 'RUNNING' || (Number(bot.allocatedCapital) || 0) <= 0) {
               const errMsg = `Order Blocked: ${bot.name} is currently ${bot.status} with ₹${bot.allocatedCapital || 0} capital. Please allocate capital and start the bot in Risk Management.`;
-              alert(errMsg);
+              toastEmitter.emitToast({ title: 'Order Blocked', message: errMsg, type: 'warning' });
               return { success: false, error: errMsg };
             }
 

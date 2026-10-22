@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Bot, Bell, Settings, Search, User, ShieldCheck, Keyboard } from 'lucide-react';
+import EmergencyKillSwitch from './EmergencyKillSwitch';
+import RealtimePnlTracker from './RealtimePnlTracker';
 
 export default function TopNavbar({
   tickers = [],
@@ -12,6 +14,15 @@ export default function TopNavbar({
   executionMode = 'PAPER',
   onToggleExecutionMode,
   isBrokerConnected = false,
+  activeBrokerName = '',
+  positions = [],
+  bots = [],
+  onSquareOffAll,
+  onResetEmergencyStop,
+  brokerConnections = [],
+  allBotsRunning = true,
+  onStopAllBots,
+  onStartAllBots,
   onSearch
 }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -91,8 +102,15 @@ export default function TopNavbar({
         })}
       </div>
 
-      {/* 4. Right Controls: Mode Toggle, Notifications & Profile Avatar */}
+      {/* 4. Right Controls: Live P&L Streamer, Mode Toggle, Emergency Kill Switch, Notifications & Profile Avatar */}
       <div className="flex items-center gap-2.5 shrink-0">
+        {/* Real-time Streaming P&L Widget */}
+        <RealtimePnlTracker
+          positions={positions}
+          bots={bots}
+          executionMode={executionMode}
+        />
+
         {/* Engine Mode Toggle */}
         <button
           type="button"
@@ -107,6 +125,18 @@ export default function TopNavbar({
           <span className={`w-1.5 h-1.5 rounded-full ${executionMode === 'LIVE' ? 'bg-rose-400' : 'bg-cyan-400'}`} />
           <span>{executionMode}</span>
         </button>
+
+        {/* Dedicated Pinned Emergency Kill Switch Control Dock */}
+        <EmergencyKillSwitch
+          positions={positions}
+          onSquareOffAll={onSquareOffAll}
+          onResetEmergencyStop={onResetEmergencyStop}
+          brokerConnections={brokerConnections}
+          allBotsRunning={allBotsRunning}
+          onStopAllBots={onStopAllBots}
+          onStartAllBots={onStartAllBots}
+          executionMode={executionMode}
+        />
 
         {/* Keyboard Shortcuts Trigger Button */}
         <button

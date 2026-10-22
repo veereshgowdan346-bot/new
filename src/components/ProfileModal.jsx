@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { soundEngine } from '../utils/audioChime';
 import { apiFetch } from '../utils/api';
+import { toastEmitter } from '../utils/toastEmitter';
+import { voiceAssistant } from '../utils/voiceAssistant';
 
 export default function ProfileModal({
   isOpen,
@@ -267,13 +269,23 @@ export default function ProfileModal({
           {/* Emergency Kill Switch */}
           <button
             type="button"
-            onClick={() => {
-              if (
-                confirm(
-                  'CRITICAL ACTION: Are you sure you want to trigger the Emergency Kill Switch? This will cancel all open orders and pause all 14 bots immediately.'
-                )
-              ) {
-                alert('EMERGENCY KILL SWITCH ENGAGED: All open positions squared off.');
+            onClick={async () => {
+              try {
+                soundEngine.playEmergencyChime();
+                await apiFetch('/api/emergency-stop', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ source: 'PROFILE_MODAL' })
+                });
+                voiceAssistant.speak('Emergency stop triggered from profile modal. All bot positions squared off.');
+                toastEmitter.emitEmergencyStop({
+                  count: 0,
+                  executionMode: 'PAPER',
+                  message: 'Emergency Kill Switch: All open positions squared off & 14 bots halted.'
+                });
+                onClose();
+              } catch (e) {
+                toastEmitter.emitToast({ title: 'Kill Switch Error', message: e.message || 'Failed to trigger emergency stop', type: 'error' });
               }
             }}
             className="w-full py-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/50 hover:border-rose-400 text-rose-400 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-[0_0_12px_rgba(244,63,94,0.2)] cursor-pointer font-mono"

@@ -28,6 +28,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { apiFetch } from '../../utils/api';
+import { toastEmitter } from '../../utils/toastEmitter';
 
 // Pre-built authentic templates for quick copy-pasting
 const STRATEGY_TEMPLATES = {
@@ -445,11 +446,11 @@ export default function StrategyLibraryView() {
   // Save Strategy to Library (Draft or Approved)
   const handleSaveStrategy = async (publishImmediately = false) => {
     if (!importerName.trim()) {
-      alert('Strategy Name is required.');
+      toastEmitter.emitToast({ title: 'Input Required', message: 'Strategy Name is required.', type: 'warning' });
       return;
     }
     if (!importerCode.trim()) {
-      alert('Strategy code or definition cannot be empty.');
+      toastEmitter.emitToast({ title: 'Input Required', message: 'Strategy code or definition cannot be empty.', type: 'warning' });
       return;
     }
 
@@ -481,7 +482,11 @@ export default function StrategyLibraryView() {
       }
 
       if (report && !report.is_valid && publishImmediately) {
-        alert('Cannot publish strategy with validation errors. Please review AST security and syntax issues.');
+        toastEmitter.emitToast({
+          title: 'Validation Failed',
+          message: 'Cannot publish strategy with validation errors. Please review AST security and syntax issues.',
+          type: 'error'
+        });
         setIsSaving(false);
         return;
       }
@@ -521,7 +526,7 @@ export default function StrategyLibraryView() {
         throw new Error('Failed to save strategy.');
       }
     } catch (err) {
-      alert(`Save error: ${err.message}`);
+      toastEmitter.emitToast({ title: 'Save Error', message: err.message, type: 'error' });
     } finally {
       setIsSaving(false);
     }
@@ -539,15 +544,12 @@ export default function StrategyLibraryView() {
         fetchStrategies();
       }
     } catch (err) {
-      alert(`Duplicate failed: ${err.message}`);
+      toastEmitter.emitToast({ title: 'Duplicate Error', message: err.message, type: 'error' });
     }
   };
 
   // Archive Strategy
   const handleArchive = async (stratId) => {
-    if (!confirm('Are you sure you want to archive this strategy? Any bots currently allocated to it will revert to canonical fallbacks.')) {
-      return;
-    }
     try {
       const res = await apiFetch(`/api/strategies/library/${stratId}/archive`, {
         method: 'POST'
@@ -560,15 +562,12 @@ export default function StrategyLibraryView() {
         }
       }
     } catch (err) {
-      alert(`Archive failed: ${err.message}`);
+      toastEmitter.emitToast({ title: 'Archive Error', message: err.message, type: 'error' });
     }
   };
 
   // Rollback Version
   const handleRollback = async (stratId, targetVersion) => {
-    if (!confirm(`Confirm rollback active version of ${stratId} to ${targetVersion}?`)) {
-      return;
-    }
     try {
       const res = await apiFetch(`/api/strategies/library/${stratId}/rollback`, {
         method: 'POST',
@@ -580,14 +579,14 @@ export default function StrategyLibraryView() {
         loadStrategyDetail(stratId);
       }
     } catch (err) {
-      alert(`Rollback failed: ${err.message}`);
+      toastEmitter.emitToast({ title: 'Rollback Error', message: err.message, type: 'error' });
     }
   };
 
   // Publish to Selected Bots
   const handlePublishToBots = async (stratId, version, botIds) => {
     if (!botIds || botIds.length === 0) {
-      alert('Select at least one bot to publish this strategy.');
+      toastEmitter.emitToast({ title: 'Selection Required', message: 'Select at least one bot to publish this strategy.', type: 'warning' });
       return;
     }
     try {
@@ -601,7 +600,7 @@ export default function StrategyLibraryView() {
         loadStrategyDetail(stratId);
       }
     } catch (err) {
-      alert(`Publish failed: ${err.message}`);
+      toastEmitter.emitToast({ title: 'Publish Error', message: err.message, type: 'error' });
     }
   };
 

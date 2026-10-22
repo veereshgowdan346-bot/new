@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   History,
+  BookMarked,
   Download,
   Search,
   Filter,
@@ -20,7 +21,7 @@ import {
 import { soundEngine } from '../../utils/audioChime';
 import { calculateTradeCharges } from '../../utils/taxCalculator';
 
-export default function TradeHistoryView({ recentTrades = [] }) {
+export default function TradeHistoryView({ recentTrades = [], onNavigateToJournal }) {
   const [filterAction, setFilterAction] = useState('ALL'); // 'ALL' | 'BUY' | 'SELL'
   const [outcomeFilter, setOutcomeFilter] = useState('ALL'); // 'ALL' | 'WIN' | 'LOSS'
   const [searchTerm, setSearchTerm] = useState('');
@@ -104,14 +105,26 @@ export default function TradeHistoryView({ recentTrades = [] }) {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={exportCSV}
-          className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/50 px-4 py-1.5 rounded-xl text-xs font-bold transition-all shadow-[0_0_12px_rgba(0,240,255,0.3)] flex items-center gap-1.5 cursor-pointer"
-        >
-          <Download className="w-4 h-4" />
-          <span>Export Audit CSV</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {onNavigateToJournal && (
+            <button
+              type="button"
+              onClick={onNavigateToJournal}
+              className="bg-[#0e2142] hover:bg-[#153160] text-cyan-300 border border-cyan-500/40 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <BookMarked className="w-4 h-4 text-cyan-400" />
+              <span>Open Trade Journal</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={exportCSV}
+            className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/50 px-4 py-1.5 rounded-xl text-xs font-bold transition-all shadow-[0_0_12px_rgba(0,240,255,0.3)] flex items-center gap-1.5 cursor-pointer"
+          >
+            <Download className="w-4 h-4" />
+            <span>Export Audit CSV</span>
+          </button>
+        </div>
       </div>
 
       {/* Aggregate Metrics Strip */}

@@ -241,7 +241,7 @@ export default function BrokerAccountsView({ brokerConnections, onUpdateBroker }
       console.error('Error connecting to broker backend:', err);
       setStatusMessage({
         type: 'error',
-        text: 'Failed to authenticate with backend at http://127.0.0.1:8000. Ensure python_stream_server.py is running.'
+        text: 'Failed to authenticate with broker backend conduit. Ensure server is active.'
       });
     } finally {
       setIsLoading(false);

@@ -26,8 +26,8 @@ export default function SettingsView({
   setTickInterval = () => {}
 }) {
   const [activeTab, setActiveTab] = useState('remote');
-  const [wsUrl, setWsUrl] = useState('ws://127.0.0.1:8765/chintu-feed');
-  const [restUrl, setRestUrl] = useState('http://127.0.0.1:8000/api/v1');
+  const [wsUrl, setWsUrl] = useState(typeof window !== 'undefined' && window.location ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/chintu-feed` : '/chintu-feed');
+  const [restUrl, setRestUrl] = useState('/api');
   const [soundAlerts, setSoundAlerts] = useState(true);
 
   // Telegram Conduit State

@@ -23,7 +23,11 @@ import { MULTI_ASSET_UNIVERSE } from '../../data/multiAssetUniverse';
 import { calculateAdaptivePositionSizing, validateNetProfitGuardrail } from '../../utils/taxCalculator';
 import { toastEmitter } from '../../utils/toastEmitter';
 
-export default function MarketWatchView({ tickers = [], bots = [] }) {
+export default function MarketWatchView({
+  tickers = [],
+  bots = [],
+  onNavigateToHeatmap
+}) {
   const [viewMode, setViewMode] = useState('split'); // 'heatmap' | 'split' | 'table'
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');

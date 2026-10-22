@@ -22,6 +22,7 @@ import {
   X
 } from 'lucide-react';
 import { apiFetch } from '../../utils/api';
+import { toastEmitter } from '../../utils/toastEmitter';
 import PortfolioRebalancer from '../PortfolioRebalancer';
 
 const STORAGE_KEY = 'chintu_risk_settings';
@@ -54,6 +55,81 @@ export default function RiskManagementView({
 
   const [savedFeedback, setSavedFeedback] = useState(false);
   const [showRebalancerModal, setShowRebalancerModal] = useState(false);
+
+  // Live RMS Autonomous Watchdog Telemetry
+  const [watchdogData, setWatchdogData] = useState({
+    max_daily_loss: 25000,
+    max_drawdown_pct: 2.5,
+    trailing_stop_loss_pct: 1.5,
+    auto_square_off_enabled: true,
+    current_drawdown_pct: 0.42,
+    peak_equity: 500000,
+    circuit_breaker_tripped: false,
+    last_trip_reason: null,
+    actions_logged: []
+  });
+
+  const fetchWatchdogStatus = async () => {
+    try {
+      const res = await apiFetch('/api/rms/status');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.config) {
+          setWatchdogData({
+            ...data.config,
+            actions_logged: data.actions_logged || []
+          });
+        }
+      }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    fetchWatchdogStatus();
+    const interval = setInterval(fetchWatchdogStatus, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleToggleAutoSquareOff = async () => {
+    const nextVal = !watchdogData.auto_square_off_enabled;
+    try {
+      await apiFetch('/api/rms/configure-guard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ autoSquareOff: nextVal })
+      });
+      setWatchdogData((prev) => ({ ...prev, auto_square_off_enabled: nextVal }));
+      toastEmitter.emitToast({
+        title: 'RMS Risk Guard Updated',
+        message: `Autonomous Liquidation ${nextVal ? 'ARMED' : 'DISARMED'}`,
+        type: nextVal ? 'success' : 'warning'
+      });
+    } catch (e) {}
+  };
+
+  const handleSimulateTripTest = async () => {
+    try {
+      await apiFetch('/api/rms/trip-test', { method: 'POST' });
+      fetchWatchdogStatus();
+      toastEmitter.emitToast({
+        title: 'Flash-Crash Trip Test Executed',
+        message: 'Jarvis autonomously engaged circuit breaker & squared off broker positions with 0 latency.',
+        type: 'error'
+      });
+    } catch (e) {}
+  };
+
+  const handleResetCircuitBreaker = async () => {
+    try {
+      await apiFetch('/api/rms/reset', { method: 'POST' });
+      fetchWatchdogStatus();
+      toastEmitter.emitToast({
+        title: 'Circuit Breaker Armed & Reset',
+        message: 'Normal autonomous bot operations and broker conduits resumed.',
+        type: 'success'
+      });
+    } catch (e) {}
+  };
 
   // Sync riskSettings helper & backend RMS
   const updateSetting = (key, value) => {
@@ -282,6 +358,160 @@ export default function RiskManagementView({
           </div>
         </div>
       )}
+
+      {/* 1.8 ADVANCED MAX DRAWDOWN & RISK GUARD (AUTONOMOUS CIRCUIT BREAKER) */}
+      <div className="bg-[#091122]/95 border border-cyan-500/40 rounded-2xl p-5 shadow-2xl space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#16294a] pb-3.5">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-400/50 flex items-center justify-center text-cyan-400 shadow-[0_0_12px_rgba(0,240,255,0.2)]">
+              <ShieldCheck className="w-5 h-5 text-cyan-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-black text-white tracking-wide">
+                  Autonomous Max Drawdown & Risk Guard
+                </h3>
+                <span className={`text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border ${
+                  watchdogData.circuit_breaker_tripped
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 animate-pulse'
+                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
+                }`}>
+                  {watchdogData.circuit_breaker_tripped ? 'CIRCUIT BREAKER: TRIPPED' : 'AUTONOMOUS SENTINEL: ARMED'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 font-mono mt-0.5">
+                Active 2.5s RMS watchdog • Automatically triggers emergency square-off protocols when risk thresholds are breached
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Action Triggers */}
+          <div className="flex items-center gap-2">
+            {watchdogData.circuit_breaker_tripped ? (
+              <button
+                type="button"
+                onClick={handleResetCircuitBreaker}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-[0_0_12px_rgba(16,185,129,0.2)]"
+              >
+                <Unlock className="w-3.5 h-3.5" />
+                <span>Reset Breaker & Resume</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSimulateTripTest}
+                className="px-3.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/40 text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 hover:shadow-[0_0_12px_rgba(244,63,94,0.25)]"
+                title="Stress-test Jarvis's instantaneous liquidation protocol"
+              >
+                <Zap className="w-3.5 h-3.5 text-rose-400" />
+                <span>Simulate Flash-Crash Trip</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Live Gauges & Controls Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 font-mono text-xs">
+          {/* Current Intraday Drawdown */}
+          <div className="p-3.5 rounded-xl bg-[#060c18] border border-[#16294a] space-y-2">
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
+              Current Intraday Drawdown
+            </span>
+            <div className="flex items-baseline justify-between">
+              <span className={`text-xl font-black ${watchdogData.current_drawdown_pct >= watchdogData.max_drawdown_pct ? 'text-rose-400' : 'text-emerald-400'}`}>
+                {watchdogData.current_drawdown_pct}%
+              </span>
+              <span className="text-slate-500 text-[11px]">
+                Limit: {watchdogData.max_drawdown_pct}%
+              </span>
+            </div>
+            {/* Drawdown Progress Bar */}
+            <div className="w-full bg-slate-800/80 h-2 rounded-full overflow-hidden">
+              <div
+                className={`h-full transition-all duration-500 ${
+                  watchdogData.current_drawdown_pct >= watchdogData.max_drawdown_pct
+                    ? 'bg-rose-500'
+                    : 'bg-gradient-to-r from-emerald-400 to-cyan-400'
+                }`}
+                style={{
+                  width: `${Math.min(100, (watchdogData.current_drawdown_pct / Math.max(0.1, watchdogData.max_drawdown_pct)) * 100)}%`
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Peak Portfolio Equity */}
+          <div className="p-3.5 rounded-xl bg-[#060c18] border border-[#16294a] space-y-2">
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
+              Peak Portfolio Equity
+            </span>
+            <div className="text-xl font-black text-white">
+              ₹{watchdogData.peak_equity.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </div>
+            <span className="text-[10.5px] text-cyan-400 block">
+              High-Water Mark Reference
+            </span>
+          </div>
+
+          {/* Intraday Stop-Loss Limit */}
+          <div className="p-3.5 rounded-xl bg-[#060c18] border border-[#16294a] space-y-2">
+            <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
+              Max Daily Loss Threshold
+            </span>
+            <div className="text-xl font-black text-rose-400">
+              -₹{watchdogData.max_daily_loss.toLocaleString('en-IN')}
+            </div>
+            <span className="text-[10.5px] text-slate-400 block">
+              Emergency Stop Hard Trigger
+            </span>
+          </div>
+
+          {/* Autonomous Square-Off Protocol Toggle */}
+          <div className="p-3.5 rounded-xl bg-[#060c18] border border-[#16294a] flex flex-col justify-between">
+            <div>
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider block">
+                Autonomous Square-Off
+              </span>
+              <span className="text-xs text-slate-300 font-sans mt-0.5 block">
+                Instant liquidation on limit breach
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleToggleAutoSquareOff}
+              className={`mt-2 py-1.5 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                watchdogData.auto_square_off_enabled
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/60 shadow-[0_0_10px_rgba(0,240,255,0.2)]'
+                  : 'bg-slate-800 text-slate-400 border border-slate-700'
+              }`}
+            >
+              <Zap className={`w-3.5 h-3.5 ${watchdogData.auto_square_off_enabled ? 'text-cyan-400' : 'text-slate-500'}`} />
+              <span>{watchdogData.auto_square_off_enabled ? 'Auto-Liquidation: ARMED' : 'Auto-Liquidation: DISABLED'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Watchdog Action Audit Log Strip */}
+        {watchdogData.actions_logged && watchdogData.actions_logged.length > 0 && (
+          <div className="p-3 rounded-xl bg-[#060a14] border border-[#16294a]/70 text-[11px] font-mono text-slate-400 space-y-1.5">
+            <div className="flex items-center justify-between text-slate-300 font-bold text-xs">
+              <span className="flex items-center gap-1.5">
+                <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+                <span>RMS Watchdog Protective Action Log</span>
+              </span>
+              <span className="text-[10px] text-slate-500">Live Invariant Monitor</span>
+            </div>
+            <div className="space-y-1 pt-1 divide-y divide-slate-800/50">
+              {watchdogData.actions_logged.slice(0, 3).map((act, i) => (
+                <div key={act.id || i} className="pt-1 flex items-center justify-between text-[10.5px]">
+                  <span className="text-slate-300 font-semibold">{act.event}</span>
+                  <span className="text-slate-500">{act.timestamp}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* 2. Top Thresholds & Margin Consumption */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">

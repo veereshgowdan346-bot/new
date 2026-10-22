@@ -15,10 +15,12 @@ import {
   Layers,
   ShieldCheck,
   History,
+  BookMarked,
   TrendingUp,
   Settings,
   LogOut,
-  LogIn
+  LogIn,
+  Flame
 } from 'lucide-react';
 import NewsSentimentSidebarModule from './NewsSentimentSidebarModule';
 
@@ -33,12 +35,14 @@ export const navItems = [
   { id: 'decision-network', label: 'Decision Network', icon: Network },
   { id: 'live-trading', label: 'Live Trading', icon: Activity },
   { id: 'market-watch', label: 'Market Watch', icon: LineChart },
+  { id: 'market-heatmap', label: 'Market Heatmap (D3)', icon: Flame },
   { id: 'strategy-builder', label: 'Strategy Builder', icon: Cpu },
   { id: 'analytics', label: 'Analytics', icon: BarChart2 },
   { id: 'backtest', label: 'Backtest', icon: PlaySquare },
   { id: 'orders-positions', label: 'Orders & Positions', icon: Layers },
   { id: 'risk-management', label: 'Risk Management', icon: ShieldCheck },
   { id: 'trade-history', label: 'Trade History', icon: History },
+  { id: 'trade-journal', label: 'Trade Journal', icon: BookMarked },
   { id: 'performance', label: 'Performance', icon: TrendingUp },
   { id: 'settings', label: 'Settings', icon: Settings },
   { id: 'login-logout', label: 'Login / Logout', icon: LogOut },
