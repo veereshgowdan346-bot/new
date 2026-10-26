@@ -1,0 +1,15 @@
+bot_id,bot_name,total_evaluations,buy_votes,sell_votes,hold_votes,consensus_contributions,executed_trades,win_rate_percent,total_net_pnl
+1,"Momentum Master",240,240,0,0,240,3,66.7,177.18
+2,"BankNifty Breakout Hunter",240,240,0,0,240,0,0.0,0.00
+3,"Ultra Scalper",240,240,0,0,240,0,0.0,0.00
+4,"Gamma Squeeze Scalper",240,240,0,0,240,0,0.0,0.00
+5,"Mean Reversion Pro",240,240,0,0,240,0,0.0,0.00
+6,"Institutional Flow Tracker",240,240,0,0,240,0,0.0,0.00
+7,"Delta Neutral Specialist",240,240,0,0,240,0,0.0,0.00
+8,"Trend Surfer",240,240,0,0,240,0,0.0,0.00
+9,"Expiry Day Hero",240,240,0,0,240,0,0.0,0.00
+10,"Volume Spread Analyzer",240,240,0,0,240,0,0.0,0.00
+11,"PCR Contrarian",240,240,0,0,240,0,0.0,0.00
+12,"Smart Money Tracker",240,240,0,0,240,0,0.0,0.00
+13,"Scalp Master",240,240,0,0,240,0,0.0,0.00
+14,"High-Probability Bot",240,240,0,0,240,0,0.0,0.00

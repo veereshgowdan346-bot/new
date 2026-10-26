@@ -1,0 +1,38 @@
+{
+  "session_id": "SESSION_1793003118666",
+  "execution_mode": "VERIFIED_PAPER_TRADING",
+  "start_time": "2026-10-26T08:25:18.666Z",
+  "end_time": "2026-10-26T08:25:18.759Z",
+  "duration_seconds": 0,
+  "accounting": {
+    "initial_capital": 500000,
+    "ending_capital": 496908.18,
+    "realized_net_pnl": -3091.82,
+    "gross_profits": 2753.43,
+    "gross_losses": 2576.25,
+    "net_roi_percent": -0.62,
+    "peak_capital": 502753.43,
+    "max_drawdown_percent": 0.51
+  },
+  "trade_metrics": {
+    "total_ticks_processed": 240,
+    "total_decisions": 240,
+    "total_orders_placed": 7,
+    "total_trades_executed": 7,
+    "winning_trades": 2,
+    "losing_trades": 5,
+    "win_rate_percent": 28.57,
+    "profit_factor": 1.07,
+    "average_trade_pnl": -441.69
+  },
+  "regulatory_charges_breakdown": {
+    "total_brokerage": 280,
+    "total_stt": 568.48,
+    "total_exchange_turnover": 295.5,
+    "total_gst": 103.6,
+    "total_sebi": 9.08,
+    "total_stamp_duty": 136.34,
+    "total_slippage": 4546.27
+  },
+  "verdict": "VERIFIED_PAPER_TRADING_OPERATIONAL"
+}

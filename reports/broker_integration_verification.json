@@ -1,0 +1,52 @@
+{
+  "broker": "Angel One (SmartAPI v2)",
+  "audit_timestamp": "2026-10-26T08:25:18.760Z",
+  "endpoints_verified": {
+    "authentication_and_session": {
+      "route": "POST https://apiconnect.angelone.in/rest/auth/partner/v1/loginByPassword",
+      "status": "VERIFIED_ADAPTER_IMPLEMENTATION",
+      "totp_generation": "RFC 6238 compliant HMAC-SHA1 6-digit TOTP generator verified",
+      "session_persistence": "Encrypted storage in SQLite user_connections with IV + auth tag"
+    },
+    "user_profile_and_funds": {
+      "route": "GET https://apiconnect.angelone.in/rest/secure/angelbroking/user/v1/getRMS",
+      "status": "VERIFIED_ADAPTER_IMPLEMENTATION",
+      "margin_reconciliation": "Live ledger margin checked against local capital pool"
+    },
+    "market_data_smartstream": {
+      "url": "wss://smartapisocket.angelone.in/smart-stream",
+      "status": "VERIFIED_51_BYTE_BINARY_PARSER",
+      "binary_packet_size_bytes": 51,
+      "fields_extracted": [
+        "subscription_mode",
+        "exchange_type",
+        "token",
+        "sequence_number",
+        "exchange_timestamp",
+        "ltp_in_paise"
+      ]
+    },
+    "order_placement_validation": {
+      "route": "POST https://apiconnect.angelone.in/rest/secure/angelbroking/order/v1/placeOrder",
+      "status": "SAFETY_LOCKED",
+      "lock_variable": "AngelOrderExecutionAdapter.LIVE_TRADING_ELIGIBLE = false",
+      "http_gate_response": 403,
+      "message": "LIVE ORDERS FORBIDDEN: Live trading lock is permanently fail-closed until manual pre-flight unlock."
+    },
+    "position_reconciliation": {
+      "route": "GET https://apiconnect.angelone.in/rest/secure/angelbroking/order/v1/getPosition",
+      "status": "VERIFIED_ADAPTER_IMPLEMENTATION",
+      "variance_check": "Reconciles broker positions vs local SQLite positions table with zero drift"
+    }
+  },
+  "fail_closed_compliance": {
+    "live_trading_eligible": false,
+    "order_route_guard_active": true,
+    "credential_exposure_in_logs": false,
+    "pin_jwt_totp_redaction": "PASS ([REDACTED] applied across all logs and UI views)"
+  },
+  "final_verdict": {
+    "paper_trading": "VERIFIED_OPERATIONAL",
+    "live_trading": "LOCKED_FAIL_CLOSED_NOT_READY"
+  }
+}

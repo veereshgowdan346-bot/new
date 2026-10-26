@@ -1,0 +1,21 @@
+strategy_id,strategy_name,architectural_layer,total_evaluations,buy_signals,sell_signals,hold_signals,abstain_signals,executed_trades,win_rate_percent,total_net_pnl
+1,"Momentum",DIRECTIONAL_ALPHA,240,240,0,0,0,3,66.7,177.18
+2,"Mean Reversion",DIRECTIONAL_ALPHA,240,0,240,0,0,0,0.0,0.00
+3,"Statistical Arbitrage",RELATIVE_VALUE,240,0,0,240,0,0,0.0,0.00
+4,"Pairs Trading",RELATIVE_VALUE,240,0,0,240,0,0,0.0,0.00
+5,"Trend Following",DIRECTIONAL_ALPHA,240,236,0,4,0,0,0.0,0.00
+6,"Market Making",MICROSTRUCTURE,240,0,0,0,240,0,0.0,0.00
+7,"Event-Driven Trading",DIRECTIONAL_ALPHA,240,0,0,240,0,0,0.0,0.00
+8,"Factor Investing",RELATIVE_VALUE,240,80,0,160,0,0,0.0,0.00
+9,"Carry Trade",RELATIVE_VALUE,240,240,0,0,0,0,0.0,0.00
+10,"Volatility Arbitrage",DERIVATIVES,240,0,0,240,0,0,0.0,0.00
+11,"Options Strategies",DERIVATIVES,240,0,0,240,0,0,0.0,0.00
+12,"Order-Flow Signals",MICROSTRUCTURE,240,0,0,240,0,0,0.0,0.00
+13,"Cross-Sectional Alpha",DIRECTIONAL_ALPHA,240,0,0,0,240,0,0.0,0.00
+14,"Intraday Reversal",DIRECTIONAL_ALPHA,240,0,10,230,0,0,0.0,0.00
+15,"Breakout Trading",DIRECTIONAL_ALPHA,240,0,0,240,0,0,0.0,0.00
+16,"Risk Parity",PORTFOLIO_ALLOCATION,240,0,0,240,0,0,0.0,0.00
+17,"Portfolio Optimization",PORTFOLIO_ALLOCATION,240,0,0,240,0,0,0.0,0.00
+18,"Regime Switching",META_REGIME,240,240,0,0,0,0,0.0,0.00
+19,"Machine Learning Alpha",MACHINE_LEARNING,240,0,0,0,240,0,0.0,0.00
+20,"Execution Algorithms",EXECUTION_ALGO,240,0,0,240,0,0,0.0,0.00
