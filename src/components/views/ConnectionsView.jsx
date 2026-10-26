@@ -116,37 +116,45 @@ export default function ConnectionsView() {
     if (provider === 'angel_one') {
       const hasStored = Boolean(conn.sanitizedConfig?.clientId);
       if (!hasStored && (!f.apiKey || !f.clientId || !f.pin || !f.totpSecret)) {
-        toastEmitter.emitToast({
-          title: 'Validation Error',
-          message: 'All 4 fields are required: API Key, Client Code, 4-Digit PIN, and Base32 TOTP Secret.',
-          type: 'error'
-        });
+        try {
+          toastEmitter.emitToast({
+            title: 'Validation Error',
+            message: 'All 4 fields are required: API Key, Client Code, 4-Digit Trading PIN, and Base32 TOTP Secret.',
+            type: 'error'
+          });
+        } catch {}
         return;
       }
       if (f.pin && !/^\d{4}$/.test(f.pin.trim())) {
-        toastEmitter.emitToast({
-          title: 'Invalid PIN',
-          message: 'Angel One PIN must be exactly 4 numeric digits.',
-          type: 'error'
-        });
+        try {
+          toastEmitter.emitToast({
+            title: 'Invalid PIN',
+            message: 'Angel One Trading PIN must be exactly 4 numeric digits.',
+            type: 'error'
+          });
+        } catch {}
         return;
       }
       if (f.totpSecret && f.totpSecret.trim().replace(/\s+/g, '').length < 16) {
-        toastEmitter.emitToast({
-          title: 'Invalid TOTP Secret',
-          message: 'Base32 TOTP Secret key must be at least 16 characters.',
-          type: 'error'
-        });
+        try {
+          toastEmitter.emitToast({
+            title: 'Invalid TOTP Secret',
+            message: 'Base32 TOTP Secret key must be at least 16 characters.',
+            type: 'error'
+          });
+        } catch {}
         return;
       }
     } else if (provider === 'telegram') {
       const hasStored = Boolean(conn.sanitizedConfig?.maskedToken);
       if (!hasStored && !f.botToken) {
-        toastEmitter.emitToast({
-          title: 'Validation Error',
-          message: 'Telegram Bot Token is required.',
-          type: 'error'
-        });
+        try {
+          toastEmitter.emitToast({
+            title: 'Validation Error',
+            message: 'Telegram Bot Token is required.',
+            type: 'error'
+          });
+        } catch {}
         return;
       }
     }
@@ -172,6 +180,10 @@ export default function ConnectionsView() {
 
     setActionLoading((prev) => ({ ...prev, [provider]: 'testing' }));
 
+    let res = null;
+    let netError = null;
+
+    // STEP 1: Dedicated Upstream Verification Call
     try {
       await new Promise((r) => setTimeout(r, 200));
 
@@ -182,89 +194,89 @@ export default function ConnectionsView() {
         )
       }));
 
-      // Send proposed credentials if any field is filled, allowing pre-save verification
-      const res = await apiFetch('/api/connections/test', {
+      res = await apiFetch('/api/connections/test', {
         method: 'POST',
         body: JSON.stringify({
           provider,
           credentials: forms[provider]
         })
       });
+    } catch (err) {
+      netError = err?.message || 'Network error during provider test.';
+    }
 
-      const isSuccess = Boolean(res?.success);
-      const message = res?.message || (isSuccess ? 'Verification succeeded.' : 'Provider authentication rejected.');
-      const capabilities = res?.verifiedCapabilities || [];
+    const isSuccess = Boolean(res && (res.success || res.status === 'success'));
+    const message = res?.message || netError || (isSuccess ? 'Verification succeeded.' : 'Provider authentication rejected.');
+    const capabilities = res?.verifiedCapabilities || [];
 
-      if (isSuccess) {
-        setLifecycleModal((prev) => ({
-          ...prev,
-          status: 'success',
-          steps: prev.steps.map((s) => ({ ...s, status: 'completed' })),
-          successDetails: {
-            title: 'Connection Handshake Verified',
-            message
-          },
-          verifiedCapabilities: capabilities
-        }));
+    // STEP 2: Atomic State Commit in UI
+    if (isSuccess) {
+      setLifecycleModal((prev) => ({
+        ...prev,
+        status: 'success',
+        steps: prev.steps.map((s) => ({ ...s, status: 'completed' })),
+        successDetails: {
+          title: 'Connection Handshake Verified',
+          message
+        },
+        verifiedCapabilities: capabilities
+      }));
 
-        setVerifiedStates((prev) => ({
-          ...prev,
-          [provider]: {
-            verified: true,
-            message,
-            capabilities,
-            testedAt: Date.now()
-          }
-        }));
-
-        try {
-          soundEngine.playSuccessChime();
-        } catch (audioErr) {
-          console.warn('[Audio] Non-fatal chime exception:', audioErr);
+      setVerifiedStates((prev) => ({
+        ...prev,
+        [provider]: {
+          verified: true,
+          message,
+          capabilities,
+          testedAt: Date.now()
         }
+      }));
 
+      // Non-blocking refresh
+      fetchConnections().catch((e) => console.warn('[Connections] Refresh note:', e));
+
+      // STEP 3: Decoupled UI Side Effects
+      try {
+        soundEngine.playSuccessChime();
+      } catch (audioErr) {
+        console.warn('[Audio] Non-fatal chime note:', audioErr);
+      }
+
+      try {
         toastEmitter.emitToast({
           title: 'Connection Verified',
           message: 'Handshake successful. You can now securely persist to Vault.',
           type: 'success'
         });
-      } else {
-        setLifecycleModal((prev) => ({
-          ...prev,
-          status: 'failed',
-          errorMessage: message,
-          steps: prev.steps.map((s, idx) => (idx === 1 ? { ...s, status: 'failed' } : s))
-        }));
+      } catch (toastErr) {
+        console.warn('[Toast] Non-fatal notification note:', toastErr);
+      }
+    } else {
+      setLifecycleModal((prev) => ({
+        ...prev,
+        status: 'failed',
+        errorMessage: message,
+        steps: prev.steps.map((s, idx) => (idx === 1 ? { ...s, status: 'failed' } : s))
+      }));
 
-        try {
-          soundEngine.playVetoChime();
-        } catch (audioErr) {
-          console.warn('[Audio] Non-fatal chime exception:', audioErr);
-        }
+      try {
+        soundEngine.playVetoChime();
+      } catch (audioErr) {
+        console.warn('[Audio] Non-fatal chime note:', audioErr);
+      }
 
+      try {
         toastEmitter.emitToast({
           title: 'Verification Failed',
           message,
           type: 'error'
         });
+      } catch (toastErr) {
+        console.warn('[Toast] Non-fatal notification note:', toastErr);
       }
-      await fetchConnections();
-    } catch (err) {
-      setLifecycleModal((prev) => ({
-        ...prev,
-        status: 'failed',
-        errorMessage: err.message || 'Network error during provider test.',
-        steps: prev.steps.map((s) => (s.status === 'active' ? { ...s, status: 'failed' } : s))
-      }));
-
-      try {
-        soundEngine.playAlertChime();
-      } catch (audioErr) {
-        console.warn('[Audio] Non-fatal chime exception:', audioErr);
-      }
-    } finally {
-      setActionLoading((prev) => ({ ...prev, [provider]: null }));
     }
+
+    setActionLoading((prev) => ({ ...prev, [provider]: null }));
   };
 
   // Action: Save Verified Credentials with Durable Read-Back Verification
@@ -290,6 +302,10 @@ export default function ConnectionsView() {
 
     setActionLoading((prev) => ({ ...prev, [provider]: 'saving' }));
 
+    let res = null;
+    let netError = null;
+
+    // STEP 1: Dedicated Persistence API Call
     try {
       await new Promise((r) => setTimeout(r, 200));
 
@@ -304,125 +320,149 @@ export default function ConnectionsView() {
         provider,
         credentials: forms[provider]
       };
-      const res = await apiFetch('/api/connections/save', {
+      res = await apiFetch('/api/connections/save', {
         method: 'POST',
         body: JSON.stringify(payload)
       });
+    } catch (err) {
+      netError = err?.message || 'Network error: could not connect to backend vault.';
+    }
 
-      const isSuccess = res && (res.status === 'success' || res.success || res.ok);
+    const isSuccess = Boolean(res && (res.status === 'success' || res.success || res.ok));
 
-      if (isSuccess) {
-        setLifecycleModal((prev) => ({
-          ...prev,
-          status: 'success',
-          readBackVerified: true,
-          steps: prev.steps.map((s) => ({ ...s, status: 'completed' })),
-          successDetails: {
-            title: 'Credentials Securely Stored',
-            message: `${provider.replace('_', ' ').toUpperCase()} credentials encrypted with AES-256-GCM and verified in SQLite runtime storage.`
-          }
-        }));
-
-        try {
-          soundEngine.playSuccessChime();
-        } catch (audioErr) {
-          console.warn('[Audio] Non-fatal chime exception:', audioErr);
+    // STEP 2: Atomic Commit of Persistence State in UI
+    if (isSuccess) {
+      setLifecycleModal((prev) => ({
+        ...prev,
+        status: 'success',
+        readBackVerified: true,
+        steps: prev.steps.map((s) => ({ ...s, status: 'completed' })),
+        successDetails: {
+          title: 'Credentials Securely Stored',
+          message: `${provider.replace('_', ' ').toUpperCase()} credentials encrypted with AES-256-GCM and verified in SQLite runtime storage.`
         }
+      }));
 
+      // Mark as verified & update local state
+      setVerifiedStates((prev) => ({
+        ...prev,
+        [provider]: {
+          verified: true,
+          message: 'Persisted in Vault and verified.',
+          capabilities: prev[provider]?.capabilities || [],
+          testedAt: Date.now()
+        }
+      }));
+
+      // Non-blocking background fetch
+      fetchConnections().catch((e) => console.warn('[Connections] Refresh note:', e));
+
+      // STEP 3: Decoupled UI Side Effects (Sound & Toast)
+      // These optional side effects are strictly non-fatal and can NEVER alter persistence status
+      try {
+        soundEngine.playSuccessChime();
+      } catch (audioErr) {
+        console.warn('[Audio] Non-fatal chime note:', audioErr);
+      }
+
+      try {
         toastEmitter.emitToast({
           title: 'Credentials Saved',
           message: `${provider.replace('_', ' ').toUpperCase()} credentials saved with durable read-back verification.`,
           type: 'success'
         });
-
-        // Mark as verified & clear plain inputs
-        setVerifiedStates((prev) => ({
-          ...prev,
-          [provider]: {
-            verified: true,
-            message: 'Persisted in Vault and verified.',
-            capabilities: prev[provider]?.capabilities || [],
-            testedAt: Date.now()
-          }
-        }));
-
-        await fetchConnections();
-      } else {
-        const err = res?.message || 'Failed to persist credentials.';
-        setLifecycleModal((prev) => ({
-          ...prev,
-          status: 'failed',
-          errorMessage: err,
-          steps: prev.steps.map((s, idx) => (idx === 1 ? { ...s, status: 'failed' } : s))
-        }));
-
-        try {
-          soundEngine.playAlertChime();
-        } catch (audioErr) {
-          console.warn('[Audio] Non-fatal chime exception:', audioErr);
-        }
+      } catch (toastErr) {
+        console.warn('[Toast] Non-fatal notification note:', toastErr);
       }
-    } catch (err) {
+    } else {
+      // Real database / encryption / validation error reported by the backend API
+      const errMsg = netError || res?.message || 'Failed to persist credentials to vault.';
       setLifecycleModal((prev) => ({
         ...prev,
         status: 'failed',
-        errorMessage: err.message || 'Could not connect to backend vault.',
-        steps: prev.steps.map((s) => (s.status === 'active' ? { ...s, status: 'failed' } : s))
+        errorMessage: errMsg,
+        steps: prev.steps.map((s, idx) => (idx === 1 ? { ...s, status: 'failed' } : s))
       }));
 
       try {
         soundEngine.playAlertChime();
       } catch (audioErr) {
-        console.warn('[Audio] Non-fatal chime exception:', audioErr);
+        console.warn('[Audio] Non-fatal chime note:', audioErr);
       }
-    } finally {
-      setActionLoading((prev) => ({ ...prev, [provider]: null }));
+
+      try {
+        toastEmitter.emitToast({
+          title: 'Persistence Failed',
+          message: errMsg,
+          type: 'error'
+        });
+      } catch (toastErr) {
+        console.warn('[Toast] Non-fatal notification note:', toastErr);
+      }
     }
+
+    setActionLoading((prev) => ({ ...prev, [provider]: null }));
   };
 
   // Action: Disconnect & Purge
   const handleDisconnect = async (provider) => {
     setActionLoading((prev) => ({ ...prev, [provider]: 'disconnecting' }));
+    let res = null;
+    let netError = null;
+
     try {
-      const res = await apiFetch('/api/connections/disconnect', {
+      res = await apiFetch('/api/connections/disconnect', {
         method: 'POST',
         body: JSON.stringify({ provider })
       });
+    } catch (err) {
+      netError = err?.message || 'Could not purge credentials.';
+    }
 
-      if (res && (res.status === 'success' || res.success || res.ok)) {
+    const isSuccess = Boolean(res && (res.status === 'success' || res.success || res.ok));
+
+    if (isSuccess) {
+      setForms((prev) => ({
+        ...prev,
+        [provider]: Object.keys(prev[provider]).reduce((acc, k) => ({ ...acc, [k]: '' }), {})
+      }));
+
+      setVerifiedStates((prev) => ({
+        ...prev,
+        [provider]: null
+      }));
+
+      fetchConnections().catch((e) => console.warn('[Connections] Refresh note:', e));
+
+      try {
+        soundEngine.playBuyChime();
+      } catch (e) {
+        console.warn('[Audio] Non-fatal sound note:', e);
+      }
+
+      try {
         toastEmitter.emitToast({
           title: 'Disconnected',
           message: `${provider.replace('_', ' ').toUpperCase()} credentials purged and connection unlinked.`,
           type: 'info'
         });
-
-        try {
-          soundEngine.playBuyChime();
-        } catch (e) {
-          console.warn('[Audio] Non-fatal sound note:', e);
-        }
-
-        setForms((prev) => ({
-          ...prev,
-          [provider]: Object.keys(prev[provider]).reduce((acc, k) => ({ ...acc, [k]: '' }), {})
-        }));
-
-        setVerifiedStates((prev) => ({
-          ...prev,
-          [provider]: null
-        }));
-
-        await fetchConnections();
+      } catch (toastErr) {
+        console.warn('[Toast] Non-fatal notification note:', toastErr);
       }
-    } catch (err) {
-      toastEmitter.emitToast({
-        title: 'Disconnect Error',
-        message: err.message || 'Could not purge credentials.',
-        type: 'error'
-      });
-    } finally {
-      setActionLoading((prev) => ({ ...prev, [provider]: null }));
+    } else {
+      const errMsg = netError || res?.message || 'Could not purge credentials.';
+      try {
+        toastEmitter.emitToast({
+          title: 'Disconnect Error',
+          message: errMsg,
+          type: 'error'
+        });
+      } catch (toastErr) {
+        console.warn('[Toast] Non-fatal notification note:', toastErr);
+      }
     }
+
+    setActionLoading((prev) => ({ ...prev, [provider]: null }));
   };
 
   const renderStatusBadge = (status) => {

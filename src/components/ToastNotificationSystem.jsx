@@ -2,25 +2,23 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   X,
   Zap,
-  TrendingUp,
-  TrendingDown,
   CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
   ExternalLink,
   Volume2,
   VolumeX,
   Cpu,
-  Layers,
   ArrowUpRight,
   ArrowDownRight,
-  ShieldCheck,
-  Clock
+  ShieldCheck
 } from 'lucide-react';
 import { toastEmitter } from '../utils/toastEmitter';
 import { soundEngine } from '../utils/audioChime';
 
 /**
  * ToastNotificationItem
- * A single high-tech neon cyan glassmorphic toast notification card for Decision Network trade executions.
+ * Renders either a Decision Network trade execution alert or a high-tech system notification card.
  */
 function ToastNotificationItem({
   toast,
@@ -32,12 +30,13 @@ function ToastNotificationItem({
   const [progress, setProgress] = useState(100);
   const [isPaused, setIsPaused] = useState(false);
   const timerRef = useRef(null);
-  const startTimeRef = useRef(Date.now());
   const remainingTimeRef = useRef(toast.durationMs || 5000);
 
   const duration = toast.durationMs || 5000;
   const isEmergency = (toast.action || '').toUpperCase() === 'EMERGENCY_STOP' || (toast.type || '').toUpperCase() === 'EMERGENCY_STOP';
+  const isSystemNotification = Boolean(toast.isSystemNotification || (toast.title && toast.message));
   const isBuy = !isEmergency && (toast.action || 'BUY').toUpperCase() === 'BUY';
+  const toastType = (toast.type || 'info').toLowerCase();
 
   // Handle countdown & auto-dismiss
   useEffect(() => {
@@ -60,14 +59,124 @@ function ToastNotificationItem({
     };
   }, [isPaused, duration, toast.id, onDismiss]);
 
-  const handleMouseEnter = () => {
-    setIsPaused(true);
-  };
+  const handleMouseEnter = () => setIsPaused(true);
+  const handleMouseLeave = () => setIsPaused(false);
 
-  const handleMouseLeave = () => {
-    setIsPaused(false);
-  };
+  // Render System Notification (from emitToast)
+  if (isSystemNotification) {
+    const isSuccess = toastType === 'success';
+    const isError = toastType === 'error';
+    const isWarning = toastType === 'warning';
 
+    const borderColor = isSuccess
+      ? 'border-emerald-500/50 hover:border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.25)]'
+      : isError
+      ? 'border-rose-500/50 hover:border-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.25)]'
+      : isWarning
+      ? 'border-amber-500/50 hover:border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.25)]'
+      : 'border-cyan-500/50 hover:border-cyan-400 shadow-[0_0_20px_rgba(0,240,255,0.25)]';
+
+    const accentGradient = isSuccess
+      ? 'from-emerald-400 via-teal-300 to-cyan-400'
+      : isError
+      ? 'from-rose-500 via-red-600 to-amber-600'
+      : isWarning
+      ? 'from-amber-400 via-orange-500 to-rose-500'
+      : 'from-cyan-400 via-sky-400 to-blue-500';
+
+    const IconComponent = isSuccess
+      ? CheckCircle2
+      : isError
+      ? AlertCircle
+      : isWarning
+      ? AlertTriangle
+      : ShieldCheck;
+
+    const iconColor = isSuccess
+      ? 'text-emerald-400'
+      : isError
+      ? 'text-rose-400'
+      : isWarning
+      ? 'text-amber-400'
+      : 'text-cyan-400';
+
+    const categoryBadge = isSuccess
+      ? 'VERIFIED'
+      : isError
+      ? 'SYSTEM ERROR'
+      : isWarning
+      ? 'WARNING'
+      : 'SYSTEM ALERT';
+
+    const badgeStyle = isSuccess
+      ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
+      : isError
+      ? 'bg-rose-950/60 text-rose-300 border-rose-800/60'
+      : isWarning
+      ? 'bg-amber-950/60 text-amber-300 border-amber-800/60'
+      : 'bg-cyan-950/60 text-cyan-300 border-cyan-800/60';
+
+    return (
+      <div
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className={`relative w-full max-w-[370px] bg-[#060b17]/95 border rounded-xl overflow-hidden backdrop-blur-md transition-all duration-300 pointer-events-auto select-none group animate-slideInRight ${borderColor}`}
+      >
+        {/* Top Gradient Accent */}
+        <div className={`h-1 w-full bg-gradient-to-r ${accentGradient}`} />
+
+        <div className="p-3 space-y-2">
+          {/* Header Row */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5">
+              <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${badgeStyle}`}>
+                {categoryBadge}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-mono text-slate-400">
+                {toast.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+              <button
+                type="button"
+                onClick={() => onDismiss(toast.id)}
+                className="p-1 rounded text-slate-400 hover:text-white hover:bg-[#142340] transition-colors cursor-pointer"
+                title="Dismiss"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Content Row */}
+          <div className="flex items-start gap-2.5 bg-[#091325]/90 border border-[#16294d] rounded-lg p-2.5">
+            <div className="mt-0.5 shrink-0">
+              <IconComponent className={`w-4 h-4 ${iconColor}`} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-bold text-white tracking-tight">{toast.title || 'Notification'}</div>
+              {toast.message && (
+                <div className="text-[11px] text-slate-300 mt-0.5 leading-relaxed break-words">{toast.message}</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Shrinking Progress Bar */}
+        <div className="h-0.5 w-full bg-[#111f38] overflow-hidden">
+          <div
+            className={`h-full transition-all linear ${
+              isSuccess ? 'bg-emerald-400 shadow-[0_0_8px_#10b981]' : isError ? 'bg-rose-500 shadow-[0_0_8px_#f43f5e]' : 'bg-cyan-400 shadow-[0_0_8px_#00f0ff]'
+            }`}
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Render Trade Execution Notification (Decision Network)
   const formattedPrice = typeof toast.price === 'number'
     ? toast.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     : toast.price;
@@ -145,7 +254,6 @@ function ToastNotificationItem({
         {/* Row 2: Trade Action, Symbol, Price & Mode */}
         <div className="flex items-center justify-between gap-2 bg-[#091325]/90 border border-[#16294d] rounded-lg p-2.5">
           <div className="flex items-center gap-2 min-w-0">
-            {/* BUY / SELL / EMERGENCY STOP Neon Pill */}
             <div
               className={`px-2 py-1 rounded text-[11px] font-black uppercase font-mono tracking-wider flex items-center gap-1 border shrink-0 ${
                 isEmergency
@@ -255,7 +363,7 @@ function ToastNotificationItem({
 
 /**
  * ToastNotificationSystem
- * Renders the floating stack of live neon cyan trade execution alerts.
+ * Renders the floating stack of live neon cyan trade alerts and system notifications.
  */
 export default function ToastNotificationSystem({
   onNavigateTab,
@@ -264,11 +372,10 @@ export default function ToastNotificationSystem({
   const [toasts, setToasts] = useState([]);
   const [soundMuted, setSoundMuted] = useState(false);
 
-  // Subscribe to trade toast events
+  // Subscribe to toast events
   useEffect(() => {
     const unsubscribe = toastEmitter.subscribe((newToast) => {
       setToasts((prev) => {
-        // Limit to max 4 simultaneous toasts to avoid screen clutter
         const existing = prev.filter((t) => t.id !== newToast.id);
         return [newToast, ...existing.slice(0, 3)];
       });
@@ -276,13 +383,22 @@ export default function ToastNotificationSystem({
       // Play audio chime if not muted
       if (!soundMuted) {
         try {
-          if ((newToast.action || 'BUY').toUpperCase() === 'BUY') {
-            soundEngine.playBuyChime();
+          if (newToast.isSystemNotification) {
+            const t = (newToast.type || 'info').toLowerCase();
+            if (t === 'success') {
+              soundEngine.playSuccessChime();
+            } else if (t === 'error') {
+              soundEngine.playVetoChime();
+            }
           } else {
-            soundEngine.playSellChime();
+            if ((newToast.action || 'BUY').toUpperCase() === 'BUY') {
+              soundEngine.playBuyChime();
+            } else {
+              soundEngine.playSellChime();
+            }
           }
-        } catch (e) {
-          // Ignore browser audio restrictions
+        } catch {
+          // Ignore audio playback constraints
         }
       }
     });
@@ -312,7 +428,7 @@ export default function ToastNotificationSystem({
         <div className="pointer-events-auto flex items-center justify-between gap-3 px-3 py-1 rounded-lg bg-[#060c18]/90 border border-cyan-500/30 text-[10px] font-mono text-cyan-300 shadow-lg backdrop-blur-md">
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-            <span>{toasts.length} Decision Executions Queued</span>
+            <span>{toasts.length} Active System Alerts</span>
           </div>
 
           <div className="flex items-center gap-2">
