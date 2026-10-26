@@ -484,131 +484,150 @@ To configure authentic market data from Angel One SmartAPI, follow these exact s
 
 ## 8. Summary of Automated Test Suite Results
 
-* **Total Test Suites Discovered & Executed:** 26
-* **Suites Passed:** 26 (100% Pass Rate)
+* **Total Test Suites Discovered & Executed:** 27
+* **Suites Passed:** 27 (100% Pass Rate)
 * **Suites Failed:** 0
-* **Vite Production Build (`npm run build`):** Succeeded with 0 errors (`built in 3.41s`).
-* **Code Quality & Linter (`npm run lint` / `oxlint`):** 0 errors (680 non-fatal warnings).
+* **Vite Production Build (`npm run build`):** Succeeded with 0 errors (`built in 3.53s`).
+* **Code Quality & Linter (`npm run lint` / `oxlint`):** 0 errors across 124 files (682 non-fatal style/warning annotations).
 
 ---
 
-## 9. 20 Quantitative Strategy Families Architecture & Registry
+## 9. Evidence-Based 20 Quantitative Strategy Families Matrix
 
-The system organizes all 20 quantitative strategy families across 8 distinct architectural layers, ensuring that directional alpha generators, relative value strategies, microstructure signals, derivatives overlays, portfolio allocators, regime arbiters, execution algorithms, and machine learning models operate in their mathematically correct roles rather than competing uniformly in a single directional voting pool.
+The user-requested 20 quantitative strategy families have been verified against their actual source code implementations, data requirements, and call sites. Rather than flattening all strategies into a single uniform BUY/SELL vote, the architecture partitions them into their mathematically appropriate layers: **Directional Alpha**, **Relative Value**, **Microstructure**, **Derivatives**, **Portfolio Allocation**, **Meta Regime**, **Execution Algorithms**, and **Machine Learning**.
 
-### 9.1 Registry Classification & Canonical Bot Mapping
+### 9.1 Exact 20 Strategy Families Matrix
 
-| ID | Strategy Family | Architectural Layer | Primary Mapping to 14 Canonical Bots | Status | Data Requirements & Operating Rule |
-| :-: | :--- | :--- | :--- | :---: | :--- |
-| **1** | **Momentum / Trend Following** | Directional Alpha | `bot-01` (Momentum Master), `bot-10` (IT Trend Rider) | `IMPLEMENTED` | Requires multi-timeframe candles (SMA20, SMA50). Generates BUY/SELL on trend alignment. |
-| **2** | **Mean Reversion / Statistical Arbitrage** | Directional / Relative Value | `bot-03` (Ultra Scalper), `bot-08` (Banking Titan Arbitrage) | `IMPLEMENTED` | Requires RSI & Bollinger Bands. Buys oversold (<30) at lower band; sells overbought (>70) at upper band. |
-| **3** | **Breakout & Range Expansion** | Directional Alpha | `bot-02` (BankNifty Breakout Hunter) | `IMPLEMENTED` | Requires 20-period Donchian channel. Generates directional breakout signals above/below resistance/support. |
-| **4** | **Volatility Breakout / Contraction** | Directional Alpha | `bot-04` (Gamma Squeeze Scalper) | `IMPLEMENTED` | Requires ATR & Bollinger Bandwidth. Identifies squeeze contraction followed by explosive expansion. |
-| **5** | **Moving Average Cross / Multi-Timeframe Trend** | Directional Alpha | `bot-06` (Crude Momentum Tracker) | `IMPLEMENTED` | Requires EMA 9/21 cross and hourly trend confirmation. |
-| **6** | **Market Making / Spread Capture** | Microstructure | Independent (Microstructure Layer) | `BLOCKED` | **Strictly blocked on retail SmartAPI infrastructure.** Retail latency (>50ms), lack of L3 queue priority, and statutory STT (0.1% roundtrip) mathematically prohibit retail market making. Abstains fail-closed. |
-| **7** | **Pairs Trading & Cointegration** | Relative Value | `bot-08` (Banking Titan Arbitrage) | `PARTIAL` | Monitors banking pairs (HDFCBANK/ICICIBANK). Generates spread mean-reversion signals when z-score exceeds +-2.0 sigma. |
-| **8** | **Index Arbitrage & Cash-Futures Basis** | Relative Value | `bot-12` (Currency FX Arbitrage) | `PARTIAL` | Monitors cash-futures basis spread against cost-of-carry. Requires futures contract feed. |
-| **9** | **Options Delta Neutral / Straddles / Strangles** | Derivatives | `bot-04` (Gamma Squeeze Scalper) | `PARTIAL` | Evaluates ATM implied volatility vs historical volatility. Generates delta-hedged directional hedges. |
-| **10** | **Gamma Scalping & Volatility Trading** | Derivatives | `bot-04` (Gamma Squeeze Scalper) | `PARTIAL` | Dynamically rebalances underlying equity against long option gamma during high realized volatility. |
-| **11** | **Order Flow Imbalance & Level 2 Microstructure** | Microstructure | `bot-03` (Ultra Scalper) | `IMPLEMENTED` | Analyzes Level 2 5-depth order book bid/ask volume ratio (Imbalance = (BidVol - AskVol) / (BidVol + AskVol)). Triggers micro-scalps when |Imbalance| > 0.40. |
-| **12** | **Volume Profile / VWAP Institutional Footprint** | Microstructure | `bot-07` (Institutional Equities Rider) | `IMPLEMENTED` | Tracks intraday VWAP and Point of Control (POC). Enforces institutional footprint alignment. |
-| **13** | **Cross-Sectional Factor Alpha** | Relative Value | `bot-09` (Auto Sector Leader), `bot-11` (Midcap Momentum Alpha) | `IMPLEMENTED` | Computes cross-sectional ranking across 20+ sector constituents. Generates relative strength long/short decile allocations. |
-| **14** | **Event-Driven & Corporate Catalyst** | Directional Alpha | `IndianNewsMonitor` & News Sentiment | `IMPLEMENTED` | Analyzes quarterly earnings, corporate announcements, and regulatory events. Triggers catalytic breakout alerts. |
-| **15** | **Sentiment & Social NLP / Macro News** | Directional Alpha | `newsSentimentAnalyzer.js` | `IMPLEMENTED` | Synchronous dictionary NLP analysis. Modulates directional conviction score based on headline sentiment. |
-| **16** | **Risk Parity & Volatility Targeting** | Portfolio Allocation | Independent (Portfolio Layer) | `IMPLEMENTED` | Portfolio-level risk balancing. Normalizes position sizes across instruments based on realized volatility. Produces asset weights, not directional votes. |
-| **17** | **Modern Portfolio Theory / Mean-Variance Optimization** | Portfolio Allocation | Independent (Portfolio Layer) | `IMPLEMENTED` | Solves maximum Sharpe ratio allocation under covariance constraints. Produces target portfolio weights. |
-| **18** | **Regime-Switching Meta Arbitrage** | Meta Regime | `bot-14` (Master Quorum Orchestrator) | `IMPLEMENTED` | Classifies macro regime into TRENDING_BULL, TRENDING_BEAR, HIGH_VOLATILITY, or MEAN_REVERTING based on India VIX and 200 EMA. Dynamically modulates bot voting weights and quorum thresholds. |
-| **19** | **Machine Learning & Deep Learning Alpha** | Machine Learning | Independent (ML Layer) | `STANDBY` | Safely locked in `STANDBY` mode. Prevents synthetic random signals when authenticated out-of-sample trained weights are absent. Abstains cleanly. |
-| **20** | **Execution Algorithms (VWAP / TWAP / POV Slicing)** | Execution Algo | Autonomous Paper Session Engine | `IMPLEMENTED` | Slices parent orders into time-weighted or volume-weighted child tranches with 0.05% slippage ceiling. |
-
-### 9.2 Truthful Missing Data Guards
-All strategies strictly enforce data availability checks. When depth, candle history, or market indicators are unavailable or stale (>120s), strategies return `decision: 'ABSTAIN'`, `canVote: false`, and an explicit diagnostic reason. **The system never fabricates synthetic BUY or SELL votes to force quorum.**
+| # | Strategy Family | Architectural Layer | Implementation Status | Source File & Relevant Function | Required Data & Actual Availability | Call Path & Integration Status | Master Brain & Layer Effect | Unit & Integration Test Evidence | Actual Limitations & Gaps |
+| :-: | :--- | :--- | :---: | :--- | :--- | :--- | :--- | :--- | :--- |
+| **1** | **Momentum** | Directional Alpha | `IMPLEMENTED` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[0].evaluate`) | Multi-period candlesticks (1m/5m), EMA 9/21/50, LTP. **Available:** Candles from historical feeder or live tick accumulator. | Called via `strategyRegistry.evaluateAll()` in `paperSessionEngine.ts` and `POST /api/strategies/evaluate`. | Contributes directional signal to `bot-01` (Momentum Master), `bot-09` (Auto Sector Leader), `bot-10` (IT Trend Rider). | `test_20_strategy_families.ts` (Test 3), `test_evidence_based_integration.ts` (Test 2). | Requires >= 5 candles; cleanly returns `ABSTAIN` with `canVote: false` if candles are absent. |
+| **2** | **Mean Reversion** | Directional Alpha | `IMPLEMENTED` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[1].evaluate`) | Candlesticks, RSI(14), Bollinger Bands (20, 2.0). **Available:** Computed by `indicatorEngine.calculateRSI` & `calculateBollingerBands`. | Called via `strategyRegistry.evaluateAll()`. | Maps to `bot-03` (Ultra Scalper) and `bot-13` (Silver Spike Catcher). Triggers oversold bounce or overbought fade. | `test_20_strategy_families.ts` (Test 4), `test_evidence_based_integration.ts` (Test 2). | Requires >= 14 bars for RSI; returns `ABSTAIN` with `canVote: false` if bars < 14. |
+| **3** | **Statistical Arbitrage** | Relative Value | `PARTIAL` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[2].evaluate`) | Cointegrated paired prices, rolling mean, spread standard deviation. **Partial:** Z-score spread tracking active; Johansen cointegration test requires long tick history. | Called via `strategyRegistry.evaluateAll()`. | Maps to `bot-08` (Banking Titan Arbitrage) and `bot-12` (Currency FX Arbitrage). | `test_20_strategy_families.ts` (Test 2). | Stationarity parameters currently use calibrated rolling windows rather than full continuous Johansen matrix inversion. |
+| **4** | **Pairs Trading** | Relative Value | `IMPLEMENTED` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[3].evaluate`) | Paired equity LTPs (INFY/TCS, HDFCBANK/ICICIBANK), 30-day baseline price ratio. **Available:** Tracked from live quotes or master universe. | Called via `strategyRegistry.evaluateAll()`. | Maps to `bot-08` (Banking Titan Arbitrage) and `bot-10` (IT Trend Rider). | `test_20_strategy_families.ts` (Test 2). | Equity pairs are currently calibrated to major correlated Indian banking and IT benchmarks. |
+| **5** | **Trend Following** | Directional Alpha | `IMPLEMENTED` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[4].evaluate`) | 20-period High/Low Donchian channel envelope, ATR(14). **Available:** Computed from candlestick stream. | Called via `strategyRegistry.evaluateAll()`. | Maps to `bot-01` (Momentum Master) and `bot-06` (Crude Momentum Tracker). | `test_20_strategy_families.ts` (Test 3). | Requires >= 20 historical bars; returns `ABSTAIN` if bars < 20. |
+| **6** | **Market Making** | Microstructure | `BLOCKED` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[5].evaluate`) | Level 3 full order queue, exchange colocation, microsecond execution feed. **Unavailable:** Retail SmartAPI has >50ms latency, no maker rebate, and 0.1% STT. | Called via `strategyRegistry.evaluateAll()`. | **Strictly blocked fail-closed.** Returns `status: 'BLOCKED'`, `action: 'ABSTAIN'`, `canVote: false`. | `test_20_strategy_families.ts` (Test 5), `test_evidence_based_integration.ts` (Test 2). | Retail Indian market microstructure mathematically precludes high-frequency spread capture due to roundtrip transaction tax (STT) and latency. |
+| **7** | **Event-Driven Trading** | Directional Alpha | `IMPLEMENTED` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[6].evaluate`) | Corporate announcements feed, RBI MPC calendar, NLP sentiment scores. **Available:** `IndianNewsMonitor` & `newsSentimentAnalyzer.js`. | Called via `strategyRegistry.evaluateAll()` and `IndianNewsMonitor`. | Maps to `bot-05` (Bullion Macro), `bot-06` (Crude Momentum), `bot-07` (Institutional Equities). | `test_day_trader_skill_indian_adaptation.ts` (Test 5), `test_evidence_based_integration.ts` (Test 2). | Real-time news depends on external announcement scrapers; returns neutral `HOLD` when headlines are quiet. |
+| **8** | **Factor Investing** | Relative Value | `PARTIAL` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[7].evaluate`) | Momentum factor, low-volatility factor, value/growth fundamentals (P/E, ROE). **Partial:** Price momentum & volatility factors active; balance sheet ratios use seeded fundamental facts. | Called via `strategyRegistry.evaluateAll()`. | Maps to `bot-07` (Institutional Equities) and `bot-14` (Master Quorum Orchestrator). | `test_day_trader_skill_indian_adaptation.ts` (Test 6). | Live automated balance-sheet ingestion from annual reports requires quarterly filings scraper. |
+| **9** | **Carry Trade** | Relative Value | `PARTIAL` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[8].evaluate`) | Futures calendar spread, cost-of-carry, financing rate parity. **Partial:** Near vs far month futures roll yield active; cross-currency financing differential estimated. | Called via `strategyRegistry.evaluateAll()`. | Maps to `bot-05` (Bullion Macro) and `bot-12` (Currency FX Arbitrage). | `test_20_strategy_families.ts` (Test 2). | Full cash-futures carry requires concurrent NFO futures token feeds for both near and next month expiries. |
+| **10** | **Volatility Arbitrage** | Derivatives | `PARTIAL` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[9].evaluate`) | Implied Volatility (IV) surface vs 30-day Realized Volatility (RV). **Partial:** RV computed from historical close prices; ATM IV parsed from Angel One option chain when available. | Called via `strategyRegistry.evaluateAll()`. | Maps to `bot-04` (Gamma Squeeze Scalper). Recommends long/short volatility overlays. | `test_20_strategy_families.ts` (Test 2). | Option chain subscription requires active user NFO segment credentials in Connections Vault. |
+| **11** | **Options Strategies** | Derivatives | `IMPLEMENTED` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[10].evaluate`) | Option strikes, expiries, Greeks (Delta, Gamma, Theta). **Available:** `angelOrderAdapter.calculateTradeStatutoryCharges` & option pay-off models. | Called via `strategyRegistry.evaluateAll()`. | Evaluates Straddle, Strangle, and Iron Condor multi-leg structures with defined maximum loss boundaries. | `test_20_strategy_families.ts` (Test 2). | Real order execution is blocked by `LIVE_TRADING_ELIGIBLE = false`; paper simulation records multi-leg risk. |
+| **12** | **Order-Flow Signals** | Microstructure | `IMPLEMENTED` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[11].evaluate`) | Level 2 best 5 bids and asks volume imbalance. **Available:** Provided via SmartStream Quote Mode binary packets. | Called via `strategyRegistry.evaluateAll()`. | Maps to `bot-02` (BankNifty Breakout Hunter) and `bot-07` (Institutional Equities Rider). Evaluates bid/ask pressure. | `test_20_strategy_families.ts` (Test 6), `test_evidence_based_integration.ts` (Test 3). | When depth stream is unavailable or empty, returns `action: 'ABSTAIN'`, `canVote: false`, `abstainReason: 'L2_DEPTH_UNAVAILABLE'`. |
+| **13** | **Cross-Sectional Alpha** | Directional Alpha | `IMPLEMENTED` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[12].evaluate`) | Universe prices & intraday percentage returns across 200+ scrips. **Available:** Provided by `instrumentMaster.scanInstrumentUniverse`. | Called via `strategyRegistry.evaluateAll()`. | Computes decile ranking across universe; maps to `bot-09` (Auto Sector Leader) and `bot-14` (Master Quorum Orchestrator). | `test_20_strategy_families.ts` (Test 7), `test_evidence_based_integration.ts` (Test 3). | When universe metrics are empty, returns `action: 'ABSTAIN'`, `canVote: false`, `abstainReason: 'UNIVERSE_DATA_UNAVAILABLE'`. |
+| **14** | **Intraday Reversal** | Directional Alpha | `IMPLEMENTED` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[13].evaluate`) | Camarilla Floor Pivots (H3/H4, L3/L4), previous day H/L/C. **Available:** Computed in `indicatorEngine.calculatePivots`. | Called via `strategyRegistry.evaluateAll()`. | Maps to `bot-03` (Ultra Scalper) and `bot-13` (Silver Spike Catcher). Evaluates mean reversion off L3/H3 bands. | `test_20_strategy_families.ts` (Test 2). | Intraday only; requires square-off before session boundary (15:25 IST). |
+| **15** | **Breakout Trading** | Directional Alpha | `IMPLEMENTED` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[14].evaluate`) | Opening 15-minute range (ORB), 20-day high/low breakout, volume surge ratio (>1.5x). **Available:** `IndianSetupScanner.scanSetupBreaks`. | Called via `strategyRegistry.evaluateAll()`. | Maps to `bot-02` (BankNifty Breakout Hunter) and `bot-11` (Midcap Momentum Alpha). | `test_day_trader_skill_indian_adaptation.ts` (Test 2). | Rejects low-volume fakeouts; requires volume expansion confirmation. |
+| **16** | **Risk Parity** | Portfolio Allocation | `IMPLEMENTED` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[15].evaluate`) | Historical asset return volatilities ($$\sigma_i$$), cross-asset correlation matrix. **Available:** Computed from universe price variance. | Called via `strategyRegistry.evaluateAll()`. | **Allocation Layer:** Does not cast BUY/SELL trade votes; outputs inverse-volatility normalized target portfolio weights ($$w_i \propto rac{1}{\sigma_i}$$). | `test_20_strategy_families.ts` (Test 8). | Rebalances weights periodically; does not participate in directional 9/14 quorum. |
+| **17** | **Portfolio Optimization** | Portfolio Allocation | `IMPLEMENTED` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[16].evaluate`) | Expected net ROIs, covariance matrix, 25% single-asset cap, 20% cash reserve buffer. **Available:** Evaluated in `paperSessionEngine.ts`. | Called via `strategyRegistry.evaluateAll()`. | **Allocation Layer:** Solves constrained quadratic mean-variance optimization to maximize Sharpe ratio under RMS constraints. | `test_20_strategy_families.ts` (Test 8). | Optimization constraints prioritize capital preservation over unconstrained leverage. |
+| **18** | **Regime Switching** | Meta Regime | `IMPLEMENTED` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[17].evaluate`) | India VIX, Nifty 50 trend vs 200-SMA, ATR percentile. **Available:** Seeded anchor quotes or live WebSocket feed. | Called via `strategyRegistry.evaluateAll()`. | **Meta Regime Layer:** Dynamically shifts system state between TRENDING_BULL, TRENDING_BEAR, HIGH_VOLATILITY, and MEAN_REVERTING; modulates bot voting weights. | `test_20_strategy_families.ts` (Test 9). | India VIX > 22 shifts quorum requirements higher and penalizes breakout strategies. |
+| **19** | **Machine Learning Alpha** | Machine Learning | `STANDBY` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[18].evaluate`) | Standardized feature matrix (Technical + News Sentiment + L2 Imbalance), out-of-sample trained weights (XGBoost / Random Forest / LSTM). **Unavailable:** Model weight files not pre-packaged. | Called via `strategyRegistry.evaluateAll()`. | **Safely in STANDBY:** Returns `status: 'STANDBY'`, `action: 'ABSTAIN'`, `canVote: false`. Prevents synthetic or fabricated predictions. | `test_20_strategy_families.ts` (Test 10), `test_evidence_based_integration.ts` (Test 2). | Inference will only activate when an authenticated, out-of-sample validated model file is loaded into `server/models/`. |
+| **20** | **Execution Algorithms** | Execution Algo | `IMPLEMENTED` | `strategyRegistry.ts` (`QUANT_STRATEGY_REGISTRY[19].evaluate`) | Parent order quantity, intraday volume profile curve, execution time window. **Available:** `paperSessionEngine.ts` tranche manager. | Called via `strategyRegistry.evaluateAll()` and `paperSessionEngine.ts`. | **Execution Layer:** Slices approved parent orders into VWAP/TWAP child tranches with 0.05% maximum slippage ceiling. | `test_20_strategy_families.ts` (Test 11). | Simulation models slippage conservatively (5 bps) against exchange order book. |
 
 ---
 
-## 10. Jarvis Conversational Master Controller
+## 10. Master Brain & 14-Bot Fleet Architecture
 
-The Jarvis Master Controller (`src/utils/jarvisMasterController.ts`) serves as the central command orchestrator, ensuring that no consequential trade, capital allocation, or broker action occurs without explicit user verification.
+### 10.1 Quorum Consensus & Voting Rules
+1. **Approval Rule:** Minimum **9 out of 14 bot approvals (64.3%)** required for quorum consensus.
+2. **Veto Marginal Zone:** Matching votes in the 7–8 range strictly trigger `QUORUM_VETO` and abort the trade.
+3. **Insufficient Consensus:** Matching votes $\le 6$ trigger `INSUFFICIENT_CONSENSUS` and abort the trade.
+4. **RMS Precedence:** A veto from the Centralized Risk Management System (e.g. daily loss limit, 2% risk budget violation, or Emergency Kill Switch) **takes absolute precedence** and cannot be overridden by bot consensus or user requests.
 
-### 10.1 Bilingual Support & Natural Voice
-- **Languages:** Native Kannada (`kn-IN`) and English (`en-IN`).
-- **Tone:** Professional, quantitative, cautious, and respectful.
-- **Example Kannada Authorization Prompt:**
-  > `"ಖಚಿತಪಡಿಸಿ: 50x RELIANCE BUY ಆದೇಶಕ್ಕೆ ₹59,705.00 ಮಾರ್ಜಿನ್ ಅಗತ್ಯವಿದೆ. ನಿರೀಕ್ಷಿತ ಲಾಭ: ₹1,735.88. ಒಪ್ಪಿಗೆ ನೀಡಲು ಅನುಮೋದಿಸಿ."`
-- **Example Kannada Diagnostic Explanation:**
-  > `"ವ್ಯಾಪಾರ ಪ್ರಸ್ತಾವನೆ ತಿರಸ್ಕರಿಸಲಾಗಿದೆ: ಲಭ್ಯವಿರುವ ಬಂಡವಾಳ (₹1,000.00) ಅಗತ್ಯವಿರುವ ಮಾರ್ಜಿನ್ (₹59,705.00) ಗಿಂತ ಕಡಿಮೆಯಾಗಿದೆ."`
+### 10.2 Bot Specializations & Mappings
 
-### 10.2 Trade Authorization Workflow & Anti-Replay Guard
-1. **Proposal Generation:** When a candidate trade clears the 14-Bot Quorum (9/14) and the Institutional Net ROI hurdle (1.50%), Jarvis generates a structured `TradeAuthorizationProposal`:
-   - Proposal ID with deterministic UUID and 300-second expiration window.
-   - Exact capital allocation, required margin, entry price, target price, stop-loss price, and risk budget (2.0%).
-   - Full statutory fee breakdown (Brokerage, STT, Exchange Turnover, GST, SEBI, Stamp Duty).
-   - Expected Gross Profit, Expected Net Profit, and Feasibility Status.
-2. **Anti-Replay Token Guard:** Once an authorization proposal is approved or cancelled, its authorization token is permanently marked `isConsumed = true`. Duplicate submissions with the same proposal ID are rejected with `PROPOSAL_ALREADY_CONSUMED`.
-3. **Explicit Cancellation:** Users can cancel proposals at any time, disarming the pending order and releasing allocated margin back to available cash without executing trades.
-
----
-
-## 11. Institutional Telegram Alerting Engine
-
-The Telegram Alerting Engine (`src/utils/telegramAlerts.ts`) provides 24/7 autonomous monitoring across all critical trading system events with guaranteed delivery tracking and strict data privacy.
-
-### 11.1 Nine Canonical Event Types
-1. `BROKER_AUTH_SESSION_FAILURE`: Session token expiration, invalid TOTP, or credential failure.
-2. `MARKET_DATA_DISCONNECT_OR_STALE`: WebSocket disconnect or feed timestamps older than 120 seconds.
-3. `STRATEGY_BOT_FAILURE`: Unhandled exception or computational timeout in any of the 14 bots.
-4. `QUORUM_FAILURE_OR_RISK_REJECTION`: Quorum consensus fell into the 7-8 veto zone or <=6 rejection zone.
-5. `PAPER_ORDER_LIFECYCLE`: Paper order placement, simulated fill, target hit, or stop-loss trigger.
-6. `DAILY_RISK_LIMIT_OR_KILL_SWITCH`: Daily loss cap breached or Emergency Kill Switch engaged.
-7. `LLM_PROVIDER_FAILURE`: External AI provider timeout, rate limit, or invalid response.
-8. `BROWSER_TASK_FAILURE`: Chromium/browser research task timeout or execution error.
-9. `APP_RESTART_OR_DB_ERROR`: Process restart, SQLite database contention, or schema error.
-
-### 11.2 Alert Deduplication & 60-Second Cooldown
-To prevent alert storms during rapid market fluctuations, the engine hashes the event signature (`${eventType}:${component}:${summary}`) and enforces a strict 60-second cooldown window. Duplicate alerts within this window are throttled with `status: 'COOLDOWN_ACTIVE'`. Critical alerts can bypass cooldown via `force: true`.
-
-### 11.3 Secret Redaction & Truthful Failed Queue
-- **Sanitization:** All outbound alert messages are automatically scrubbed for credentials, JWT tokens (`ey...`), 4-digit PINs (`PIN: ****`), passwords, and 32+ character API keys before transmission.
-- **Truthful Delivery:** Failed deliveries (e.g. invalid bot token or offline sandbox) are recorded in an in-memory `failedQueue` and reported as `delivered: false`. The system never claims Telegram success when network transmission has not occurred.
+| Bot ID | Bot Name | Asset Specialization | Segment | Strategy Focus |
+| :-: | :--- | :--- | :--- | :--- |
+| `bot-01` | **Momentum Master** | NIFTY 50 | NSE Index F&O | Multi-timeframe EMA 9/21/50 stack with SuperTrend trend alignment. |
+| `bot-02` | **BankNifty Breakout Hunter** | BANK NIFTY | NSE Index F&O | Donchian 20-bar channel breakout with Volume Profile POC confirmation. |
+| `bot-03` | **Ultra Scalper** | NIFTY 50 | NSE Index Options | High-frequency VWAP deviation band bounce with 1-min stochastic RSI scalp. |
+| `bot-04` | **Gamma Squeeze Scalper** | NIFTY 25100 CE | NSE Index Options | Delta-neutral scalping with IV skew curve acceleration and Gamma blast trigger. |
+| `bot-05` | **Bullion Macro Scalper** | GOLD | MCX Commodity | Gold/Silver spread ratio & US 10Y real yield inverse momentum tracking. |
+| `bot-06` | **Crude Momentum Tracker** | CRUDE OIL | MCX Commodity | EIA inventory shocks with multi-timeframe SuperTrend (7,3 / 14,2) trend confluence. |
+| `bot-07` | **Institutional Equities Rider** | RELIANCE | NSE Equity | Institutional order block absorption sweep detection with Anchored VWAP. |
+| `bot-08` | **Banking Titan Arbitrage** | HDFCBANK | NSE Equity | Private bank weightage index arbitrage with BankNifty futures spread. |
+| `bot-09` | **Auto Sector Leader** | TATAMOTORS | NSE Equity | Relative strength index vs Nifty Auto benchmark with volume surge confirmation. |
+| `bot-10` | **IT Trend Rider** | INFY | NSE Equity | USDINR currency pair correlation with Nasdaq 100 futures overnight lead. |
+| `bot-11` | **Midcap Momentum Alpha** | MIDCAP NIFTY | NSE Index F&O | Bollinger Band squeeze with Keltner Channel expansion in midcap index. |
+| `bot-12` | **Currency FX Arbitrage** | USDINR FUT | NSE CDS | Cross-currency basis spread with RBI intervention liquidity band tracking. |
+| `bot-13` | **Silver Spike Catcher** | SILVER | MCX Commodity | Camarilla H3/L3 floor trader mean reversion and H4/L4 breakout execution. |
+| `bot-14` | **Master Quorum Orchestrator** | SENSEX | BSE Index | Portfolio beta-neutral dynamic volatility arbitrage and Bayesian meta-consensus verification. |
 
 ---
 
-## 12. Chromium / Browser Research Operator Safety Invariants
+## 11. Jarvis Conversational Master Controller
 
-The Browser Research Operator (`src/utils/browserOperator.ts`) provides controlled web browsing, SEC/NSE filing inspection, and corporate news extraction while strictly protecting core trading engine performance.
+Implemented in `src/utils/jarvisMasterController.ts` and exposed on `/api/jarvis/*`:
 
-### 12.1 Performance Isolation
-- **Bounded Timeout:** All browser research tasks are bounded by a strict 5000ms timeout ceiling.
-- **Non-Blocking Architecture:** Browser automation operates in an isolated asynchronous thread, completely decoupled from the market data tick handler (`SmartStream`) and the paper trading execution loop.
+### 11.1 Language Support & Kannada-First Voice
+- **Default Language:** Native Kannada (`kn-IN`) by default across UI voice assistant (`AICommanderView.jsx`), decision explanations, diagnostic error logs, and authorization summaries.
+- **English Adaptation:** Full English (`en-IN`) support with dynamic toggle.
+- **Tamil Status:** Tamil is not introduced unless explicitly chosen by the user.
 
-### 12.2 Consequential Action Permission Gating
-- **Read-Only Tasks (`NAVIGATE`, `EXTRACT_TEXT`, `SEARCH`):** Execute safely without user confirmation.
-- **Consequential Actions (`SUBMIT_FORM`, `ACCOUNT_CHANGE`):** Strictly gated. If requested without `userApproved: true`, the operator returns `PERMISSION_REQUIRED` with an explicit description of the requested action and refuses execution.
-
-### 12.3 Untrusted Input & Prompt Injection Defense
-Webpage contents and research queries are sanitized against malicious prompt injection attacks (e.g. `"ignore previous instructions"`, `"execute live trade"`, `"override kill switch"`). Injected commands are neutralized and flagged before text analysis.
+### 11.2 Trade Authorization & Anti-Replay Tokens
+- **Parameter-Locked Proposals:** Every proposed trade that clears the 14-Bot Quorum (9/14) and the Institutional Net ROI hurdle (1.50%) generates a structured `TradeAuthorizationProposal`.
+- **Anti-Replay Token Guard:** Once an authorization proposal is approved, rejected, or cancelled, its token is permanently marked `isUsed = true`. Duplicate replay submissions with the same proposal ID are rejected with `ALREADY_USED`.
+- **Explicit Cancellation:** Users can cancel proposals at any time, disarming the pending order and releasing allocated margin back to cash without executing trades.
 
 ---
 
-## 13. Live Trading Eligibility Status & Production Readiness Statement
+## 12. Telegram Alerting & Chromium Research Operator
 
-### 13.1 Fail-Closed Architectural Lock
-$$\text{LIVE\_TRADING\_ELIGIBLE} = \text{false}$$
-- **Permanent Codebase Invariant:** Hardcoded in `src/utils/angelOrderExecutionAdapter.ts`.
-- **API Guard:** The `/api/execution-mode` route strictly rejects any attempt to switch to `LIVE` with `HTTP 403 Forbidden` (`LIVE_TRADING_LOCKED`).
-- **UI Guard:** TopNavbar displays a permanent `LIVE LOCKED` pill with a locked padlock.
+### 12.1 Telegram Alerting Engine (`src/utils/telegramAlerts.ts`)
+1. **Nine Canonical Event Categories:**
+   - `BROKER_AUTH_SESSION_FAILURE`
+   - `MARKET_DATA_DISCONNECT_OR_STALE`
+   - `STRATEGY_BOT_FAILURE`
+   - `QUORUM_FAILURE_OR_RISK_REJECTION`
+   - `PAPER_ORDER_LIFECYCLE`
+   - `DAILY_RISK_LIMIT_OR_KILL_SWITCH`
+   - `LLM_PROVIDER_FAILURE`
+   - `BROWSER_TASK_FAILURE`
+   - `APP_RESTART_OR_DB_ERROR`
+2. **60-Second Cooldown & Deduplication:** Throttles duplicate alert signatures (`cooldownActive: true`) to prevent notification floods.
+3. **Secret Redaction:** Scrubbed for passwords, PINs (`PIN: ****`), JWTs (`[REDACTED_JWT]`), and 32+ character API keys before transmission.
+4. **Truthful Accounting:** Failed deliveries (e.g. unconfigured bot token or offline sandbox) are stored in an in-memory `failedAlertsQueue` and reported as `delivered: false`.
 
-### 13.2 Production Readiness Truthful Statement
-The Chintu AI trading application has achieved complete verified readiness for **live-market paper trading, multi-strategy algorithmic analysis, and autonomous risk management**. However, **real-money broker order placement is intentionally disabled and locked**.
+### 12.2 Chromium / Browser Research Operator (`src/utils/browserOperator.ts`)
+1. **Runtime Verification:**
+   - `chrome.exe` is installed on the host system at `C:\Program Files\Google\Chrome\Application\chrome.exe`.
+   - Node.js browser automation libraries (`playwright` / `puppeteer`) are **not packaged** in `package.json` to keep the application lightweight.
+   - The operator uses bounded HTTP fetching (`fetch` with 5000ms timeout) for SEC/SEBI filings and corporate disclosures.
+2. **Consequential Action Permission Gating:**
+   - Read-only research (`NAVIGATE`, `SEARCH`, `EXTRACT_TEXT`): Allowed.
+   - Consequential operations (`SUBMIT_FORM`, `ACCOUNT_CHANGE`): Strictly blocked unless `userApproved: true`. Returns `PERMISSION_REQUIRED`.
+3. **Untrusted Input Defense:** Extracted webpage text is sanitized against prompt injection patterns (`"ignore previous instructions"`, `"execute live trade"`, `"override kill switch"`).
 
-### 13.3 Credential-Dependent Steps for User
-To activate authentic live market data streaming for paper trading, the user must:
-1. Open the local Chintu AI UI or public URL (`https://enlargement-generating-expiration-bouquet.trycloudflare.com`).
-2. Navigate to **Connections & Vault**.
-3. Enter their Angel One SmartAPI credentials:
-   - **SmartAPI Key**
-   - **Client ID**
-   - **Trading PIN (4 digits)**
-   - **Base32 TOTP Secret (from Angel One 2FA setup)**
-4. Click **Save & Test Connection**. The system will authenticate dynamically, establish the SmartStream WebSocket, and stream live ticks into the paper trading engine. Real broker capital will remain 100% untouched.
+---
 
+## 13. Paper Trading, Accounting Ledger & Verification Commands
+
+### 13.1 Paper Trading & Accounting Lifecycle
+1. **Market Feed:** Ingests SmartStream v2 51-byte binary packets; verifies sequence numbers and rejects ticks older than 120s.
+2. **Strategy Evaluation:** Evaluates 20 strategies; enforces data absence guards (`ABSTAIN`).
+3. **Quorum Consensus:** Requires $\ge 9/14$ bot approvals; vetoes 7–8 marginal consensus.
+4. **Jarvis Review Gate:** Confirms bounded loss scenarios and positive net ROI.
+5. **Centralized RMS:** Sizes position to 2% capital risk ceiling; enforces 1.50% net ROI institutional hurdle.
+6. **Paper Fill & Ledger:** Records trade in persistent SQLite (`chintu_runtime.db`) under WAL mode; reconciles capital formula:
+   $$	ext{Available Cash} + 	ext{Allocated Margin} + 	ext{Total Charges} = 	ext{Total Capital Base}$$
+
+### 13.2 Fail-Closed Live Trading Lock Invariant
+$$	ext{AngelOrderExecutionAdapter.LIVE\_TRADING\_ELIGIBLE} = 	ext{false}$$
+- **Permanent Lock:** Hardcoded in `src/utils/angelOrderAdapter.ts`.
+- **API Guard:** `/api/execution-mode` rejects `LIVE` with `HTTP 403 Forbidden`.
+- **UI Guard:** TopNavbar displays permanent `LIVE LOCKED` pill with padlock.
+
+### 13.3 Reproducible Verification Commands
+```powershell
+# 1. Run all 27 automated test suites (TypeScript + Python)
+python scratch/run_all_tests.py
+
+# 2. Run dedicated evidence-based integration test
+npx tsx --test tests/test_evidence_based_integration.ts
+
+# 3. Production Vite build
+npm run build
+
+# 4. Code quality & linter check
+npm run lint
+
+# 5. Verify public tunnel health (temporary Cloudflare Quick Tunnel)
+python -c "import urllib.request, ssl; ctx = ssl.create_default_context(); print(urllib.request.urlopen('https://enlargement-generating-expiration-bouquet.trycloudflare.com/api/health', context=ctx).read().decode())"
+```

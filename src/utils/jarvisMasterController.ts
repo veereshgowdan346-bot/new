@@ -257,7 +257,7 @@ export class JarvisMasterController {
   /**
    * Explains a strategy or quorum decision in English or Kannada.
    */
-  public explainDecision(symbol: string, lang: 'en' | 'kn' = 'en'): string {
+  public explainDecision(symbol: string, lang: 'en' | 'kn' = 'kn'): string {
     const clean = symbol.toUpperCase().replace('-EQ', '');
     const bots = BOT_DEFINITIONS.filter((b) => b.asset.includes(clean));
     const botName = bots.length > 0 ? bots[0].name : 'Master Brain 14-Bot Fleet';
@@ -272,7 +272,7 @@ export class JarvisMasterController {
   /**
    * Explains a system failure (stale quotes, auth errors, Telegram delivery, browser) in English or Kannada.
    */
-  public explainFailure(failureType: string, errorDetail: string, lang: 'en' | 'kn' = 'en'): string {
+  public explainFailure(failureType: string, errorDetail: string, lang: 'en' | 'kn' = 'kn'): string {
     if (lang === 'kn') {
       return `ಜಾರ್ವಿಸ್ ದೋಷ ವಿವರಣೆ: [${failureType}] - ${errorDetail}. ಸುರಕ್ಷತಾ ನಿಯಮಗಳ ಪ್ರಕಾರ, ಯಾವುದೇ ಅಪಾಯಕಾರಿ ವ್ಯಾಪಾರವನ್ನು ತಡೆಯಲಾಗಿದೆ. ದಯವಿಟ್ಟು ಸಂಪರ್ಕಗಳನ್ನು ಪರಿಶೀಲಿಸಿ.`;
     }

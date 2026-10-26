@@ -596,13 +596,14 @@ export const QUANT_STRATEGY_REGISTRY: StrategyDefinition[] = [
           strategyId: 12,
           strategyName: 'Order-Flow Signals',
           status: 'IMPLEMENTED',
-          action: 'HOLD',
-          confidence: 50,
+          action: 'ABSTAIN',
+          confidence: 0,
           score: 0,
-          rationale: 'L2 market depth stream neutral or standby.',
+          rationale: 'L2 market depth stream unavailable. Order-flow strategy abstains.',
           evidence: { depthAvailable: false },
           participatingBots: [2, 7],
-          canVote: true
+          canVote: false,
+          abstainReason: 'L2_DEPTH_UNAVAILABLE'
         };
       }
       const totalBids = ctx.depth.bids.reduce((sum, b) => sum + (b.qty || 0), 0);
@@ -650,13 +651,14 @@ export const QUANT_STRATEGY_REGISTRY: StrategyDefinition[] = [
           strategyId: 13,
           strategyName: 'Cross-Sectional Alpha',
           status: 'IMPLEMENTED',
-          action: 'HOLD',
-          confidence: 50,
+          action: 'ABSTAIN',
+          confidence: 0,
           score: 0,
-          rationale: 'Universe metrics initializing.',
+          rationale: 'Universe metrics unavailable. Cross-sectional ranking abstains.',
           evidence: { universeCount: 0 },
           participatingBots: [9, 14],
-          canVote: true
+          canVote: false,
+          abstainReason: 'UNIVERSE_DATA_UNAVAILABLE'
         };
       }
       const sorted = [...universe].sort((a, b) => b.changePercent - a.changePercent);

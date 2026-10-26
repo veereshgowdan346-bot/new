@@ -510,9 +510,9 @@ export default function AICommanderView({
   const [isListening, setIsListening] = useState(false);
   const [speechLang, setSpeechLang] = useState(() => {
     try {
-      return localStorage.getItem('chintu_speech_lang') || 'en-IN';
+      return localStorage.getItem('chintu_speech_lang') || 'kn-IN';
     } catch (e) {
-      return 'en-IN';
+      return 'kn-IN';
     }
   });
   const [isJarvisSpeaking, setIsJarvisSpeaking] = useState(false);

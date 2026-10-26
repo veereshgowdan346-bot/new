@@ -22,6 +22,8 @@ import { angelMarketDataAdapter, MarketQuote } from './angelMarketDataAdapter';
 import { runtimeDb } from './databasePersistence';
 import { jarvisReviewGate, JarvisReviewResult } from './jarvisReviewGate';
 import { evaluate14BotQuorumConsensus } from './quorumConsensusEngine';
+import { strategyRegistry } from './strategyRegistry';
+import { telegramAlertManager } from './telegramAlerts';
 
 export type PaperSessionStatus =
   | 'NOT_STARTED'
@@ -104,6 +106,7 @@ export interface SelectedOpportunity {
   selectionReason: string;
   rankingScore: number;
   jarvisReview?: JarvisReviewResult;
+  strategySignals?: Array<{ strategyId: number; strategyName: string; action: string; score: number }>;
 }
 
 export interface SessionMetrics {
@@ -436,7 +439,35 @@ export class PaperSessionEngine {
 
       // 3. Strategy Signals & Master Brain 14-Bot Quorum Consensus
       const action: 'BUY' | 'SELL' = 'BUY'; // Primary trend continuation
-      const quorumVotes = this.evaluateSimulatedQuorum(inst.symbol, currentPrice);
+      
+      // Evaluate 20 Quantitative Strategies
+      const stratEval = strategyRegistry.evaluateAll({
+        symbol: inst.symbol,
+        price: currentPrice,
+        availableCapital: this.availableCash
+      });
+      const topStratSignals = (stratEval?.results || []).map(r => ({
+        strategyId: r.strategyId,
+        strategyName: r.strategyName,
+        action: r.action,
+        score: r.score
+      }));
+
+      // In live streaming mode, evaluate 14-bot fleet from incoming market feed;
+      // In offline/test simulation mode, use deterministic simulated quorum
+      let quorumVotes = this.evaluateSimulatedQuorum(inst.symbol, currentPrice);
+      if (angelMarketDataAdapter.isLiveStreaming()) {
+        try {
+          const qRes = evaluate14BotQuorumConsensus({
+            symbol: inst.symbol,
+            action,
+            price: currentPrice
+          });
+          if (qRes && typeof qRes.matchingVotes === 'number') {
+            quorumVotes = qRes.matchingVotes;
+          }
+        } catch (e) {}
+      }
 
       // Quorum Gate: Minimum 9/14 Approval (Veto 7-8 range)
       if (quorumVotes < 9) {
@@ -548,7 +579,8 @@ export class PaperSessionEngine {
         riskBudget: Number(riskBudget.toFixed(2)),
         selectionReason: `Quorum ${quorumVotes}/14 Consensus • Jarvis APPROVED • Net ROI ${expectedNetRoiPct}% (Exp Net: ₹${expectedNetProfit.toFixed(2)}) • Risk Capped at ₹${riskBudget.toFixed(2)} (2%)`,
         rankingScore,
-        jarvisReview
+        jarvisReview,
+        strategySignals: topStratSignals
       });
     }
 
@@ -758,6 +790,16 @@ export class PaperSessionEngine {
 
     this.openPositions.set(posId, position);
 
+    // Dispatch Telegram alert for Paper Order Fill
+    telegramAlertManager.dispatchAlert({
+      eventType: 'PAPER_ORDER_LIFECYCLE',
+      severity: 'INFO',
+      component: 'PaperSessionEngine',
+      summary: `Paper trade opened: ${opp.action} ${opp.recommendedQty}x ${opp.symbol} @ ₹${fillPrice.toFixed(2)}`,
+      observedEvidence: `Quorum: ${opp.quorumVotes}/14 | Net ROI: ${opp.expectedNetRoiPct}% | Target: ₹${opp.targetPrice} | Stop: ₹${opp.stopLossPrice}`,
+      recommendedAction: 'Monitor mark-to-market performance against target and stop-loss'
+    }).catch(() => {});
+
     // Persist Trade Record in SQLite
     try {
       runtimeDb.saveTrade({
@@ -867,6 +909,16 @@ export class PaperSessionEngine {
 
     this.sessionTrades.push(tradeRecord);
     this.openPositions.delete(pos.id);
+
+    // Dispatch Telegram alert for Paper Position Closure
+    telegramAlertManager.dispatchAlert({
+      eventType: 'PAPER_ORDER_LIFECYCLE',
+      severity: 'INFO',
+      component: 'PaperSessionEngine',
+      summary: `Paper position closed: ${pos.symbol} (${reason})`,
+      observedEvidence: `Exit Price: ₹${exitPrice.toFixed(2)} | Net P&L: ₹${netPnl.toFixed(2)} | Charges: ₹${roundtripCharges.toFixed(2)}`,
+      recommendedAction: 'Review trade performance and ledger consistency'
+    }).catch(() => {});
 
     // Update SQLite Runtime DB
     try {

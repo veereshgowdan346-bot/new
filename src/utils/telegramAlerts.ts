@@ -96,7 +96,7 @@ export class TelegramAlertManager {
         attemptCount: 0
       };
       this.alertHistory.unshift(skippedRecord);
-      return { success: true, delivered: false, alertRecord: skippedRecord };
+      return { success: true, delivered: false, cooldownActive: true, alertRecord: skippedRecord };
     }
     this.lastAlertTimestamps.set(signature, now);
 

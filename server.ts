@@ -1064,6 +1064,15 @@ const rmsGuardConfig = {
 function triggerAutonomousRmsLiquidation(reason: string) {
   emergencyStopActive = true;
   circuitBreakerActive = true;
+  telegramAlertManager.dispatchAlert({
+    eventType: 'DAILY_RISK_LIMIT_OR_KILL_SWITCH',
+    severity: 'CRITICAL',
+    component: 'RMS_CircuitBreaker',
+    summary: `Emergency kill switch engaged: ${reason}`,
+    observedEvidence: 'Autonomous emergency liquidation executed across all paper positions.',
+    recommendedAction: 'Inspect risk management logs and reset circuit breaker when conditions are safe.',
+    force: true
+  }).catch(() => {});
   rmsGuardConfig.circuit_breaker_tripped = true;
   rmsGuardConfig.last_trip_reason = reason;
   rmsGuardConfig.last_trip_time = new Date().toLocaleTimeString();
@@ -1240,6 +1249,14 @@ app.post(['/api/rms/emergency-stop', '/api/emergency-stop', '/api/broker/emergen
 app.post(['/api/rms/reset', '/api/rms/reset-circuit-breaker'], (_req: Request, res: Response) => {
   emergencyStopActive = false;
   circuitBreakerActive = false;
+  telegramAlertManager.dispatchAlert({
+    eventType: 'DAILY_RISK_LIMIT_OR_KILL_SWITCH',
+    severity: 'INFO',
+    component: 'RMS_CircuitBreaker',
+    summary: 'Circuit breaker reset successfully. Normal bot operations resumed.',
+    observedEvidence: 'Emergency stop cleared by user or operator.',
+    recommendedAction: 'Normal operation resumed.'
+  }).catch(() => {});
   rmsGuardConfig.circuit_breaker_tripped = false;
   rmsGuardConfig.last_trip_reason = null;
   rmsGuardConfig.current_drawdown_pct = 0.25;
