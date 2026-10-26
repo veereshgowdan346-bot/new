@@ -260,6 +260,21 @@ async function runTests() {
     assert.strictEqual(masterRecord.userId, 'usr_veeresh_master');
   });
 
+  // TEST 11: SQLite Integrity Check & PRAGMA Verification
+  await test('11. Database integrity check and PRAGMA validation', () => {
+    const integrity = runtimeDb.verifyIntegrity();
+    assert.strictEqual(integrity.ok, true, 'Database integrity must be ok');
+    assert(integrity.tableCounts.bots >= 14, 'Must have at least 14 bots persisted');
+    assert(typeof integrity.tableCounts.system_settings === 'number', 'system_settings count must be a number');
+    assert(typeof integrity.tableCounts.user_connections === 'number', 'user_connections count must be a number');
+  });
+
+  // TEST 12: Database Backup Generation
+  await test('12. Database backup creation and validation', () => {
+    const backupResult = runtimeDb.backupDatabase();
+    assert.strictEqual(backupResult.success, true, 'Backup generation must succeed');
+    assert(backupResult.backupPath && backupResult.backupPath.endsWith('.db'), 'Backup path must be a .db file');
+  });
   console.log(`\nAll ${passed}/${total} test specifications PASSED! (100% SUCCESS RATE)\n`);
 }
 

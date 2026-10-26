@@ -733,6 +733,64 @@ export class DatabasePersistenceService {
     }
   }
 
+  // --- Database Backup, Restore & Integrity Verification ---
+  public verifyIntegrity(): { ok: boolean; message: string; tableCounts: Record<string, number> } {
+    if (!this.db) return { ok: false, message: 'Database not initialized', tableCounts: {} };
+    try {
+      const check = this.db.prepare('PRAGMA integrity_check').get() as any;
+      const ok = check && check.integrity_check === 'ok';
+      const tables = ['positions', 'trades', 'bots', 'user_connections', 'system_settings'];
+      const tableCounts: Record<string, number> = {};
+      for (const t of tables) {
+        try {
+          const countRow = this.db.prepare(`SELECT COUNT(*) as count FROM ${t}`).get() as any;
+          tableCounts[t] = countRow?.count || 0;
+        } catch {
+          tableCounts[t] = 0;
+        }
+      }
+      return { ok: Boolean(ok), message: ok ? 'SQLite integrity check passed (WAL mode active)' : 'Integrity check failed', tableCounts };
+    } catch (err: any) {
+      return { ok: false, message: err?.message || 'Integrity check error', tableCounts: {} };
+    }
+  }
+
+  public backupDatabase(backupDir?: string): { success: boolean; backupPath?: string; error?: string } {
+    try {
+      const targetDir = backupDir || path.join(path.dirname(this.dbPath), 'backups');
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupPath = path.join(targetDir, `chintu_runtime_backup_${timestamp}.db`);
+      if (this.db) {
+        try { this.db.exec('PRAGMA wal_checkpoint(TRUNCATE);'); } catch (e) {}
+      }
+      fs.copyFileSync(this.dbPath, backupPath);
+      try { fs.chmodSync(backupPath, 0o600); } catch (e) {}
+      return { success: true, backupPath };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Backup failed' };
+    }
+  }
+
+  public restoreDatabase(backupPath: string): { success: boolean; error?: string } {
+    try {
+      if (!fs.existsSync(backupPath)) {
+        return { success: false, error: 'Backup file does not exist' };
+      }
+      if (this.db) {
+        try { this.db.close(); } catch (e) {}
+        this.db = null;
+      }
+      fs.copyFileSync(backupPath, this.dbPath);
+      this.init();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Restore failed' };
+    }
+  }
+
   public close(): void {
     if (this.db) {
       this.db.close();

@@ -133,23 +133,18 @@ const defaultBots = [
 try {
   runtimeDb.init();
   userAuthService.ensureMasterUser();
-  // Sync 14 canonical bots with SQLite persistence
+  // Sync and seed 14 canonical bots with SQLite persistence
   const dbBots = runtimeDb.getBots();
-  if (dbBots && dbBots.length > 0) {
-    dbBots.forEach((dbBot) => {
-      const match = defaultBots.find((b) => b.id === dbBot.id);
-      if (match) {
-        match.allocatedCapital = dbBot.allocatedCapital;
-        match.status = dbBot.status;
-        match.worker_running = dbBot.worker_running;
-        match.pnlToday = dbBot.pnlToday;
-        match.winRate = dbBot.winRate;
-        match.trades = dbBot.trades;
-      }
-    });
-  } else {
-    // Seed default bots in SQLite
-    defaultBots.forEach((b) => {
+  defaultBots.forEach((b) => {
+    const match = dbBots.find((dbBot) => dbBot.id === b.id);
+    if (match) {
+      b.allocatedCapital = match.allocatedCapital;
+      b.status = match.status;
+      b.worker_running = match.worker_running;
+      b.pnlToday = match.pnlToday;
+      b.winRate = match.winRate;
+      b.trades = match.trades;
+    } else {
       runtimeDb.upsertBot({
         id: b.id,
         name: b.name,
@@ -162,8 +157,8 @@ try {
         status: b.status,
         worker_running: b.worker_running
       });
-    });
-  }
+    }
+  });
 } catch (e) {
   console.warn('[SERVER] Database init warning:', e);
 }
@@ -3534,6 +3529,24 @@ app.get('/api/system/health-telemetry', (_req: Request, res: Response) => {
   });
 });
 
+app.get('/api/system/integrity', (_req: Request, res: Response) => {
+  const result = runtimeDb.verifyIntegrity();
+  res.json({
+    status: result.ok ? 'success' : 'error',
+    ...result,
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.post('/api/system/backup', (_req: Request, res: Response) => {
+  const result = runtimeDb.backupDatabase();
+  res.json({
+    status: result.success ? 'success' : 'error',
+    ...result,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // ============================================================================
 // MULTI-MODAL PARSER & TELEGRAM WEBHOOK INGESTION
 // ============================================================================
@@ -3989,36 +4002,46 @@ app.post('/api/connections/test', userAuthService.requireAuth, async (req: Authe
     return res.status(400).json({ status: 'error', message: 'Provider required.' });
   }
 
-  const result = await connectionVault.testConnection(userId, provider as ProviderType, credentials);
-  if (provider === 'angel_one' && result.success) {
-    const creds = credentials || connectionVault.getDecryptedCredentials(userId, 'angel_one');
-    if (creds) {
-      angelMarketDataAdapter.updateCredentials({
-        apiKey: creds.apiKey,
-        clientId: creds.clientId,
-        pin: creds.pin,
-        totpSecret: creds.totpSecret
-      });
-      if (result.sessionTokens?.jwtToken && result.sessionTokens?.feedToken) {
-        angelMarketDataAdapter.setSessionTokens(
-          result.sessionTokens.jwtToken,
-          result.sessionTokens.feedToken,
-          result.sessionTokens.refreshToken
-        );
-        angelOrderAdapter.updateSession(result.sessionTokens.jwtToken);
+  try {
+    const result = await connectionVault.testConnection(userId, provider as ProviderType, credentials);
+    if (provider === 'angel_one' && result.success) {
+      const creds = credentials || connectionVault.getDecryptedCredentials(userId, 'angel_one');
+      if (creds) {
+        angelMarketDataAdapter.updateCredentials({
+          apiKey: creds.apiKey,
+          clientId: creds.clientId,
+          pin: creds.pin,
+          totpSecret: creds.totpSecret
+        });
+        if (result.sessionTokens?.jwtToken && result.sessionTokens?.feedToken) {
+          angelMarketDataAdapter.setSessionTokens(
+            result.sessionTokens.jwtToken,
+            result.sessionTokens.feedToken,
+            result.sessionTokens.refreshToken
+          );
+          angelOrderAdapter.updateSession(result.sessionTokens.jwtToken);
+        }
+        angelMarketDataAdapter.connectSmartStream().catch((e) => {
+          console.warn('[SERVER] Auto-connect SmartStream note:', e);
+        });
       }
-      angelMarketDataAdapter.connectSmartStream().catch((e) => {
-        console.warn('[SERVER] Auto-connect SmartStream note:', e);
-      });
     }
+    res.json({
+      ...result,
+      success: result.success,
+      status: result.success ? 'success' : result.status,
+      connectionStatus: result.status,
+      message: result.message
+    });
+  } catch (err: any) {
+    console.error('[SERVER] Connection test error:', err);
+    res.status(200).json({
+      success: false,
+      status: 'ERROR',
+      connectionStatus: 'ERROR',
+      message: err?.message || 'Connection test encountered an error'
+    });
   }
-  res.json({
-    ...result,
-    success: result.success,
-    status: result.success ? 'success' : result.status,
-    connectionStatus: result.status,
-    message: result.message
-  });
 });
 
 // Connection Vault: Disconnect (Strictly Authenticated)

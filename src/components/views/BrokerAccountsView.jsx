@@ -27,6 +27,8 @@ export default function BrokerAccountsView({ brokerConnections, onUpdateBroker }
   const [isLoading, setIsLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
   const [copiedToken, setCopiedToken] = useState(false);
+  const [storedAngelConfig, setStoredAngelConfig] = useState(null);
+  const [actionLoading, setActionLoading] = useState(null);
 
   // Form states strictly empty - NO mock auto-fills
   const [angelForm, setAngelForm] = useState({
@@ -110,14 +112,18 @@ export default function BrokerAccountsView({ brokerConnections, onUpdateBroker }
     }
   });
 
-  // Fetch live broker status on mount from backend
+  // Fetch live broker status and connection vault status on mount
   React.useEffect(() => {
     const fetchLiveBrokerStatus = async () => {
       try {
-        const res = await apiFetch('/api/broker/status');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.brokers) {
+        const [brokerRes, connRes] = await Promise.all([
+          apiFetch('/api/broker/status').catch(() => null),
+          apiFetch('/api/connections/status').catch(() => null)
+        ]);
+
+        if (brokerRes) {
+          const data = brokerRes.brokers ? brokerRes : (typeof brokerRes.json === 'function' ? await brokerRes.json() : null);
+          if (data?.brokers) {
             setBrokerDetails((prev) => {
               const updated = { ...prev };
               Object.keys(data.brokers).forEach((key) => {
@@ -142,17 +148,127 @@ export default function BrokerAccountsView({ brokerConnections, onUpdateBroker }
             });
           }
         }
+
+        if (connRes) {
+          const connData = connRes.connections ? connRes : (typeof connRes.json === 'function' ? await connRes.json() : null);
+          if (Array.isArray(connData?.connections)) {
+            const angelConn = connData.connections.find((c) => c.provider === 'angel_one');
+            if (angelConn && angelConn.sanitizedConfig) {
+              setStoredAngelConfig(angelConn.sanitizedConfig);
+              if (angelConn.sanitizedConfig.clientId) {
+                setAngelForm((prev) => ({ ...prev, clientId: prev.clientId || angelConn.sanitizedConfig.clientId }));
+              }
+            }
+          }
+        }
       } catch (e) {}
     };
     fetchLiveBrokerStatus();
   }, []);
 
+  // Action: Test Connection against SmartAPI
+  const handleTestAngelOne = async () => {
+    setActionLoading('testing');
+    setStatusMessage(null);
+    try {
+      const res = await apiFetch('/api/connections/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: 'angel_one',
+          credentials: {
+            apiKey: angelForm.apiKey.trim(),
+            clientId: angelForm.clientId.trim(),
+            pin: angelForm.pin.trim(),
+            totpSecret: angelForm.totpSecret.trim()
+          }
+        })
+      });
+      const data = res?.message !== undefined ? res : (typeof res.json === 'function' ? await res.json() : null);
+      if (data?.success) {
+        soundEngine.playSuccessChime();
+        setStatusMessage({
+          type: 'success',
+          text: `SmartAPI Credentials Verified! ${data.message || 'Upstream handshake successful.'}`
+        });
+      } else {
+        soundEngine.playAlertChime();
+        setStatusMessage({
+          type: 'error',
+          text: data?.message || 'SmartAPI test verification rejected. Check Client ID, PIN, and TOTP key.'
+        });
+      }
+    } catch (err) {
+      setStatusMessage({
+        type: 'error',
+        text: 'Network error communicating with SmartAPI test conduit.'
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Action: Save Verified Credentials to SQLite Vault
+  const handleSaveAngelOne = async () => {
+    const hasExisting = storedAngelConfig?.hasApiKey || storedAngelConfig?.clientId;
+    if (!hasExisting && (!angelForm.apiKey.trim() || !angelForm.clientId.trim() || !angelForm.pin.trim() || !angelForm.totpSecret.trim())) {
+      setStatusMessage({
+        type: 'error',
+        text: 'All 4 fields (API Key, Client ID, PIN, TOTP Secret) are required for initial vault persistence.'
+      });
+      return;
+    }
+    setActionLoading('saving');
+    setStatusMessage(null);
+    try {
+      const res = await apiFetch('/api/connections/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: 'angel_one',
+          credentials: {
+            apiKey: angelForm.apiKey.trim(),
+            clientId: angelForm.clientId.trim(),
+            pin: angelForm.pin.trim(),
+            totpSecret: angelForm.totpSecret.trim()
+          }
+        })
+      });
+      const data = (res?.status === 'success' || res?.success) ? res : (typeof res.json === 'function' ? await res.json() : null);
+      if (data?.status === 'success' || data?.success) {
+        soundEngine.playSuccessChime();
+        setStatusMessage({
+          type: 'success',
+          text: 'Angel One SmartAPI credentials encrypted (AES-256-GCM) and verified in SQLite Vault.'
+        });
+        const connRes = await apiFetch('/api/connections/status').catch(() => null);
+        if (connRes?.connections) {
+          const angelConn = connRes.connections.find((c) => c.provider === 'angel_one');
+          if (angelConn?.sanitizedConfig) setStoredAngelConfig(angelConn.sanitizedConfig);
+        }
+      } else {
+        soundEngine.playAlertChime();
+        setStatusMessage({
+          type: 'error',
+          text: data?.message || 'Failed to save credentials to vault.'
+        });
+      }
+    } catch (err) {
+      setStatusMessage({
+        type: 'error',
+        text: 'Save error: backend vault unreachable.'
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // Handle Angel One Connect (Sends POST request to local Python backend /api/broker/connect)
   const handleConnectAngelOne = async (e) => {
     e?.preventDefault();
 
-    // Strict validation: Require real user inputs
-    if (!angelForm.apiKey.trim() || !angelForm.clientId.trim() || !angelForm.pin.trim() || !angelForm.totp.trim()) {
+    const hasExisting = Boolean(storedAngelConfig?.hasApiKey || storedAngelConfig?.clientId);
+    if (!hasExisting && (!angelForm.apiKey.trim() || !angelForm.clientId.trim() || !angelForm.pin.trim() || !angelForm.totp.trim())) {
       setStatusMessage({
         type: 'error',
         text: 'Please enter your Angel One SmartAPI Key, Client ID, PIN, and TOTP to authenticate.'
@@ -363,12 +479,17 @@ export default function BrokerAccountsView({ brokerConnections, onUpdateBroker }
         </div>
 
         {/* Aggregate Margin Badge */}
-        <div className="flex items-center gap-2 bg-[#09152e] border border-cyan-500/40 rounded-xl px-4 py-2 shadow-[0_0_15px_rgba(0,240,255,0.15)]">
+        <div className="flex items-center gap-3 bg-[#09152e] border border-cyan-500/40 rounded-xl px-4 py-2 shadow-[0_0_15px_rgba(0,240,255,0.15)]">
           <Wallet className="w-4 h-4 text-emerald-400" />
           <div>
-            <div className="text-[10px] uppercase font-semibold text-slate-400">Total Live Capital Pool</div>
-            <div className="text-sm font-mono font-bold text-emerald-400 leading-tight">
-              ₹{totalCapital.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            <div className="text-[10px] uppercase font-semibold text-slate-400">Broker Execution Margin</div>
+            <div className="text-xs font-mono font-bold text-white flex items-center gap-2">
+              <span className={currentDetails.connected ? "text-emerald-400" : "text-slate-400"}>
+                {currentDetails.connected ? `₹${Number(currentDetails.availableCash || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} (Live)` : '₹0.00 (Disconnected)'}
+              </span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-sans font-normal border border-cyan-500/30">
+                Paper: ₹500,000
+              </span>
             </div>
           </div>
         </div>
@@ -491,9 +612,8 @@ export default function BrokerAccountsView({ brokerConnections, onUpdateBroker }
                     type="text"
                     value={angelForm.apiKey}
                     onChange={(e) => setAngelForm({ ...angelForm, apiKey: e.target.value })}
-                    placeholder="Enter your SmartAPI Key"
+                    placeholder={storedAngelConfig?.hasApiKey ? "•••••••••••• (Stored in Vault — Leave blank to keep)" : "Enter your SmartAPI Key"}
                     className="w-full mt-1 bg-[#060c1c] border border-[#1e3a6e] text-white p-2 rounded-lg focus:border-cyan-400 focus:outline-none"
-                    required
                   />
                 </div>
 
@@ -505,9 +625,8 @@ export default function BrokerAccountsView({ brokerConnections, onUpdateBroker }
                     type="text"
                     value={angelForm.clientId}
                     onChange={(e) => setAngelForm({ ...angelForm, clientId: e.target.value })}
-                    placeholder="e.g. A123456"
+                    placeholder={storedAngelConfig?.clientId ? `${storedAngelConfig.clientId} (Stored in Vault)` : "e.g. A123456"}
                     className="w-full mt-1 bg-[#060c1c] border border-[#1e3a6e] text-white p-2 rounded-lg focus:border-cyan-400 focus:outline-none"
-                    required
                   />
                 </div>
               </div>
@@ -522,10 +641,9 @@ export default function BrokerAccountsView({ brokerConnections, onUpdateBroker }
                       type={showPassword ? 'text' : 'password'}
                       value={angelForm.pin}
                       onChange={(e) => setAngelForm({ ...angelForm, pin: e.target.value })}
-                      placeholder="4-digit trading PIN"
+                      placeholder={storedAngelConfig?.hasPin ? "•••• (Stored in Vault)" : "4-digit trading PIN"}
                       maxLength={6}
                       className="w-full bg-[#060c1c] border border-[#1e3a6e] text-white p-2 rounded-lg focus:border-cyan-400 focus:outline-none pr-8"
-                      required
                     />
                     <button
                       type="button"
@@ -542,14 +660,8 @@ export default function BrokerAccountsView({ brokerConnections, onUpdateBroker }
                     <label className="text-slate-400 text-[10px] uppercase font-sans font-semibold">
                       Live TOTP Code <span className="text-rose-400">*</span>
                     </label>
-                    <span
-                      className="text-[9px] text-cyan-400 font-sans cursor-pointer hover:underline"
-                      onClick={() => {
-                        const randomTotp = String(Math.floor(100000 + Math.random() * 900000));
-                        setAngelForm({ ...angelForm, totp: randomTotp });
-                      }}
-                    >
-                      Generate Mock TOTP
+                    <span className="text-[9px] text-slate-400 font-sans">
+                      Authenticator 6-digit rolling code
                     </span>
                   </div>
                   <input
@@ -559,7 +671,6 @@ export default function BrokerAccountsView({ brokerConnections, onUpdateBroker }
                     placeholder="6-digit Authenticator TOTP"
                     maxLength={6}
                     className="w-full mt-1 bg-[#060c1c] border border-[#1e3a6e] text-white p-2 rounded-lg focus:border-cyan-400 focus:outline-none tracking-widest text-center font-bold text-cyan-300"
-                    required
                   />
                 </div>
               </div>
@@ -572,27 +683,57 @@ export default function BrokerAccountsView({ brokerConnections, onUpdateBroker }
                   type="text"
                   value={angelForm.totpSecret}
                   onChange={(e) => setAngelForm({ ...angelForm, totpSecret: e.target.value })}
-                  placeholder="Base32 TOTP secret string from Angel One"
+                  placeholder={storedAngelConfig?.hasTotpSecret ? "•••••••••••••••• (Stored in Vault — Leave blank to keep)" : "Base32 TOTP secret string from Angel One"}
                   className="w-full mt-1 bg-[#060c1c] border border-[#1e3a6e] text-slate-300 p-2 rounded-lg focus:border-cyan-400 focus:outline-none text-[11px]"
                 />
               </div>
 
-              {/* Action Buttons */}
-              <div className="pt-2 flex items-center gap-3">
+              {/* Stored Vault Status Indicator */}
+              {storedAngelConfig?.clientId && (
+                <div className="p-2.5 rounded-lg bg-[#0b162c] border border-cyan-500/30 text-xs font-mono text-slate-300 flex items-center justify-between">
+                  <span>Client Code: <strong className="text-cyan-300">{storedAngelConfig.clientId}</strong></span>
+                  <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                    <Check className="w-3 h-3" /> Stored in AES-256-GCM Vault
+                  </span>
+                </div>
+              )}
+
+              {/* Action Buttons: Test Connection, Save to Vault, Connect & Verify */}
+              <div className="pt-2 flex flex-wrap items-center gap-2 justify-end">
+                <button
+                  type="button"
+                  onClick={handleTestAngelOne}
+                  disabled={actionLoading === 'testing'}
+                  className="px-3.5 py-2 rounded-xl bg-[#0d1e3d] hover:bg-[#122852] text-cyan-300 border border-cyan-500/40 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Zap className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>{actionLoading === 'testing' ? 'Testing...' : 'Test Connection'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveAngelOne}
+                  disabled={actionLoading === 'saving'}
+                  className="px-3.5 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-400/60 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Lock className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>{actionLoading === 'saving' ? 'Saving...' : 'Save Credentials'}</span>
+                </button>
+
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500/25 via-blue-600/30 to-cyan-500/25 hover:from-cyan-500/40 hover:to-blue-600/50 text-cyan-300 border border-cyan-400/60 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_18px_rgba(0,240,255,0.3)] transition-all cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-500 text-black hover:opacity-90 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(0,240,255,0.3)] transition-all cursor-pointer disabled:opacity-50"
                 >
                   {isLoading ? (
                     <>
-                      <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
-                      <span>Authenticating with SmartAPI...</span>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Authenticating...</span>
                     </>
                   ) : (
                     <>
-                      <Zap className="w-4 h-4 text-cyan-400" />
-                      <span>Connect & Verify</span>
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Connect Session</span>
                     </>
                   )}
                 </button>
@@ -624,7 +765,7 @@ export default function BrokerAccountsView({ brokerConnections, onUpdateBroker }
                       }
                       setStatusMessage({ type: 'error', text: 'Angel One SmartAPI session disconnected.' });
                     }}
-                    className="px-4 py-2.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-400 font-bold text-xs transition-colors"
+                    className="px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-400 font-bold text-xs transition-colors"
                   >
                     Disconnect
                   </button>

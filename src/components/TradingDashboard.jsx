@@ -55,6 +55,7 @@ import {
 import { calculateDynamicKellyPositionSize } from '../utils/kellyPositionSizer';
 import { evaluate14BotQuorumConsensus, QUORUM_DECISION_TYPES } from '../utils/quorumConsensusEngine';
 import { validateNetProfitGuardrail, calculateTradeCharges, INSTITUTIONAL_HURDLE_ROI_PCT } from '../utils/taxCalculator';
+import { getPaperCapital, CAPITAL_DISCLAIMER } from '../utils/capitalConfig';
 
 // Initial Intraday Equity Curve (Mock Indian Market 09:15 - 15:30)
 const generateInitialEquityData = () => {
@@ -64,7 +65,7 @@ const generateInitialEquityData = () => {
     '13:15', '13:30', '13:45', '14:00', '14:15', '14:30', '14:45', '15:00', '15:15'
   ];
 
-  const baseCapital = getPaperCapital();
+  const baseCapital = typeof getPaperCapital === 'function' ? getPaperCapital() : 100000;
   let currentEquity = baseCapital;
   let benchmarkVal = baseCapital;
 

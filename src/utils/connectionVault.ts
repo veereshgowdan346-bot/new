@@ -254,6 +254,7 @@ export class ConnectionVaultService {
   }> {
     const existingCreds = this.getDecryptedCredentials(userId, provider) || {};
     const creds: Record<string, any> = { ...existingCreds };
+    let hasActiveOverrides = false;
     
     if (overrideCredentials && typeof overrideCredentials === 'object') {
       for (const [k, v] of Object.entries(overrideCredentials)) {
