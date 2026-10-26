@@ -57,10 +57,32 @@ export default function ConnectionsView() {
     try {
       const res = await apiFetch('/api/connections/status');
       const data = res?.connections || (typeof res.json === 'function' ? (await res.clone().json())?.connections : null);
-      if (Array.isArray(data)) {
-        setConnections(data);
-      } else if (Array.isArray(res?.connections)) {
-        setConnections(res.connections);
+      const connList = Array.isArray(data) ? data : (Array.isArray(res?.connections) ? res.connections : null);
+      if (connList) {
+        setConnections(connList);
+        // Hydrate non-secret fields so navigating between views preserves visible parameters
+        setForms((prev) => {
+          const next = { ...prev };
+          connList.forEach((c) => {
+            const sc = c.sanitizedConfig || {};
+            if (c.provider === 'telegram') {
+              if (sc.botUsername && !next.telegram.botUsername) {
+                next.telegram.botUsername = sc.botUsername;
+              }
+              if (sc.allowedChatIds && !next.telegram.allowedChatIds) {
+                next.telegram.allowedChatIds = Array.isArray(sc.allowedChatIds) ? sc.allowedChatIds.join(', ') : String(sc.allowedChatIds);
+              }
+            } else if (c.provider === 'ollama') {
+              if (sc.endpointUrl && (!next.ollama.endpointUrl || next.ollama.endpointUrl === 'http://127.0.0.1:11434')) {
+                next.ollama.endpointUrl = sc.endpointUrl;
+              }
+              if (sc.modelName && (!next.ollama.modelName || next.ollama.modelName === 'llama3')) {
+                next.ollama.modelName = sc.modelName;
+              }
+            }
+          });
+          return next;
+        });
       }
     } catch {
       // Offline or server initializing
@@ -114,7 +136,7 @@ export default function ConnectionsView() {
 
     // Validation checks
     if (provider === 'angel_one') {
-      const hasStored = Boolean(conn.sanitizedConfig?.clientId);
+      const hasStored = Boolean(conn.sanitizedConfig?.clientId || conn.sanitizedConfig?.hasApiKey);
       if (!hasStored && (!f.apiKey || !f.clientId || !f.pin || !f.totpSecret)) {
         try {
           toastEmitter.emitToast({
@@ -650,7 +672,7 @@ export default function ConnectionsView() {
                 <div className="relative">
                   <input
                     type={showSecrets['angel_apiKey'] ? 'text' : 'password'}
-                    placeholder="Enter SmartAPI Key"
+                    placeholder={angelConn.sanitizedConfig?.hasApiKey ? "•••••••••••• (Stored in Vault — Leave blank to keep)" : "Enter SmartAPI Key"}
                     value={forms.angel_one.apiKey}
                     onChange={(e) => handleInputChange('angel_one', 'apiKey', e.target.value)}
                     className="w-full bg-[#050b18] border border-[#1c3560] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400 font-mono pr-9"
@@ -673,7 +695,7 @@ export default function ConnectionsView() {
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. V346892"
+                    placeholder={angelConn.sanitizedConfig?.clientId ? `${angelConn.sanitizedConfig.clientId} (Stored in Vault)` : "e.g. V346892"}
                     value={forms.angel_one.clientId}
                     onChange={(e) => handleInputChange('angel_one', 'clientId', e.target.value)}
                     className="w-full bg-[#050b18] border border-[#1c3560] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400 font-mono"
@@ -687,7 +709,7 @@ export default function ConnectionsView() {
                     <input
                       type={showSecrets['angel_pin'] ? 'text' : 'password'}
                       maxLength={4}
-                      placeholder="••••"
+                      placeholder={angelConn.sanitizedConfig?.hasPin ? "•••• (Stored)" : "••••"}
                       value={forms.angel_one.pin}
                       onChange={(e) => handleInputChange('angel_one', 'pin', e.target.value)}
                       className="w-full bg-[#050b18] border border-[#1c3560] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400 font-mono text-center tracking-widest pr-8"
@@ -710,7 +732,7 @@ export default function ConnectionsView() {
                 <div className="relative">
                   <input
                     type={showSecrets['angel_totp'] ? 'text' : 'password'}
-                    placeholder="Enter Base32 Secret from SmartAPI portal"
+                    placeholder={angelConn.sanitizedConfig?.hasTotpSecret ? "•••••••••••••••• (Stored in Vault — Leave blank to keep)" : "Enter Base32 Secret from SmartAPI portal"}
                     value={forms.angel_one.totpSecret}
                     onChange={(e) => handleInputChange('angel_one', 'totpSecret', e.target.value)}
                     className="w-full bg-[#050b18] border border-[#1c3560] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400 font-mono pr-9"
@@ -844,7 +866,7 @@ export default function ConnectionsView() {
                 <div className="relative">
                   <input
                     type={showSecrets['tg_token'] ? 'text' : 'password'}
-                    placeholder="e.g. 123456789:ABCdefGHIjklMNOpqrSTUvwxYZ (from @BotFather)"
+                    placeholder={tgConn.sanitizedConfig?.maskedToken ? `${tgConn.sanitizedConfig.maskedToken} (Stored in Vault — Leave blank to keep)` : "e.g. 123456789:ABCdefGHIjklMNOpqrSTUvwxYZ (from @BotFather)"}
                     value={forms.telegram.botToken}
                     onChange={(e) => handleInputChange('telegram', 'botToken', e.target.value)}
                     className="w-full bg-[#050b18] border border-[#1c3560] rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-400 font-mono pr-9"

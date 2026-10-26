@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { apiFetch } from '../../utils/api';
 import {
   LineChart,
   Search,
@@ -37,12 +38,29 @@ export default function MarketWatchView({
   const [customCapitalInput, setCustomCapitalInput] = useState('6000');
   const [showScalingDrawer, setShowScalingDrawer] = useState(false);
 
+  useEffect(() => {
+    let isMounted = true;
+    apiFetch('/api/watchlist').then((res) => {
+      if (!isMounted) return;
+      if (res && Array.isArray(res.favorites) && res.favorites.length > 0) {
+        setFavorites(res.favorites);
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
   const toggleFav = (symbol) => {
-    if (favorites.includes(symbol)) {
-      setFavorites(favorites.filter((s) => s !== symbol));
-    } else {
-      setFavorites([...favorites, symbol]);
-    }
+    setFavorites((prev) => {
+      const next = prev.includes(symbol)
+        ? prev.filter((s) => s !== symbol)
+        : [...prev, symbol];
+      apiFetch('/api/watchlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ favorites: next })
+      }).catch(() => {});
+      return next;
+    });
   };
 
   // Merge live tickers and bots into universe to preserve real-time sync

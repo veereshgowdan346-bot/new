@@ -72,14 +72,18 @@ export default function RiskManagementView({
   const fetchWatchdogStatus = async () => {
     try {
       const res = await apiFetch('/api/rms/status');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.config) {
-          setWatchdogData({
-            ...data.config,
-            actions_logged: data.actions_logged || []
-          });
-        }
+      const data = res?.config ? res : (typeof res.json === 'function' ? await res.clone().json() : null);
+      if (data?.config) {
+        setWatchdogData({
+          ...data.config,
+          actions_logged: data.actions_logged || []
+        });
+        setRiskSettings((prev) => ({
+          ...prev,
+          maxDailyLoss: data.config.max_daily_loss ?? prev.maxDailyLoss,
+          trailingDrawdown: data.config.max_drawdown_pct ?? prev.trailingDrawdown,
+          circuitBreakerActive: data.config.circuit_breaker_active ?? prev.circuitBreakerActive
+        }));
       }
     } catch (e) {}
   };

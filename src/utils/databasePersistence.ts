@@ -235,6 +235,12 @@ export class DatabasePersistenceService {
           ip_address TEXT,
           timestamp TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS system_settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
       `);
       console.log(`[DB PERSISTENCE] SQLite database initialized at: ${this.dbPath}`);
     } catch (err) {
@@ -418,7 +424,10 @@ export class DatabasePersistenceService {
         INSERT INTO bots (id, name, asset, price, allocatedCapital, pnlToday, winRate, trades, status, worker_running, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(id) DO UPDATE SET
+          name = excluded.name,
+          asset = excluded.asset,
           price = excluded.price,
+          allocatedCapital = excluded.allocatedCapital,
           pnlToday = excluded.pnlToday,
           winRate = excluded.winRate,
           trades = excluded.trades,
@@ -666,6 +675,61 @@ export class DatabasePersistenceService {
     } catch (e) {
       console.warn('[DB] Failed to load audit logs:', e);
       return [];
+    }
+  }
+
+  // --- System Settings (Key/Value Persistence) ---
+  public getSetting<T = any>(key: string, defaultValue?: T): T | null {
+    if (!this.db) return defaultValue ?? null;
+    try {
+      const stmt = this.db.prepare('SELECT value FROM system_settings WHERE key = ?');
+      const row = stmt.get(key) as any;
+      if (!row || row.value === undefined || row.value === null) return defaultValue ?? null;
+      try {
+        return JSON.parse(row.value) as T;
+      } catch {
+        return row.value as unknown as T;
+      }
+    } catch (e) {
+      console.warn(`[DB] Failed to load setting '${key}':`, e);
+      return defaultValue ?? null;
+    }
+  }
+
+  public setSetting(key: string, value: any): void {
+    if (!this.db) return;
+    try {
+      const serialized = typeof value === 'string' ? JSON.stringify(value) : JSON.stringify(value);
+      const stmt = this.db.prepare(`
+        INSERT INTO system_settings (key, value, updated_at)
+        VALUES (?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(key) DO UPDATE SET
+          value = excluded.value,
+          updated_at = CURRENT_TIMESTAMP
+      `);
+      stmt.run(key, serialized);
+    } catch (e) {
+      console.warn(`[DB] Failed to set setting '${key}':`, e);
+    }
+  }
+
+  public getAllSettings(): Record<string, any> {
+    if (!this.db) return {};
+    try {
+      const stmt = this.db.prepare('SELECT key, value FROM system_settings');
+      const rows = stmt.all() as any[];
+      const result: Record<string, any> = {};
+      for (const row of rows) {
+        try {
+          result[row.key] = JSON.parse(row.value);
+        } catch {
+          result[row.key] = row.value;
+        }
+      }
+      return result;
+    } catch (e) {
+      console.warn('[DB] Failed to load all settings:', e);
+      return {};
     }
   }
 

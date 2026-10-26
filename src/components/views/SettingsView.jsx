@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { apiFetch } from '../../utils/api';
 import {
   Settings,
   Server,
@@ -44,14 +45,53 @@ export default function SettingsView({
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [testStatus, setTestStatus] = useState('');
 
-  const handleSave = (e) => {
+  useEffect(() => {
+    let isMounted = true;
+    apiFetch('/api/settings').then((res) => {
+      if (!isMounted) return;
+      const s = res?.settings || res;
+      if (s) {
+        if (s.wsUrl) setWsUrl(s.wsUrl);
+        if (s.restUrl) setRestUrl(s.restUrl);
+        if (s.soundAlerts !== undefined) setSoundAlerts(Boolean(s.soundAlerts));
+        if (s.telegramToken) setTelegramToken(s.telegramToken);
+        if (s.telegramChatId) setTelegramChatId(s.telegramChatId);
+        if (s.telegramAlertsEnabled !== undefined) setTelegramAlertsEnabled(Boolean(s.telegramAlertsEnabled));
+        if (s.telegramRemoteControl !== undefined) setTelegramRemoteControl(Boolean(s.telegramRemoteControl));
+      }
+    }).catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
+
+  const handleSave = async (e) => {
     e?.preventDefault();
     setSavedSuccess(true);
-    toastEmitter.emitToast({
-      title: 'Settings Saved',
-      message: 'System parameters, broker credentials, and remote channels persisted.',
-      type: 'success'
-    });
+    try {
+      await apiFetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          wsUrl,
+          restUrl,
+          soundAlerts,
+          telegramToken,
+          telegramChatId,
+          telegramAlertsEnabled,
+          telegramRemoteControl
+        })
+      });
+      toastEmitter.emitToast({
+        title: 'Settings Saved',
+        message: 'System parameters and remote channels persisted to SQLite storage.',
+        type: 'success'
+      });
+    } catch (err) {
+      toastEmitter.emitToast({
+        title: 'Settings Saved (Local)',
+        message: 'System parameters kept in current session.',
+        type: 'info'
+      });
+    }
     setTimeout(() => setSavedSuccess(false), 2500);
   };
 

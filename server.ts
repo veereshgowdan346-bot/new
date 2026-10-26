@@ -133,6 +133,37 @@ const defaultBots = [
 try {
   runtimeDb.init();
   userAuthService.ensureMasterUser();
+  // Sync 14 canonical bots with SQLite persistence
+  const dbBots = runtimeDb.getBots();
+  if (dbBots && dbBots.length > 0) {
+    dbBots.forEach((dbBot) => {
+      const match = defaultBots.find((b) => b.id === dbBot.id);
+      if (match) {
+        match.allocatedCapital = dbBot.allocatedCapital;
+        match.status = dbBot.status;
+        match.worker_running = dbBot.worker_running;
+        match.pnlToday = dbBot.pnlToday;
+        match.winRate = dbBot.winRate;
+        match.trades = dbBot.trades;
+      }
+    });
+  } else {
+    // Seed default bots in SQLite
+    defaultBots.forEach((b) => {
+      runtimeDb.upsertBot({
+        id: b.id,
+        name: b.name,
+        asset: b.asset,
+        price: b.price,
+        allocatedCapital: b.allocatedCapital,
+        pnlToday: b.pnlToday,
+        winRate: b.winRate,
+        trades: b.trades,
+        status: b.status,
+        worker_running: b.worker_running
+      });
+    });
+  }
 } catch (e) {
   console.warn('[SERVER] Database init warning:', e);
 }
@@ -1040,7 +1071,7 @@ app.post('/api/master-brain/decision', (req: Request, res: Response) => {
 // ADVANCED MAX DRAWDOWN & RISK GUARD (AUTONOMOUS CIRCUIT BREAKER WATCHDOG)
 // ============================================================================
 
-const rmsGuardConfig = {
+const defaultRmsConfig = {
   max_intraday_drawdown_pct: 2.5,
   max_daily_loss: 25000,
   trailing_stop_loss_pct: 1.5,
@@ -1060,6 +1091,9 @@ const rmsGuardConfig = {
     }
   ] as any[]
 };
+
+const savedRmsConfig = runtimeDb.getSetting('rms_config');
+const rmsGuardConfig = savedRmsConfig ? { ...defaultRmsConfig, ...savedRmsConfig } : defaultRmsConfig;
 
 function triggerAutonomousRmsLiquidation(reason: string) {
   emergencyStopActive = true;
@@ -1216,6 +1250,7 @@ app.post('/api/rms/configure-guard', (req: Request, res: Response) => {
     details: `Loss Limit: ₹${rmsGuardConfig.max_daily_loss}, Max DD: ${rmsGuardConfig.max_intraday_drawdown_pct}%, Auto Square-Off: ${rmsGuardConfig.auto_square_off_enabled}`
   });
 
+  runtimeDb.setSetting('rms_config', rmsGuardConfig);
   broadcast({ type: 'RMS_CONFIG_UPDATED', config: rmsGuardConfig });
 
   res.json({
@@ -1283,10 +1318,150 @@ app.post(['/api/rms/reset', '/api/rms/reset-circuit-breaker'], (_req: Request, r
 
 app.post('/api/rms/settings', (req: Request, res: Response) => {
   const { max_daily_loss, max_capital_per_bot, trailing_drawdown_limit } = req.body;
-  if (max_daily_loss) rmsGuardConfig.max_daily_loss = Number(max_daily_loss);
-  if (trailing_drawdown_limit) rmsGuardConfig.max_intraday_drawdown_pct = Number(trailing_drawdown_limit);
+  if (max_daily_loss !== undefined) rmsGuardConfig.max_daily_loss = Number(max_daily_loss);
+  if (trailing_drawdown_limit !== undefined) rmsGuardConfig.max_intraday_drawdown_pct = Number(trailing_drawdown_limit);
+  runtimeDb.setSetting('rms_config', rmsGuardConfig);
 
-  res.json({ status: 'success', message: 'RMS settings updated.', settings: req.body });
+  res.json({ status: 'success', message: 'RMS settings updated and persisted to SQLite.', settings: req.body });
+});
+
+// System Settings API (SQLite WAL Persistent)
+app.get('/api/settings', (_req: Request, res: Response) => {
+  const defaultSettings = {
+    simulationEnabled: true,
+    tickInterval: 2000,
+    soundAlerts: true,
+    wsUrl: '/chintu-feed',
+    restUrl: '/api',
+    telegramAlertsEnabled: true,
+    telegramRemoteControl: true,
+    telegramToken: '7819284912:AAH9f0q2j9...',
+    telegramChatId: '6912523089',
+    updatedAt: new Date().toISOString()
+  };
+  const settings = runtimeDb.getSetting('system_settings', defaultSettings);
+  res.json({ status: 'success', settings: { ...defaultSettings, ...settings } });
+});
+
+app.post('/api/settings', (req: Request, res: Response) => {
+  const current = runtimeDb.getSetting('system_settings', {}) || {};
+  const updated = {
+    ...current,
+    ...req.body,
+    updatedAt: new Date().toISOString()
+  };
+  runtimeDb.setSetting('system_settings', updated);
+  res.json({ status: 'success', message: 'Settings saved to SQLite persistent storage.', settings: updated });
+});
+
+// Watchlist API (SQLite WAL Persistent)
+app.get('/api/watchlist', (_req: Request, res: Response) => {
+  const defaultFavorites = ['NIFTY 50', 'BANK NIFTY', 'GOLD', 'RELIANCE'];
+  const favorites = runtimeDb.getSetting('watchlist', defaultFavorites);
+  res.json({ status: 'success', favorites: Array.isArray(favorites) ? favorites : defaultFavorites });
+});
+
+app.post('/api/watchlist', (req: Request, res: Response) => {
+  const { favorites } = req.body;
+  if (Array.isArray(favorites)) {
+    runtimeDb.setSetting('watchlist', favorites);
+    return res.json({ status: 'success', favorites });
+  }
+  res.status(400).json({ status: 'error', message: 'Favorites must be an array of symbols.' });
+});
+
+// Bot Management APIs (SQLite WAL Persistent)
+app.post('/api/bots/toggle', (req: Request, res: Response) => {
+  const { botId } = req.body;
+  const bot = defaultBots.find((b) => b.id === Number(botId));
+  if (!bot) {
+    return res.status(404).json({ status: 'error', message: 'Bot not found.' });
+  }
+  bot.worker_running = !bot.worker_running;
+  bot.status = bot.worker_running ? 'RUNNING' : 'PAUSED';
+  runtimeDb.upsertBot({
+    id: bot.id,
+    name: bot.name,
+    asset: bot.asset,
+    price: bot.price,
+    allocatedCapital: bot.allocatedCapital,
+    pnlToday: bot.pnlToday,
+    winRate: bot.winRate,
+    trades: bot.trades,
+    status: bot.status,
+    worker_running: bot.worker_running
+  });
+  broadcast({ type: 'BOT_STATUS_CHANGED', botId: bot.id, status: bot.status, worker_running: bot.worker_running });
+  res.json({ status: 'success', bot });
+});
+
+app.post('/api/bots/update', (req: Request, res: Response) => {
+  const { botId, allocatedCapital, status } = req.body;
+  const bot = defaultBots.find((b) => b.id === Number(botId));
+  if (!bot) {
+    return res.status(404).json({ status: 'error', message: 'Bot not found.' });
+  }
+  if (allocatedCapital !== undefined) bot.allocatedCapital = Number(allocatedCapital);
+  if (status !== undefined) {
+    bot.status = status;
+    bot.worker_running = status === 'RUNNING';
+  }
+  runtimeDb.upsertBot({
+    id: bot.id,
+    name: bot.name,
+    asset: bot.asset,
+    price: bot.price,
+    allocatedCapital: bot.allocatedCapital,
+    pnlToday: bot.pnlToday,
+    winRate: bot.winRate,
+    trades: bot.trades,
+    status: bot.status,
+    worker_running: bot.worker_running
+  });
+  broadcast({ type: 'BOT_UPDATED', bot });
+  res.json({ status: 'success', bot });
+});
+
+app.post('/api/bots/start-all', (_req: Request, res: Response) => {
+  defaultBots.forEach((b) => {
+    b.worker_running = true;
+    b.status = 'RUNNING';
+    runtimeDb.upsertBot({
+      id: b.id,
+      name: b.name,
+      asset: b.asset,
+      price: b.price,
+      allocatedCapital: b.allocatedCapital,
+      pnlToday: b.pnlToday,
+      winRate: b.winRate,
+      trades: b.trades,
+      status: b.status,
+      worker_running: true
+    });
+  });
+  broadcast({ type: 'ALL_BOTS_STARTED' });
+  res.json({ status: 'success', message: 'All 14 bots started and saved to SQLite.' });
+});
+
+app.post('/api/bots/stop-all', (_req: Request, res: Response) => {
+  defaultBots.forEach((b) => {
+    b.worker_running = false;
+    b.status = 'PAUSED';
+    runtimeDb.upsertBot({
+      id: b.id,
+      name: b.name,
+      asset: b.asset,
+      price: b.price,
+      allocatedCapital: b.allocatedCapital,
+      pnlToday: b.pnlToday,
+      winRate: b.winRate,
+      trades: b.trades,
+      status: b.status,
+      worker_running: false
+    });
+  });
+  broadcast({ type: 'ALL_BOTS_STOPPED' });
+  res.json({ status: 'success', message: 'All 14 bots paused and saved to SQLite.' });
 });
 
 // Broker Status & Connection Conduits

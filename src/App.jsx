@@ -732,7 +732,7 @@ export default function App() {
   // Authentic Trade Ingestion: Strictly driven by backend paper session engine via WebSocket
   // No synthetic mock timers permitted
 
-  // Global Start/Stop All Bots
+  // Global Start/Stop All Bots (Synchronized with SQLite Persistence)
   const handleStartAllBots = () => {
     setAllBotsRunning(true);
     setBots((prev) => {
@@ -744,6 +744,7 @@ export default function App() {
       }
       return next;
     });
+    apiFetch('/api/bots/start-all', { method: 'POST' }).catch(() => {});
     soundEngine.playBuyChime();
   };
 
@@ -758,10 +759,11 @@ export default function App() {
       }
       return next;
     });
+    apiFetch('/api/bots/stop-all', { method: 'POST' }).catch(() => {});
     soundEngine.playSellChime();
   };
 
-  // Toggle individual bot status
+  // Toggle individual bot status (Synchronized with SQLite Persistence)
   const handleToggleBotStatus = (botId) => {
     setBots((prev) => {
       const next = prev.map((b) => {
@@ -778,6 +780,11 @@ export default function App() {
       }
       return next;
     });
+    apiFetch('/api/bots/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ botId })
+    }).catch(() => {});
   };
 
   const handleQuickAction = (bot) => {

@@ -252,13 +252,32 @@ export class ConnectionVaultService {
     sessionTokens?: any;
     verifiedCapabilities?: string[];
   }> {
-    const creds = overrideCredentials || this.getDecryptedCredentials(userId, provider);
+    const existingCreds = this.getDecryptedCredentials(userId, provider) || {};
+    const creds: Record<string, any> = { ...existingCreds };
+    
+    if (overrideCredentials && typeof overrideCredentials === 'object') {
+      for (const [k, v] of Object.entries(overrideCredentials)) {
+        if (typeof v === 'string') {
+          const trimmed = v.trim();
+          const isMasked = trimmed.includes('*') || trimmed.includes('\u2022') || trimmed.includes('•') || trimmed.includes('●');
+          if (trimmed.length > 0 && !isMasked) {
+            creds[k] = trimmed;
+            hasActiveOverrides = true;
+          }
+        } else if (v !== undefined && v !== null) {
+          creds[k] = v;
+          hasActiveOverrides = true;
+        }
+      }
+    }
+
+    const isCandidateTest = overrideCredentials !== undefined;
     const now = new Date().toISOString();
     const existing = runtimeDb.getConnection(userId, provider);
 
     if (!creds || Object.keys(creds).length === 0) {
       const err = `No credentials configured for ${provider}. Please provide required fields first.`;
-      if (!overrideCredentials && existing) {
+      if (!isCandidateTest && existing) {
         runtimeDb.upsertConnection({
           ...existing,
           status: 'ERROR',
@@ -468,7 +487,7 @@ export class ConnectionVaultService {
         }
       }
 
-      if (!overrideCredentials && existing) {
+      if (!isCandidateTest && existing) {
         runtimeDb.upsertConnection({
           ...existing,
           status: resolvedStatus,
@@ -482,7 +501,7 @@ export class ConnectionVaultService {
         id: `aud_${crypto.randomBytes(8).toString('hex')}`,
         userId,
         action: `CONNECTION_TEST_${provider.toUpperCase()}`,
-        details: `Result: ${isVerified ? 'SUCCESS' : 'FAILED'} (Status: ${resolvedStatus}${overrideCredentials ? ', pre-save test' : ''}). Message: ${verificationMsg}`,
+        details: `Result: ${isVerified ? 'SUCCESS' : 'FAILED'} (Status: ${resolvedStatus}${isCandidateTest ? ', pre-save test' : ''}). Message: ${verificationMsg}`,
         timestamp: now
       });
 
@@ -496,7 +515,7 @@ export class ConnectionVaultService {
       };
     } catch (err: any) {
       const errMsg = err?.message || 'Verification test failed.';
-      if (!overrideCredentials && existing) {
+      if (!isCandidateTest && existing) {
         runtimeDb.upsertConnection({
           ...existing,
           status: 'ERROR',
