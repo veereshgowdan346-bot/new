@@ -26,6 +26,10 @@ import { indianFundamentalAnalyst } from './src/utils/indianFundamentalAnalyst';
 import { userAuthService, AuthenticatedRequest } from './src/utils/userAuth';
 import { connectionVault, ProviderType } from './src/utils/connectionVault';
 import { cryptoVault } from './src/utils/cryptoVault';
+import { strategyRegistry } from './src/utils/strategyRegistry';
+import { telegramAlertManager } from './src/utils/telegramAlerts';
+import { browserOperator } from './src/utils/browserOperator';
+import { jarvisMasterController } from './src/utils/jarvisMasterController';
 
 const app = express();
 const server = http.createServer(app);
@@ -579,6 +583,120 @@ app.post('/api/jarvis/review', async (req: Request, res: Response) => {
   );
   res.json({
     status: 'success',
+    ...result
+  });
+});
+
+// 20 QUANTITATIVE STRATEGY REGISTRY & EVALUATION ENDPOINTS
+app.get('/api/strategies', (_req: Request, res: Response) => {
+  res.json({
+    status: 'success',
+    strategies: strategyRegistry.getAllStrategies()
+  });
+});
+
+app.post('/api/strategies/evaluate', (req: Request, res: Response) => {
+  const { symbol, price, candles, depth, newsSentiment, marketState, availableCapital } = req.body;
+  if (!symbol) {
+    return res.status(400).json({ status: 'error', message: 'Symbol is required for strategy evaluation.' });
+  }
+  const results = strategyRegistry.evaluateAll({
+    symbol: String(symbol),
+    price: Number(price) || 100,
+    candles,
+    depth,
+    newsSentiment,
+    marketState,
+    availableCapital: availableCapital ? Number(availableCapital) : undefined
+  });
+  res.json({
+    status: 'success',
+    ...results
+  });
+});
+
+// JARVIS MASTER CONTROLLER TRADE & CAPITAL AUTHORIZATION
+app.post('/api/jarvis/propose', (req: Request, res: Response) => {
+  const { symbol, action, price, capital, minDesiredNetProfit, stopLossPct, targetProfitPct } = req.body;
+  if (!symbol || !action) {
+    return res.status(400).json({ status: 'error', message: 'symbol and action are required.' });
+  }
+  const proposal = jarvisMasterController.generateTradeAuthorizationProposal({
+    symbol: String(symbol),
+    action: action.toUpperCase() === 'SELL' ? 'SELL' : 'BUY',
+    price: Number(price) || 100,
+    capital: capital ? Number(capital) : 100000,
+    minDesiredNetProfit: minDesiredNetProfit ? Number(minDesiredNetProfit) : 60,
+    stopLossPct: stopLossPct ? Number(stopLossPct) : 1.5,
+    targetProfitPct: targetProfitPct ? Number(targetProfitPct) : 3.0
+  });
+  res.json({
+    status: 'success',
+    proposal
+  });
+});
+
+app.post('/api/jarvis/authorize', (req: Request, res: Response) => {
+  const { proposalId, decision } = req.body;
+  if (!proposalId || !decision) {
+    return res.status(400).json({ status: 'error', message: 'proposalId and decision are required.' });
+  }
+  const result = jarvisMasterController.authorizeTradeProposal(
+    String(proposalId),
+    decision.toUpperCase() as 'APPROVED' | 'REJECTED' | 'CANCELLED'
+  );
+  res.json({
+    status: result.success ? 'success' : 'error',
+    ...result
+  });
+});
+
+// TELEGRAM MONITORING & INSTITUTIONAL ALERT ENDPOINTS
+app.post('/api/alerts/telegram/dispatch', async (req: Request, res: Response) => {
+  const { eventType, severity, component, summary, observedEvidence, recommendedAction, force } = req.body;
+  if (!eventType || !component || !summary) {
+    return res.status(400).json({ status: 'error', message: 'eventType, component, and summary are required.' });
+  }
+  const result = await telegramAlertManager.dispatchAlert(
+    {
+      eventType,
+      severity: severity || 'INFO',
+      component,
+      summary,
+      observedEvidence: observedEvidence || 'No additional evidence provided',
+      recommendedAction: recommendedAction || 'Inspect telemetry'
+    },
+    { force: Boolean(force) }
+  );
+  res.json({
+    status: 'success',
+    ...result
+  });
+});
+
+app.get('/api/alerts/telegram/history', (_req: Request, res: Response) => {
+  res.json({
+    status: 'success',
+    recentAlerts: telegramAlertManager.getRecentAlerts(50),
+    failedAlerts: telegramAlertManager.getFailedAlerts()
+  });
+});
+
+// BROWSER & CHROMIUM RESEARCH OPERATOR ENDPOINT
+app.post('/api/browser/execute', async (req: Request, res: Response) => {
+  const { taskType, targetUrl, searchQuery, userApproved, timeoutMs } = req.body;
+  if (!taskType || !targetUrl) {
+    return res.status(400).json({ status: 'error', message: 'taskType and targetUrl are required.' });
+  }
+  const result = await browserOperator.executeTask({
+    taskType,
+    targetUrl,
+    searchQuery,
+    userApproved: Boolean(userApproved),
+    timeoutMs: timeoutMs ? Number(timeoutMs) : undefined
+  });
+  res.json({
+    status: result.status === 'SUCCESS' ? 'success' : 'gated_or_error',
     ...result
   });
 });
