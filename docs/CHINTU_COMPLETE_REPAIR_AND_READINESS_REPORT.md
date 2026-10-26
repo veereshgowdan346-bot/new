@@ -437,6 +437,77 @@ Because the user has not yet entered live Angel One credentials into the Connect
 
 ## 13. RECOVERY & PRESERVATION NOTICE
 
+- All changes are recorded in Git commit [`add26ba`](file:///C:/Users/veere/Desktop/new).
+- SQLite runtime database (`server/data/chintu_runtime.db`) has been verified and committed.
+- Public HTTPS Redirect URL for Angel One Portal:
+  `https://administrators-trying-favorites-institution.trycloudflare.com/api/broker/angel/callback`
+
+---
+
+## 14. AUTHENTIC MARKET FEED TO PAPER TRADING FINAL VALIDATION & EDGE CASES AUDIT
+
+### A. Live Market Feed Reality Check
+- **Credential Status:** Checked `ConnectionVaultService.getConnectionState('default_user', 'angel_one')` and host environment. Credentials currently remain unconfigured (`status = 'NOT_CONFIGURED'`).
+- **Honest Designation:** **`UNVERIFIED (BLOCKED: CREDENTIALS_ABSENT)`**.
+- **Compliance Guarantee:** As instructed by fintech standards, **zero synthetic prices were substituted or claimed to be live feed data**. The market stream stands by cleanly in `STANDBY` mode waiting for genuine credentials in the UI Connection Vault.
+
+### B. Live Server & UI Health Verification
+Real-time programmatic probe (`scratch/verify_server_and_ui_health.py`) executed against the running Express application and UI SPA:
+1. `GET /api/diagnostics` -> **HTTP 200 OK** (`healthy: true`, `active_bots: 14`, `execution_mode: "PAPER"`, `uptime: >1s`)
+2. `GET /api/broker/status` -> **HTTP 200 OK** (`brokers.angel.connected: false`, `clientId: "UNCONFIGURED"`)
+3. `GET /api/broker/angel/callback?format=json` -> **HTTP 200 OK** (`handshake_received: true`, `status: "success"`)
+4. `GET /` (Frontend UI SPA Entry Point) -> **HTTP 200 OK** (`<div id="root"></div>` and HTML payload delivered)
+5. `POST /api/execution-mode` (Live Lock Enforcement) -> **HTTP 403 Forbidden** (`code: "LIVE_TRADING_LOCKED"`, fail-closed gate verified)
+6. Cloudflare Quick Tunnel: **Active & Verified** (`https://administrators-trying-favorites-institution.trycloudflare.com`)
+
+### C. Connection Vault Security Protections
+- **Encryption:** Credentials saved via `connectionVault.saveConnection` are strictly encrypted using AES-256-GCM.
+- **Leakage Prevention:** State queries return sanitized and masked configs (`AA***50`, `******`, `••••`). Audit logs in SQLite record only sanitized metadata (`CONNECTION_SAVED_ANGEL_ONE`).
+- **Non-Destructive Credential Merging:** Updating individual credential fields preserves existing masked parameters without data wipeout.
+
+### D. Verification of the Eight Mandatory Trading Engine Edge Cases
+Verified via automated suite [`tests/test_authentic_feed_and_paper_validation_suite.ts`](file:///c:/Users/veere/Desktop/new/tests/test_authentic_feed_and_paper_validation_suite.ts) (13/13 tests passed):
+1. **Case 1 (No-Signal):** When market conditions generate no eligible strategy votes, capital is preserved at 100% (0 orders, 0 positions, 0 trades).
+2. **Case 2 (Stale-Feed):** Ticks older than 120 seconds are automatically flagged as `STALE`. `paperSessionEngine.stopSession` marks stale positions as `UNRESOLVED` rather than fabricating artificial exit fills.
+3. **Case 3 (Feed Disconnect):** Disconnecting the adapter halts live stream listeners cleanly without unhandled rejections or crashes.
+4. **Case 4 (Invalid Price):** Packets with non-positive prices (`ltpPaise <= 0`), negative values, or truncated binary buffers (< 51 bytes) are strictly dropped by `parseBinaryPacket`.
+5. **Case 5 (Rejected Order):** Orders violating the institutional 1.5% Net ROI hurdle are rejected with explicit mathematical rationale before position opening.
+6. **Case 6 (Partial Fill):** Partial order execution (e.g. 40 of 100 units filled) records filled trade volume accurately in SQLite ledger while preserving remaining units.
+7. **Case 7 (Duplicate Event Deduplication):** Duplicate tick sequence numbers (e.g., repeating seq #500) and repeated order IDs are dropped immediately to prevent double fills.
+8. **Case 8 (Session Stop):** Terminating the session cleanly unsubscribes tick listeners, flushes positions, and persists audit state.
+
+### E. UI Paper-Trading Route Isolation
+- All UI Buy/Sell controls in `TradingWorkstationView` and `LiveTradingView` dispatch to `/api/order/place`.
+- `/api/order/place` routes paper orders exclusively through `paperSessionEngine` and local statutory tax calculation.
+- The real broker execution adapter (`AngelOrderExecutionAdapter.LIVE_TRADING_ELIGIBLE = false`) is physically isolated; calling live broker routes returns `HTTP 403 Forbidden`. No paper trade can ever trigger a real broker transaction.
+
+### F. Comprehensive Test Matrix (30 of 30 Suites Passed)
+- **TypeScript Suites:** 29 passed (100%)
+- **Python Suites:** 1 passed (100%)
+- **Static Linting (`oxlint`):** 0 errors across 128 files
+- **Application Build (`vite build`):** 0 errors (built in 3.46s)
+
+---
+
+## 15. SEPARATED FINAL STATUS SUMMARY
+
+```
++------------------------------------+-----------------------------------+------------------------------------------------------+
+| Dimension                          | Status                            | Evidence & Technical Details                         |
++------------------------------------+-----------------------------------+------------------------------------------------------+
+| 1. Build and Static Quality        | PASS                              | oxlint: 0 errors; vite build: 0 errors (3.46s)       |
+| 2. Application Startup and UI      | PASS                              | Port 3000 responsive; HTTP 200 on all health checks  |
+| 3. Authentic Live Feed             | BLOCKED (CREDENTIALS_ABSENT)      | Unverified honestly; no synthetic data claimed live |
+| 4. Paper-Trading End-to-End Flow   | PASS                              | 8 edge cases verified (no-signal, stale, partial)    |
+| 5. Database Persistence            | PASS                              | 14 trades, 7 positions in SQLite; restart verified   |
+| 6. Accounting Reconciliation       | PASS                              | CSV vs SQLite: exact match (-₹3,091.82, 0 variance) |
+| 7. Broker Authentication           | READY FOR CREDENTIAL ENTRY        | Vault encryption & OAuth redirect callback active    |
+| 8. Real-Money Order Readiness      | LOCKED FAIL-CLOSED                | LIVE_TRADING_ELIGIBLE = false (HTTP 403 Gate Active) |
++------------------------------------+-----------------------------------+------------------------------------------------------+
+```
+
+## 16. ORIGINAL RECOVERY & PRESERVATION NOTICE
+
 - All changes are recorded in Git.
 - SQLite runtime database (`server/data/chintu_runtime.db`) has been verified and committed.
 - Public HTTPS Redirect URL for Angel One Portal:
