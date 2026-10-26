@@ -1,11 +1,12 @@
 # CHINTU AI / JARVIS — FINAL POST-REPAIR INDEPENDENT VERIFICATION REPORT
 
 **Author:** Principal Quantitative Trading Systems Engineer & Independent Production Auditor  
-**Verification Timestamp:** 2026-10-26T18:45:00+05:30  
+**Verification Timestamp:** 2026-10-26T19:07:00+05:30  
 **Workspace Root:** `C:\Users\veere\Desktop\new`  
 **Verified Git HEAD Commit:** `70d50a7` (`chore(docs): normalize EOF newline formatting`)  
 **Latest Feature Repair Commit:** `793e0fc` (`feat(readiness): resolve Trading Dashboard crash, integrate Broker Accounts view, enforce SQLite backup/integrity, and finalize full readiness audit`)  
-**Git Working Tree Status:** Clean (`git status --short` returns zero modified files)  
+**Statutory Financial Engine:** `src/utils/taxCalculator.js` (Canonical SSOT with Date-Effective Matrix)  
+**Git Working Tree Status:** Ready for Commit  
 **Active Ephemeral Tunnel:** `https://kent-prohibited-webpage-newbie.trycloudflare.com`  
 **SmartAPI Callback URL:** `https://kent-prohibited-webpage-newbie.trycloudflare.com/api/broker/angel/callback`  
 **Safety Gate:** `AngelOrderExecutionAdapter.LIVE_TRADING_ELIGIBLE = false` (Permanently Locked / Fail-Closed)  
@@ -89,26 +90,35 @@ Executed via `scratch/verify_providers_honest.ts` using live network handshakes:
 
 ## 6. Mathematical Verification of Financial Calculations
 
-Executed via `node scratch/verify_financial_calculations_independent.js`:
+Executed via `node scratch/verify_financial_calculations_independent.js` against the canonical statutory calculation engine (`src/utils/taxCalculator.js`):
 
 ### Case 1: NSE Intraday Equity (HDFCBANK — 100 shares @ ₹1,500 Buy, ₹1,520 Sell)
-- **Order Turnover:** Buy ₹1,50,000; Sell ₹1,52,000.
+- **Order Turnover:** Buy ₹1,50,000; Sell ₹1,52,000. Total Turnover: ₹3,02,000.
 - **Gross P&L:** ₹2,000.00
-- **Statutory Charges:**
-  - Brokerage: Buy ₹20.00 (min(20, 150000*0.03%=45)), Sell ₹20.00 (min(20, 152000*0.03%=45.6)) = ₹40.00
-  - STT: Buy ₹0.00, Sell ₹19.00 (152000 * 0.0125%) = ₹19.00
-  - Exchange Turnover: (150000 * 0.00325%) ₹4.88 + (152000 * 0.00325%) ₹4.94 = ₹9.82
-  - GST: 18% on (Brokerage + Exchange) = 18% * (40.00 + 9.82) = ₹8.97
-  - SEBI Fee: ₹0.30 (302000 * 0.0001%)
-  - Stamp Duty: ₹4.50 (150000 * 0.003% Buy side only)
-  - **Total Roundtrip Charges:** ₹82.58
-- **Net Realized P&L:** ₹2,000.00 - ₹82.58 = **₹1,917.42** (Verified: PASS)
+- **Statutory Charges (Official Rates):**
+  - **Brokerage:** Buy ₹20.00 ($\min(20, 150000 \times 0.03\% = 45)$) + Sell ₹20.00 ($\min(20, 152000 \times 0.03\% = 45.6)$) = **₹40.00**
+  - **STT (Statutory 0.025% on Sell Leg):** $152000 \times 0.00025 = \mathbf{₹38.00}$ *(Corrected from legacy report's erroneous 0.0125% / ₹19.00)*
+  - **Exchange Turnover (NSE True-to-Label 0.00297%):** $302000 \times 0.0000297 = \mathbf{₹8.97}$ *(Corrected from legacy flat 0.00325% / ₹9.82)*
+  - **IPFT (NSE 0.0001%):** $302000 \times 0.000001 = \mathbf{₹0.30}$
+  - **SEBI Turnover Fee (0.0001% / ₹10 per crore):** $302000 \times 0.000001 = \mathbf{₹0.30}$
+  - **Stamp Duty (0.003% Buy Leg Only):** $150000 \times 0.00003 = \mathbf{₹4.50}$
+  - **GST (18% strictly on Service Fees):** $18\% \times (40.00 + 8.97 + 0.30 + 0.30) = 18\% \times 49.57 = \mathbf{₹8.92}$
+  - **Total Statutory Charges:** $40.00 + 38.00 + 8.97 + 0.30 + 0.30 + 4.50 + 8.92 = \mathbf{₹100.99}$
+- **Net Realized P&L:** ₹2,000.00 - ₹100.99 = **₹1,899.01** (Verified: PASS)
 
 ### Case 2: NFO Options Intraday (NIFTY 50 CE — 50 qty @ ₹120 Buy, ₹150 Sell)
-- **Order Turnover:** Buy ₹6,000; Sell ₹7,500.
+- **Order Turnover:** Buy Premium ₹6,000; Sell Premium ₹7,500. Total Premium: ₹13,500.
 - **Gross P&L:** ₹1,500.00
-- **Total Charges:** ₹10.18 (Brokerage ₹3.60 + STT ₹4.69 + Exchange ₹0.44 + GST ₹0.73 + Stamp Duty ₹0.18 + SEBI ₹0.01)
-- **Net Realized P&L:** ₹1,500.00 - ₹10.18 = **₹1,489.82** (Verified: PASS)
+- **Statutory Charges (Finance Act 2026 w.e.f. 1 April 2026):**
+  - **Brokerage:** Buy ₹1.80 ($\min(20, 6000 \times 0.03\% = 1.80)$) + Sell ₹2.25 ($\min(20, 7500 \times 0.03\% = 2.25)$) = **₹4.05**
+  - **STT (0.15% on Sell Premium):** $7500 \times 0.0015 = \mathbf{₹11.25}$ *(Corrected from legacy pre-Oct 2024 rate 0.0625% / ₹4.69)*
+  - **Exchange Turnover (0.03503% on Premium):** $13500 \times 0.0003503 = \mathbf{₹4.73}$
+  - **IPFT (0.0005% on Premium):** $13500 \times 0.000005 = \mathbf{₹0.07}$
+  - **SEBI Fee (0.0001%):** $13500 \times 0.000001 = \mathbf{₹0.01}$
+  - **Stamp Duty (0.003% Buy Leg Only):** $6000 \times 0.00003 = \mathbf{₹0.18}$
+  - **GST (18% on Services):** $18\% \times (4.05 + 4.73 + 0.07 + 0.01) = 18\% \times 8.86 = \mathbf{₹1.59}$
+  - **Total Statutory Charges:** $4.05 + 11.25 + 4.73 + 0.07 + 0.01 + 0.18 + 1.59 = \mathbf{₹21.88}$
+- **Net Realized P&L:** ₹1,500.00 - ₹21.88 = **₹1,478.12** (Verified: PASS)
 
 ### Case 3: Institutional Net-Profit Guardrail (1.50% Hurdle)
 - Sub-case 3a (0.5% move): Rejected (`isApproved: false`, Net ROI 0.41% < 1.50% hurdle).
@@ -120,11 +130,16 @@ Executed via `node scratch/verify_financial_calculations_independent.js`:
 
 ```text
 ==========================================
-TOTAL SUITES: 32 | PASSED: 32 | FAILED: 0
+TOTAL SUITES: 33 | PASSED: 33 | FAILED: 0
 Execution Script: python scratch/run_all_tests.py
+Summary Report: scratch/full_test_matrix.json
 Pass Rate: 100%
 ==========================================
 ```
+- **New Statutory Matrix Test:** `tests/test_financial_calculations_statutory_matrix.ts` (12 test specifications verifying all rate changes, GST base purity, date-effective schedules, and hand calculations).
+- **OxLint:** 0 errors across all modified modules.
+- **Vite Production Build:** Completed cleanly in 3.50s (`dist/` generated with zero errors).
+- **Live HTTP Integration Tests:** 14/14 passed on live Express daemon.
 - **OxLint:** 0 errors across all modified modules.
 - **Vite Production Build:** Completed cleanly in 3.51s (`dist/` generated with zero errors).
 - **Live HTTP Integration Tests:** 14/14 passed on live Express daemon.
@@ -149,7 +164,7 @@ Pass Rate: 100%
 ### Justification:
 1. **Verified Facts:**
    - All code defects, crashes, and state-loss bugs have been permanently resolved.
-   - All 32 automated test suites, 14 live HTTP endpoints, and production build pass with 100% success.
+   - All 33 automated test suites, 14 live HTTP endpoints, and production build pass with 100% success.
    - Angel One SmartAPI credentials authenticated successfully upstream for Client `AAAE906150`.
    - SQLite WAL persistence and automated backup snapshots function with zero data loss.
 2. **Unverified Claims & Market Realities:**

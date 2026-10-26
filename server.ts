@@ -30,6 +30,7 @@ import { strategyRegistry } from './src/utils/strategyRegistry';
 import { telegramAlertManager } from './src/utils/telegramAlerts';
 import { browserOperator } from './src/utils/browserOperator';
 import { jarvisMasterController } from './src/utils/jarvisMasterController';
+import { calculateTradeStatutoryCharges } from './src/utils/taxCalculator';
 
 const app = express();
 const server = http.createServer(app);
@@ -432,60 +433,7 @@ app.post('/api/positions/square-off-all', (_req: Request, res: Response) => {
 // STATUTORY TAXATION & NET-PROFIT PRE-TRADE ENGINE
 // ============================================================================
 
-function calculateTradeStatutoryCharges(
-  price: number,
-  qty: number,
-  action: string,
-  segment: string = 'NSE Equity',
-  grossPnl: number = 0
-) {
-  const p = Math.max(0, Number(price) || 0);
-  const q = Math.max(1, Number(qty) || 1);
-  const orderValue = p * q;
-  const isSell = (action || '').toUpperCase() === 'SELL';
-  const isBuy = (action || '').toUpperCase() === 'BUY';
-  const segLower = (segment || '').toLowerCase();
-  const isOption = segLower.includes('option') || segLower.includes('ce') || segLower.includes('pe');
-
-  // 1. Brokerage: Flat ₹20 or 0.03% of turnover, whichever is lower
-  const brokerage = orderValue > 0 ? Math.min(20.0, orderValue * 0.0003) : 0.0;
-
-  // 2. STT: 0.0125% on intraday sell, 0.0625% on options sell, 0 on buy
-  const stt = isSell ? (isOption ? orderValue * 0.000625 : orderValue * 0.000125) : 0.0;
-
-  // 3. Exchange Turnover: 0.00325%
-  const exchangeTurnover = orderValue * 0.0000325;
-
-  // 4. GST: 18% on (Brokerage + Exchange)
-  const gst = 0.18 * (brokerage + exchangeTurnover);
-
-  // 5. SEBI Charges: 0.0001% (₹10/crore)
-  const sebiCharges = orderValue * 0.000001;
-
-  // 6. Stamp Duty: 0.003% on BUY side only
-  const stampDuty = isBuy ? orderValue * 0.00003 : 0.0;
-
-  // 7. Slippage (Execution market impact: 0.05% for indices/equity, 0.10% for options)
-  const slippageRate = isOption ? 0.0010 : 0.0005;
-  const slippage = Number((orderValue * slippageRate).toFixed(2));
-
-  const totalCharges = Number((brokerage + stt + exchangeTurnover + gst + sebiCharges + stampDuty + slippage).toFixed(2));
-  const netPnl = Number((grossPnl - totalCharges).toFixed(2));
-
-  return {
-    orderValue: Number(orderValue.toFixed(2)),
-    brokerage: Number(brokerage.toFixed(2)),
-    stt: Number(stt.toFixed(2)),
-    exchangeTurnover: Number(exchangeTurnover.toFixed(2)),
-    gst: Number(gst.toFixed(2)),
-    sebiCharges: Number(sebiCharges.toFixed(2)),
-    stampDuty: Number(stampDuty.toFixed(2)),
-    slippage,
-    totalCharges,
-    grossPnl: Number(grossPnl.toFixed(2)),
-    netPnl
-  };
-}
+// Replaced with canonical implementation from taxCalculator
 
 function validateTradeNetProfit(
   entryPrice: number,

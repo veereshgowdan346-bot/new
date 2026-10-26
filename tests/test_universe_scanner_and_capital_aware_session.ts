@@ -388,7 +388,7 @@ describe('CHINTU AI — UNIVERSE SCANNER & CAPITAL-AWARE PAPER SESSION SUITE', (
       const totalCharges = charges.totalCharges;
       const b = charges.breakdown;
 
-      const reconstructedSum = Number((b.brokerage + b.stt + b.exchangeTurnover + b.gst + b.sebiCharges + b.stampDuty + b.slippage).toFixed(2));
+      const reconstructedSum = Number((b.brokerage + b.stt + b.exchangeTurnover + (b.ipft || 0) + b.gst + b.sebiCharges + b.stampDuty + b.slippage).toFixed(2));
       assert.equal(totalCharges, reconstructedSum, 'Deduction breakdown components must exactly sum to totalCharges without double counting');
     });
   });

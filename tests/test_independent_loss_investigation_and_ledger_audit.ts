@@ -32,8 +32,8 @@ describe('CHINTU AI — INDEPENDENT LOSS INVESTIGATION & LEDGER AUDIT', () => {
     const grossPnl = Number(((exitPrice - entryPrice) * qty).toFixed(2));
     assert.equal(grossPnl, 1738.25);
 
-    const entryCh = calculateTradeStatutoryCharges(entryPrice, qty, 'BUY', 'NSE Index / Future');
-    const exitCh = calculateTradeStatutoryCharges(exitPrice, qty, 'SELL', 'NSE Index / Future');
+    const entryCh = calculateTradeStatutoryCharges(entryPrice, qty, 'BUY', 'NSE Index / Future', 0, 'LEGACY_SESSION');
+    const exitCh = calculateTradeStatutoryCharges(exitPrice, qty, 'SELL', 'NSE Index / Future', 0, 'LEGACY_SESSION');
     const totFees = Number((entryCh.totalCharges + exitCh.totalCharges).toFixed(2));
     const netPnl = Number((grossPnl - totFees).toFixed(2));
 

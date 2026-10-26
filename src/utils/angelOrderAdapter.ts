@@ -2,59 +2,8 @@ import crypto from 'node:crypto';
 import { instrumentMaster, InstrumentRecord } from './instrumentMaster';
 import { loadEnvironmentConfig } from './envConfig';
 
-export function calculateTradeStatutoryCharges(
-  price: number,
-  qty: number,
-  action: string,
-  segment: string = 'NSE Equity',
-  grossPnl: number = 0
-) {
-  const p = Math.max(0, Number(price) || 0);
-  const q = Math.max(1, Number(qty) || 1);
-  const orderValue = p * q;
-  const isSell = (action || '').toUpperCase() === 'SELL';
-  const isBuy = (action || '').toUpperCase() === 'BUY';
-  const segLower = (segment || '').toLowerCase();
-  const isOption = segLower.includes('option') || segLower.includes('ce') || segLower.includes('pe');
-
-  // Brokerage: ₹20 or 0.03% (or 0.05% for options turnover) whichever is lower
-  const brokerage = orderValue > 0 ? Math.min(20.0, orderValue * 0.0003) : 0.0;
-  // STT: 0.0625% on sell options premium; 0.0125% on futures; 0.025% on intraday equity
-  const stt = isSell ? (isOption ? orderValue * 0.000625 : orderValue * 0.000125) : 0.0;
-  // Exchange turnover charge: 0.00325% on equity / options
-  const exchangeTurnover = orderValue * 0.0000325;
-  // GST: 18% on (brokerage + exchange turnover + sebi charges)
-  const gst = 0.18 * (brokerage + exchangeTurnover);
-  // SEBI turnover charge: ₹10 per crore (0.0001%)
-  const sebiCharges = orderValue * 0.000001;
-  // Stamp duty: 0.003% on buy
-  const stampDuty = isBuy ? orderValue * 0.00003 : 0.0;
-  // Execution slippage: 0.10% on options, 0.05% on equity
-  const slippageRate = isOption ? 0.0010 : 0.0005;
-  const slippage = orderValue * slippageRate;
-
-  const brk = Number(brokerage.toFixed(2));
-  const s = Number(stt.toFixed(2));
-  const ex = Number(exchangeTurnover.toFixed(2));
-  const g = Number(gst.toFixed(2));
-  const sebi = Number(sebiCharges.toFixed(2));
-  const stmp = Number(stampDuty.toFixed(2));
-  const slip = Number(slippage.toFixed(2));
-  const totalCharges = Number((brk + s + ex + g + sebi + stmp + slip).toFixed(2));
-
-  return {
-    totalCharges,
-    breakdown: {
-      brokerage: brk,
-      stt: s,
-      exchangeTurnover: ex,
-      gst: g,
-      sebiCharges: sebi,
-      stampDuty: stmp,
-      slippage: slip
-    }
-  };
-}
+import { calculateTradeStatutoryCharges } from './taxCalculator';
+export { calculateTradeStatutoryCharges };
 
 export interface AngelOrderPayload {
   variety: 'NORMAL' | 'STOPLOSS' | 'AMO' | 'ROBO';

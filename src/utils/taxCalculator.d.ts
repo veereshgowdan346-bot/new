@@ -4,12 +4,35 @@
 
 export const INSTITUTIONAL_HURDLE_ROI_PCT: number;
 
+export interface StatutoryRateSet {
+  brokerageRate: number;
+  maxBrokerage: number;
+  isFlatBrokerage?: boolean;
+  sttBuy: number;
+  sttSell: number;
+  exchangeRate: number;
+  ipftRate: number;
+  sebiRate: number;
+  stampDutyBuy: number;
+  stampDutySell: number;
+  slippageRate: number;
+}
+
+export const STATUTORY_SCHEDULE: Record<string, Record<string, StatutoryRateSet>>;
+
+export function getEffectiveDateKey(tradeDate?: Date | string | null): string;
+
+export function resolveSegmentCategory(segment?: string, productType?: string): string;
+
 export interface TradeChargesParams {
   price?: number;
   qty?: number;
   action?: string;
   segment?: string;
+  productType?: string;
   grossPnl?: number;
+  tradeDate?: Date | string | null;
+  includeSlippage?: boolean;
 }
 
 export interface TradeChargesResult {
@@ -17,15 +40,40 @@ export interface TradeChargesResult {
   brokerage: number;
   stt: number;
   exchangeTurnover: number;
+  ipft: number;
   gst: number;
   sebiCharges: number;
   stampDuty: number;
+  slippage: number;
   totalCharges: number;
   grossPnl: number;
   netPnl: number;
+  segmentCategory: string;
+  effectiveDateKey: string;
+  breakdown: {
+    brokerage: number;
+    stt: number;
+    exchangeTurnover: number;
+    ipft: number;
+    gst: number;
+    sebiCharges: number;
+    stampDuty: number;
+    slippage: number;
+  };
 }
 
 export function calculateTradeCharges(params: TradeChargesParams): TradeChargesResult;
+
+export function calculateTradeStatutoryCharges(
+  price?: number,
+  qty?: number,
+  action?: string,
+  segment?: string,
+  grossPnl?: number,
+  tradeDate?: Date | string | null,
+  productType?: string,
+  options?: { includeSlippage?: boolean }
+): TradeChargesResult;
 
 export interface NetProfitGuardrailParams {
   entryPrice?: number;
@@ -33,8 +81,10 @@ export interface NetProfitGuardrailParams {
   qty?: number;
   action?: string;
   segment?: string;
+  productType?: string;
   safetyBufferPercent?: number;
   hurdleNetRoiPct?: number;
+  tradeDate?: Date | string | null;
 }
 
 export interface NetProfitGuardrailResult {
@@ -58,6 +108,7 @@ export interface NetProfitGuardrailResult {
     brokerage: number;
     stt: number;
     exchangeTurnover: number;
+    ipft: number;
     gst: number;
     sebiCharges: number;
     stampDuty: number;
