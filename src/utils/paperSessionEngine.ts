@@ -67,6 +67,7 @@ export interface PaperPosition {
   botName: string;
   quorumVotes: number;
   confluenceScore: number;
+  dataProvenance?: 'OFFICIAL_ANGEL_ONE_SMARTSTREAM' | 'AUTHENTIC_PAPER_REPLAY' | 'SIMULATED_REPLAY';
 }
 
 export interface PaperTradeRecord {
@@ -87,6 +88,7 @@ export interface PaperTradeRecord {
   closeReason: 'TARGET_HIT' | 'STOP_LOSS_HIT' | 'SESSION_STOPPED' | 'MANUAL_EXIT';
   botName: string;
   quorumVotes: number;
+  dataProvenance?: 'OFFICIAL_ANGEL_ONE_SMARTSTREAM' | 'AUTHENTIC_PAPER_REPLAY' | 'SIMULATED_REPLAY';
 }
 
 export interface SelectedOpportunity {
@@ -112,6 +114,7 @@ export interface SelectedOpportunity {
 export interface SessionMetrics {
   sessionId: string;
   status: PaperSessionStatus;
+  executionMode?: 'LIVE_DATA_STRICT' | 'SIMULATED_REPLAY';
   initialCapital: number;
   availableCash: number;
   allocatedMargin: number;
@@ -141,6 +144,11 @@ export interface SessionMetrics {
   };
   openPositionsCount: number;
   unresolvedCount: number;
+  receivedTicksCount?: number;
+  rejectedTicksCount?: number;
+  staleTicksCount?: number;
+  simulatedTicksIsolatedCount?: number;
+  lastTickSource?: string;
 }
 
 export class PaperSessionEngine {
@@ -149,6 +157,7 @@ export class PaperSessionEngine {
   // Active Session State
   private sessionId: string = '';
   private status: PaperSessionStatus = 'NOT_STARTED';
+  private executionMode: 'LIVE_DATA_STRICT' | 'SIMULATED_REPLAY' = 'SIMULATED_REPLAY';
   private initialCapital: number = 0;
   private availableCash: number = 0;
   private allocatedMargin: number = 0;
@@ -159,6 +168,10 @@ export class PaperSessionEngine {
   private startTime: string | null = null;
   private stopTime: string | null = null;
   private lastTickTimestamp: number | null = null;
+  private receivedTicksCount: number = 0;
+  private rejectedTicksCount: number = 0;
+  private staleTicksCount: number = 0;
+  private simulatedTicksIsolatedCount: number = 0;
 
   // Configuration & Rules
   private riskSettings: RiskSettings = {
@@ -212,6 +225,7 @@ export class PaperSessionEngine {
 
     this.sessionId = `sess_idle_${Date.now()}`;
     this.status = 'NOT_STARTED';
+    this.executionMode = 'SIMULATED_REPLAY';
     this.initialCapital = 0;
     this.availableCash = 0;
     this.allocatedMargin = 0;
@@ -222,6 +236,10 @@ export class PaperSessionEngine {
     this.startTime = null;
     this.stopTime = null;
     this.lastTickTimestamp = null;
+    this.receivedTicksCount = 0;
+    this.rejectedTicksCount = 0;
+    this.staleTicksCount = 0;
+    this.simulatedTicksIsolatedCount = 0;
     this.openPositions.clear();
     this.sessionTrades = [];
     this.selectedOpportunities = [];
@@ -230,11 +248,15 @@ export class PaperSessionEngine {
   }
 
   /**
-   * Start a new paper-trading session with explicit user capital.
+   * Start a new paper-trading session with explicit user capital and execution mode.
+   * Mode:
+   *  - 'LIVE_DATA_STRICT': Only authentic live streaming ticks from SmartStream are processed. Synthetic/standby ticks are isolated and rejected.
+   *  - 'SIMULATED_REPLAY': Offline paper simulation allows synthetic micro-volatility replay, with trades labelled accordingly.
    */
   public async startSession(
     capital: number,
-    customSettings?: Partial<RiskSettings>
+    customSettings?: Partial<RiskSettings>,
+    executionMode: 'LIVE_DATA_STRICT' | 'SIMULATED_REPLAY' = 'SIMULATED_REPLAY'
   ): Promise<{ success: boolean; message: string; session?: SessionMetrics }> {
     // 1. Validate Capital
     const cap = Number(capital);
@@ -261,6 +283,11 @@ export class PaperSessionEngine {
     // 4. Initialize Fresh Session State
     this.sessionId = `sess_${Date.now()}_${crypto.randomBytes(3).toString('hex')}`;
     this.status = 'CONNECTING';
+    this.executionMode = executionMode;
+    this.receivedTicksCount = 0;
+    this.rejectedTicksCount = 0;
+    this.staleTicksCount = 0;
+    this.simulatedTicksIsolatedCount = 0;
     this.initialCapital = cap;
     this.availableCash = cap;
     this.allocatedMargin = 0;
@@ -407,6 +434,14 @@ export class PaperSessionEngine {
    */
   public async evaluateAndExecuteTrades(): Promise<void> {
     if (this.status !== 'PAPER_TRADING') return;
+
+    // Strict Live Data Guard: In LIVE_DATA_STRICT mode, forbid entries unless live SmartStream is actively streaming
+    if (this.executionMode === 'LIVE_DATA_STRICT') {
+      const isLive = angelMarketDataAdapter.isLiveStreaming();
+      if (!isLive) {
+        return; // Standby: Awaiting authentic live exchange ticks
+      }
+    }
 
     // Check Max Concurrent Positions
     if (this.openPositions.size >= this.riskSettings.maxConcurrentPositions) {
@@ -778,7 +813,8 @@ export class PaperSessionEngine {
       status: 'OPEN',
       botName: 'Master Brain Quorum',
       quorumVotes: opp.quorumVotes,
-      confluenceScore: opp.confluenceScore
+      confluenceScore: opp.confluenceScore,
+      dataProvenance: this.executionMode === 'LIVE_DATA_STRICT' ? 'OFFICIAL_ANGEL_ONE_SMARTSTREAM' : 'SIMULATED_REPLAY'
     };
 
     // Update Session Capital State
@@ -838,8 +874,41 @@ export class PaperSessionEngine {
 
   /**
    * Mark-to-market position updates on incoming ticks.
+   * Enforces strict source-aware provenance filtering in LIVE_DATA_STRICT mode.
    */
   private handleIncomingTick(quote: MarketQuote): void {
+    if (!quote || !quote.symbol) {
+      this.rejectedTicksCount++;
+      return;
+    }
+
+    this.receivedTicksCount++;
+
+    // Strict Live Data Isolation Gate
+    if (this.executionMode === 'LIVE_DATA_STRICT') {
+      // 1. Strictly isolate synthetic or standby ticks from live execution path
+      if (quote.source !== 'OFFICIAL_ANGEL_ONE_SMARTSTREAM' || quote.dataAgeStatus === 'SIMULATED') {
+        this.simulatedTicksIsolatedCount++;
+        return; // Drop synthetic tick from live execution path
+      }
+      // 2. Reject stale ticks (> 120s old)
+      if (quote.dataAgeStatus === 'STALE') {
+        this.staleTicksCount++;
+        return;
+      }
+      // 3. Reject non-positive or malformed prices
+      if (typeof quote.price !== 'number' || quote.price <= 0 || isNaN(quote.price)) {
+        this.rejectedTicksCount++;
+        return;
+      }
+    } else {
+      // In SIMULATED_REPLAY mode: reject malformed ticks
+      if (typeof quote.price !== 'number' || quote.price <= 0 || isNaN(quote.price)) {
+        this.rejectedTicksCount++;
+        return;
+      }
+    }
+
     this.lastTickTimestamp = quote.timestamp || Date.now();
 
     for (const [posId, pos] of this.openPositions.entries()) {
@@ -904,7 +973,8 @@ export class PaperSessionEngine {
       closedAt: new Date().toLocaleTimeString(),
       closeReason: reason,
       botName: pos.botName,
-      quorumVotes: pos.quorumVotes
+      quorumVotes: pos.quorumVotes,
+      dataProvenance: pos.dataProvenance || (this.executionMode === 'LIVE_DATA_STRICT' ? 'OFFICIAL_ANGEL_ONE_SMARTSTREAM' : 'SIMULATED_REPLAY')
     };
 
     this.sessionTrades.push(tradeRecord);
@@ -937,7 +1007,7 @@ export class PaperSessionEngine {
         charges: roundtripCharges,
         status: 'CLOSED',
         timestamp: new Date().toLocaleTimeString(),
-        breakdown: exitCharges.breakdown
+        breakdown: { ...exitCharges.breakdown, dataProvenance: tradeRecord.dataProvenance }
       });
     } catch (e) {}
   }
@@ -962,6 +1032,7 @@ export class PaperSessionEngine {
     return {
       sessionId: this.sessionId,
       status: this.status,
+      executionMode: this.executionMode,
       initialCapital: this.initialCapital,
       availableCash: this.availableCash,
       allocatedMargin: this.allocatedMargin,
@@ -979,7 +1050,7 @@ export class PaperSessionEngine {
       startTime: this.startTime,
       stopTime: this.stopTime,
       lastTickTimestamp: this.lastTickTimestamp,
-      feedSource: isLive ? 'LIVE_MARKET_DATA' : 'AUTHENTIC_PAPER_REPLAY',
+      feedSource: isLive ? 'LIVE_MARKET_DATA' : (this.executionMode === 'LIVE_DATA_STRICT' ? 'LIVE_MARKET_DATA' : 'AUTHENTIC_PAPER_REPLAY'),
       riskSettings: { ...this.riskSettings },
       universeMetrics: {
         totalDiscovered: scan.totalDiscovered,
@@ -990,7 +1061,14 @@ export class PaperSessionEngine {
         rejectionBreakdown: scan.rejectionBreakdown
       },
       openPositionsCount: this.openPositions.size,
-      unresolvedCount: this.unresolvedPositions.length
+      unresolvedCount: this.unresolvedPositions.length,
+      receivedTicksCount: this.receivedTicksCount,
+      rejectedTicksCount: this.rejectedTicksCount,
+      staleTicksCount: this.staleTicksCount,
+      simulatedTicksIsolatedCount: this.simulatedTicksIsolatedCount,
+      lastTickSource: this.executionMode === 'LIVE_DATA_STRICT'
+        ? (isLive ? 'OFFICIAL_ANGEL_ONE_SMARTSTREAM' : 'DISCONNECTED')
+        : (isLive ? 'OFFICIAL_ANGEL_ONE_SMARTSTREAM' : 'AUTHENTIC_PAPER_REPLAY')
     };
   }
 

@@ -83,6 +83,7 @@ export default function LiveTradingView({
   const [paperPositions, setPaperPositions] = useState([]);
   const [paperTrades, setPaperTrades] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
+  const [provenanceMode, setProvenanceMode] = useState('SIMULATED_REPLAY');
   const [sessionActionLoading, setSessionActionLoading] = useState(false);
   const [sessionFeedback, setSessionFeedback] = useState({ type: '', text: '' });
 
@@ -124,7 +125,8 @@ export default function LiveTradingView({
         method: 'POST',
         body: JSON.stringify({
           capital: capNum,
-          riskSettings: { maxRiskPerTradePct: riskPct }
+          riskSettings: { maxRiskPerTradePct: riskPct },
+          executionMode: provenanceMode || 'SIMULATED_REPLAY'
         })
       });
 
@@ -311,6 +313,22 @@ export default function LiveTradingView({
             <Database className="w-3.5 h-3.5 text-cyan-400" />
             <span>Feed:</span>
             <strong className="text-white">{sessionData.feedSource}</strong>
+            {sessionData.executionMode && (
+              <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
+                sessionData.executionMode === 'LIVE_DATA_STRICT'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                  : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+              }`}>
+                {sessionData.executionMode}
+              </span>
+            )}
+          </span>
+
+          <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-slate-300 flex items-center gap-1.5 text-[11px]">
+            <span>Last Tick:</span>
+            <strong className="text-white font-mono">
+              {sessionData.lastTickTimestamp ? new Date(sessionData.lastTickTimestamp).toLocaleTimeString() : 'Awaiting'}
+            </strong>
           </span>
 
           <span className={`text-xs px-2.5 py-1 rounded-lg border flex items-center gap-1.5 ${
@@ -429,6 +447,46 @@ export default function LiveTradingView({
               <span>Quorum: <strong className="text-amber-300">&ge; 9/14</strong></span>
             </div>
             <span className="text-[9px] text-slate-500 font-sans">Net of Indian taxes & slippage</span>
+          </div>
+
+          {/* Source-Aware Execution Mode Selector */}
+          <div className="md:col-span-4 flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#1e3a6e]/40">
+            <div className="flex items-center gap-3">
+              <span className="text-slate-400 font-sans text-[11px] font-bold">Provenance Mode:</span>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="provenanceMode"
+                  value="SIMULATED_REPLAY"
+                  checked={provenanceMode === 'SIMULATED_REPLAY'}
+                  onChange={() => setProvenanceMode('SIMULATED_REPLAY')}
+                  disabled={sessionData.status === 'PAPER_TRADING'}
+                  className="accent-amber-500"
+                />
+                <span className={`text-[11px] font-mono ${provenanceMode === 'SIMULATED_REPLAY' ? 'text-amber-300 font-bold' : 'text-slate-400'}`}>
+                  Simulation / Offline Replay
+                </span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="provenanceMode"
+                  value="LIVE_DATA_STRICT"
+                  checked={provenanceMode === 'LIVE_DATA_STRICT'}
+                  onChange={() => setProvenanceMode('LIVE_DATA_STRICT')}
+                  disabled={sessionData.status === 'PAPER_TRADING'}
+                  className="accent-cyan-400"
+                />
+                <span className={`text-[11px] font-mono ${provenanceMode === 'LIVE_DATA_STRICT' ? 'text-cyan-300 font-bold' : 'text-slate-400'}`}>
+                  Live Data Strict (Only Real Exchange Ticks)
+                </span>
+              </label>
+            </div>
+            {sessionData.executionMode === 'LIVE_DATA_STRICT' && (
+              <span className="text-[10px] font-mono text-cyan-400 bg-cyan-950/60 px-2.5 py-0.5 rounded border border-cyan-800/40">
+                Ticks: {sessionData.receivedTicksCount || 0} received • {sessionData.simulatedTicksIsolatedCount || 0} synthetic isolated • {sessionData.staleTicksCount || 0} stale
+              </span>
+            )}
           </div>
         </div>
 

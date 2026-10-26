@@ -513,8 +513,12 @@ app.post(['/api/paper/session/start', '/api/paper/start'], async (req: Request, 
       message: 'Paper trading session cannot be started while RMS Emergency Stop is active. Reset the circuit breaker first.'
     });
   }
-  const { capital, riskSettings } = req.body;
-  const result = await paperSessionEngine.startSession(Number(capital), riskSettings);
+  const { capital, riskSettings, executionMode } = req.body;
+  const result = await paperSessionEngine.startSession(
+    Number(capital),
+    riskSettings,
+    executionMode || 'SIMULATED_REPLAY'
+  );
   if (!result.success) {
     return res.status(400).json({ status: 'error', message: result.message });
   }
