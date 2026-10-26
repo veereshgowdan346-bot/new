@@ -124,6 +124,25 @@ Executed via `node scratch/verify_financial_calculations_independent.js` against
 - Sub-case 3a (0.5% move): Rejected (`isApproved: false`, Net ROI 0.41% < 1.50% hurdle).
 - Sub-case 3b (4.0% move): Approved (`isApproved: true`, Net ROI 3.90% >= 1.50% hurdle).
 
+### Case 4: NFO Equity Futures Intraday (NIFTY Futures — 50 qty @ ₹24,000 Buy, ₹24,100 Sell)
+- **Order Turnover:** Buy ₹12,00,000; Sell ₹12,05,000. Total Turnover: ₹24,05,000.
+- **Gross P&L:** ₹5,000.00
+- **Statutory Charges (Finance Act 2026 / Budget 2026 FAQs w.e.f. 1 April 2026):**
+  - **Brokerage:** Buy ₹20.00 ($\min(20, 1200000 \times 0.03\% = 360)$) + Sell ₹20.00 ($\min(20, 1205000 \times 0.03\% = 361.50)$) = **₹40.00**
+  - **STT (Statutory 0.05% on Sell Leg):** $1205000 \times 0.0005 = \mathbf{₹602.50}$ *(Date-effective revision from mid-period 0.02% / ₹241.00)*
+  - **Exchange Turnover (NSE True-to-Label 0.00173%):** $2405000 \times 0.0000173 = \mathbf{₹41.61}$
+  - **IPFT (NSE 0.0001%):** $2405000 \times 0.000001 = \mathbf{₹2.41}$
+  - **SEBI Turnover Fee (0.0001% / ₹10 per crore):** $2405000 \times 0.000001 = \mathbf{₹2.41}$
+  - **Stamp Duty (0.002% Buy Leg Only):** $1200000 \times 0.00002 = \mathbf{₹24.00}$
+  - **GST (18% strictly on Service Fees):** $18\% \times (40.00 + 41.61 + 2.41 + 2.41) = 18\% \times 86.43 = \mathbf{₹15.56}$
+  - **Total Statutory Charges:** $40.00 + 602.50 + 41.61 + 2.41 + 2.41 + 24.00 + 15.56 = \mathbf{₹728.49}$
+- **Net Realized P&L:** ₹5,000.00 - ₹728.49 = **₹4,271.51** (Verified: PASS)
+
+#### Date-Effective Evolution of Equity Futures STT on ₹12,05,000 Sell Turnover:
+- **Pre-Oct 1, 2024:** 0.0125% = ₹150.63
+- **Oct 1, 2024 to Mar 31, 2026 (Boundary Date 31 Mar 2026):** 0.02% = ₹241.00 (Total Charges: ₹366.99, Net P&L: ₹4,633.01)
+- **Post-April 1, 2026 (Boundary Date 1 Apr 2026):** 0.05% = ₹602.50 (Total Charges: ₹728.49, Net P&L: ₹4,271.51)
+
 ---
 
 ## 7. Automated Test Suite Execution Summary
@@ -136,9 +155,10 @@ Summary Report: scratch/full_test_matrix.json
 Pass Rate: 100%
 ==========================================
 ```
-- **New Statutory Matrix Test:** `tests/test_financial_calculations_statutory_matrix.ts` (12 test specifications verifying all rate changes, GST base purity, date-effective schedules, and hand calculations).
+- **New Statutory Matrix Test:** `tests/test_financial_calculations_statutory_matrix.ts` (15 test specifications verifying all rate changes, futures 0.05% boundary dates, options 0.15%, GST base purity, date-effective schedules, and hand calculations).
+- **Independent Verification:** `scratch/verify_financial_calculations_independent.js` (4/4 test cases passed with mathematical proof).
 - **OxLint:** 0 errors across all modified modules.
-- **Vite Production Build:** Completed cleanly in 3.50s (`dist/` generated with zero errors).
+- **Vite Production Build:** Completed cleanly in 7.84s (`dist/` generated with zero errors).
 - **Live HTTP Integration Tests:** 14/14 passed on live Express daemon.
 - **OxLint:** 0 errors across all modified modules.
 - **Vite Production Build:** Completed cleanly in 3.51s (`dist/` generated with zero errors).

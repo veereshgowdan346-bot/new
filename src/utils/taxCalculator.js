@@ -172,7 +172,7 @@ export const STATUTORY_SCHEDULE = {
     },
     EQUITY_FUTURES: {
       brokerageRate: 0.0003, maxBrokerage: 20.0,
-      sttBuy: 0.0, sttSell: 0.00020, // 0.02%
+      sttBuy: 0.0, sttSell: 0.00050, // 0.05% (Finance Bill 2026 & Budget 2026 FAQs w.e.f. April 1, 2026)
       exchangeRate: 0.0000173, ipftRate: 0.000001, sebiRate: 0.000001, // 0.00173% (₹1.73 / lakh)
       stampDutyBuy: 0.00002, stampDutySell: 0.0,
       slippageRate: 0.0005
@@ -210,6 +210,14 @@ export function getEffectiveDateKey(tradeDate) {
     const upper = tradeDate.toUpperCase();
     if (upper.includes('LEGACY') || upper.includes('HISTORICAL')) {
       return 'LEGACY_SESSION';
+    }
+    // Match standard YYYY-MM-DD date prefix directly to prevent local timezone offsets
+    const match = tradeDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      const ymd = `${match[1]}-${match[2]}-${match[3]}`;
+      if (ymd >= '2026-04-01') return 'POST_APR_2026';
+      if (ymd >= '2024-10-01') return 'OCT_2024_TO_MAR_2026';
+      return 'PRE_OCT_2024';
     }
   }
   const d = tradeDate instanceof Date ? tradeDate : new Date(tradeDate);
@@ -289,7 +297,7 @@ export function calculateTradeCharges({
   // 2. STT / CTT (Securities / Commodities Transaction Tax):
   // Intraday equity: 0.025% on SELL only
   // Delivery equity: 0.10% on BUY and 0.10% on SELL
-  // Equity Futures: 0.02% on SELL only (0.0125% pre-Oct 2024)
+  // Equity Futures: 0.05% on SELL only post-Apr 2026 (0.02% Oct 2024 - Mar 2026, 0.0125% pre-Oct 2024)
   // Equity Options: 0.15% on SELL premium (0.10% Oct 2024 - Mar 2026, 0.0625% pre-Oct 2024)
   // Commodity Futures: 0.01% on SELL only
   // Commodity Options: 0.05% on SELL premium
@@ -324,17 +332,19 @@ export function calculateTradeCharges({
   // 8. Execution Slippage:
   const slippage = includeSlippage ? orderValue * (rates.slippageRate || 0.0) : 0.0;
 
-  // Statutory roundings to 2 decimal places
-  const brk = Math.round(brokerage * 100) / 100;
-  const s = Math.round(stt * 100) / 100;
-  const ex = Math.round(exchangeTurnover * 100) / 100;
-  const ip = Math.round(ipft * 100) / 100;
-  const sebi = Math.round(sebiCharges * 100) / 100;
-  const stmp = Math.round(stampDuty * 100) / 100;
-  const g = Math.round(gst * 100) / 100;
-  const slip = Math.round(slippage * 100) / 100;
+  const round2 = (val) => Math.round((Number(val || 0) + Number.EPSILON) * 100) / 100;
 
-  const totalCharges = Math.round((brk + s + ex + ip + sebi + stmp + g + slip) * 100) / 100;
+  // Statutory roundings to 2 decimal places using IEEE-754 epsilon protection
+  const brk = round2(brokerage);
+  const s = round2(stt);
+  const ex = round2(exchangeTurnover);
+  const ip = round2(ipft);
+  const sebi = round2(sebiCharges);
+  const stmp = round2(stampDuty);
+  const g = round2(gst);
+  const slip = round2(slippage);
+
+  const totalCharges = round2(brk + s + ex + ip + sebi + stmp + g + slip);
   const netPnl = Math.round(((Number(grossPnl) || 0) - totalCharges) * 100) / 100;
 
   return {

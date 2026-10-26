@@ -56,7 +56,7 @@ The Chintu AI trading engine enforces a centralized Single Source of Truth (`src
 ├─────────────────────────┼───────────────────┼────────────────────┼─────────────────────┤
 │ Equity Intraday STT     │ 0.025% (Sell)     │ 0.025% (Sell)      │ 0.025% (Sell)       │
 │ Equity Delivery STT     │ 0.100% (Both)     │ 0.100% (Both)      │ 0.100% (Both)       │
-│ Equity Futures STT      │ 0.020% (Sell)     │ 0.020% (Sell)      │ 0.0125% (Sell)      │
+│ Equity Futures STT      │ 0.050% (Sell)     │ 0.020% (Sell)      │ 0.0125% (Sell)      │
 │ Equity Options STT      │ 0.150% (Sell Prem)│ 0.100% (Sell Prem) │ 0.0625% (Sell Prem) │
 │ NSE Cash Txn Charge     │ 0.00297%          │ 0.00297%           │ 0.00325%            │
 │ NSE Futures Txn Charge  │ 0.00173%          │ 0.00173%           │ 0.00190%            │
@@ -161,16 +161,29 @@ $$\text{Net P\&L} = \text{Gross P\&L} - \text{Total Charges} - \text{Slippage Co
 ### Case 3: NIFTY Equity Futures Intraday (50 qty @ ₹24,000 Buy, ₹24,100 Sell)
 - **Turnover:** Buy = $50 \times 24,000 = ₹12,00,000$; Sell = $50 \times 24,100 = ₹12,05,000$. Total = $₹24,05,000$.
 - **Gross P&L:** $50 \times (24,100 - 24,000) = +₹5,000.00$.
-- **Statutory Charges (Post-Apr 2026):**
-  - Brokerage: Buy ₹20.00 + Sell ₹20.00 = ₹40.00
-  - STT (0.02% on Sell): $12,05,000 \times 0.02\% = ₹241.00$
-  - Exchange Turnover (0.00173%): $24,05,000 \times 0.00173\% = ₹41.61$
-  - IPFT (0.0001%): $24,05,000 \times 0.0001\% = ₹2.41$
-  - SEBI Fee (0.0001%): $24,05,000 \times 0.0001\% = ₹2.41$
-  - Stamp Duty (0.002% on Buy): $12,00,000 \times 0.002\% = ₹24.00$
-  - GST (18% on Services): $18\% \times (40.00 + 41.61 + 2.41 + 2.41) = 18\% \times 86.43 = ₹15.56$
-  - **Total Charges:** $40.00 + 241.00 + 41.61 + 2.41 + 2.41 + 24.00 + 15.56 = \mathbf{₹366.99}$
-- **Net Realized P&L:** $5,000.00 - 366.99 = \mathbf{₹4,633.01}$.
+
+#### 3.1 Post-April 2026 Statutory Schedule (Finance Act 2026 / Budget 2026 FAQs w.e.f. 01/04/2026)
+Under Finance Bill 2026 and official Income Tax Department Budget 2026 FAQs, STT on sale of futures in securities is increased from 0.02% to **0.05%** effective 1 April 2026:
+- **Brokerage:** Buy leg: $\min(20, 12,00,000 \times 0.03\% = 360) = ₹20.00$; Sell leg: $\min(20, 12,05,000 \times 0.03\% = 361.50) = ₹20.00$. Total = $₹40.00$.
+- **STT (0.05% on Sell Leg):** $12,05,000 \times 0.05\% = 12,05,000 \times 0.0005 = \mathbf{₹602.50}$ *(Corrected from previous ₹241.00)*.
+- **Exchange Turnover (0.00173% on Total Turnover):** Buy leg: $12,00,000 \times 0.00173\% = ₹20.76$; Sell leg: $12,05,000 \times 0.00173\% = ₹20.85$. Total = $₹41.61$.
+- **IPFT (0.0001% on Total Turnover):** Buy leg: $₹1.20$; Sell leg: $₹1.21$. Total = $₹2.41$.
+- **SEBI Fee (0.0001% / ₹10 per crore):** Buy leg: $₹1.20$; Sell leg: $₹1.21$. Total = $₹2.41$.
+- **Stamp Duty (0.002% on Buy Turnover Only):** $12,00,000 \times 0.002\% = ₹24.00$.
+- **GST (18% strictly on Service Fees):** $18\% \times (40.00 + 41.61 + 2.41 + 2.41) = 18\% \times 86.43 = ₹15.56$.
+- **Total Statutory Charges:** $40.00 + 602.50 + 41.61 + 2.41 + 2.41 + 24.00 + 15.56 = \mathbf{₹728.49}$.
+- **Net Realized P&L:** $5,000.00 - 728.49 = \mathbf{₹4,271.51}$.
+
+#### 3.2 Date-Effective Schedule Comparison for NIFTY Futures Trade
+
+| Fee Component | Pre-Oct 2024 (Legacy) | Oct 2024 — Mar 2026 | Post-Apr 2026 (Statutory) | Authority / Schedule |
+| :--- | :---: | :---: | :---: | :--- |
+| **STT Rate on Sell** | 0.0125% | 0.0200% | **0.0500%** | Finance Act 2026 / Budget 2026 FAQs |
+| **STT Amount** | ₹150.63 | ₹241.00 | **₹602.50** | Calculated on ₹12,05,000 Sell Turnover |
+| **Exchange Rate** | 0.00190% | 0.00173% | **0.00173%** | NSE Circular NSE/F&A/63784 |
+| **Exchange Amount** | ₹45.70 | ₹41.61 | **₹41.61** | Calculated on ₹24,05,000 Turnover |
+| **Total Deductions** | ₹278.43 | ₹366.99 | **₹728.49** | Complete roundtrip deductions |
+| **Net Realized P&L** | ₹4,721.57 | ₹4,633.01 | **₹4,271.51** | Pure realized trader gain |
 
 ---
 
@@ -202,19 +215,21 @@ Summary Report: scratch/full_test_matrix.json
 ```
 
 ### Key Financial Test Suites:
-1. `tests/test_financial_calculations_statutory_matrix.ts`: **12/12 PASSED**
+1. `tests/test_financial_calculations_statutory_matrix.ts`: **15/15 PASSED**
    - Verified Equity Intraday STT at 0.025% on sell side.
    - Verified Options STT across POST_APR_2026 (0.15%), OCT_2024_MAR_2026 (0.10%), and PRE_OCT_2024 (0.0625%).
+   - Verified Equity Futures STT across POST_APR_2026 (0.05%), OCT_2024_MAR_2026 (0.02%), and PRE_OCT_2024 (0.0125%).
+   - Verified boundary dates: 31 March 2026 (0.02%) vs 1 April 2026 (0.05%) under Finance Act 2026.
    - Verified NSE True-to-Label exchange turnover charges across Cash (0.00297%), Futures (0.00173%), and Options (0.03503%).
    - Verified MCX Commodity charges (Futures 0.0021%, Options 0.0418%).
    - Verified Currency derivatives charges (Futures 0.0009%, Options 0.035%).
    - Verified GST base purity (STT and Stamp Duty strictly excluded from 18% GST).
    - Verified Net Profit Guardrail (1.50% hurdle rate enforcement).
-   - Verified buy-side vs sell-side stamp duty allocation.
-2. `scratch/verify_financial_calculations_independent.js`: **3/3 PASSED**
+   - Verified hand-calculated roundtrip proofs for Intraday Equity and NIFTY Futures (exact delta = 0).
+2. `scratch/verify_financial_calculations_independent.js`: **4/4 PASSED** (All 4 cases verified independently)
 3. `tests/test_independent_loss_investigation_and_ledger_audit.ts`: **5/5 PASSED**
 4. `tests/test_paper_trading_database_persistence.ts`: **6/6 PASSED**
 5. `tests/test_universe_scanner_and_capital_aware_session.ts`: **26/26 PASSED**
-6. `npm run build`: **Vite Client Production Build PASSED in 3.50s**
+6. `npm run build`: **Vite Client Production Build PASSED**
 7. `scratch/test_live_http_verification.py`: **14/14 Live Endpoints PASSED**
 

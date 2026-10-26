@@ -2,11 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   calculateTradeCharges,
-  calculateTradeStatutoryCharges,
-  validateNetProfitGuardrail,
-  STATUTORY_SCHEDULE,
-  getEffectiveDateKey,
-  resolveSegmentCategory
+  validateNetProfitGuardrail
 } from '../src/utils/taxCalculator';
 
 describe('CHINTU AI — AUTHORITATIVE INDIAN REGULATORY FINANCIAL CALCULATIONS AUDIT', () => {
@@ -158,26 +154,76 @@ describe('CHINTU AI — AUTHORITATIVE INDIAN REGULATORY FINANCIAL CALCULATIONS A
   });
 
   // ==========================================================================
-  // 4. EQUITY FUTURES (NFO) SCHEDULE
+  // 4. EQUITY FUTURES (NFO) DATE-EFFECTIVE STT REVISIONS
   // ==========================================================================
-  describe('4. Equity Futures (NFO) Schedule', () => {
-    it('should charge 0.02% STT on SELL and 0.00173% True-To-Label exchange turnover post-Oct 2024', () => {
-      const futSell = calculateTradeCharges({
-        price: 25000,
-        qty: 25,
+  describe('4. Equity Futures (NFO) Date-Effective Schedule', () => {
+    it('should charge 0.05% STT on futures SELL for trades from 1 April 2026 onward (Finance Act 2026)', () => {
+      // Test exact boundary date: 1 April 2026
+      const boundaryPost2026 = calculateTradeCharges({
+        price: 24100,
+        qty: 50,
+        action: 'SELL',
+        segment: 'NSE Futures',
+        tradeDate: '2026-04-01',
+        includeSlippage: false
+      });
+
+      const orderVal = 24100 * 50; // 1,205,000.00
+      assert.equal(boundaryPost2026.orderValue, orderVal);
+      // 0.05% of 1,205,000 = 602.50 (NOT 241.00)
+      assert.equal(boundaryPost2026.stt, 602.50, 'Post-April 2026 Futures STT on SELL must be 0.05% = ₹602.50');
+      // True-to-label NSE futures fee: 0.00173% of 1,205,000 = 20.8465 -> 20.85
+      assert.equal(boundaryPost2026.exchangeTurnover, 20.85, 'NSE Futures exchange fee = 0.00173% = ₹20.85');
+      assert.equal(boundaryPost2026.ipft, 1.21, 'IPFT fee = 0.0001% = ₹1.21');
+      assert.equal(boundaryPost2026.sebiCharges, 1.21, 'SEBI charge = 0.0001% = ₹1.21');
+      assert.equal(boundaryPost2026.stampDuty, 0.00, 'Stamp duty on SELL = ₹0.00');
+      assert.equal(boundaryPost2026.brokerage, 20.00, 'Brokerage = ₹20.00');
+      // GST: 18% on (20.00 + 20.85 + 1.21 + 1.21 = 43.27) = 7.7886 -> 7.79
+      assert.equal(boundaryPost2026.gst, 7.79, 'GST = ₹7.79');
+      assert.equal(boundaryPost2026.totalCharges, 653.56, 'Total statutory exit charges = ₹653.56');
+
+      // Test active operational date: 26 October 2026
+      const activePost2026 = calculateTradeCharges({
+        price: 24100,
+        qty: 50,
         action: 'SELL',
         segment: 'NSE Futures',
         tradeDate: '2026-10-26',
         includeSlippage: false
       });
+      assert.equal(activePost2026.stt, 602.50, 'Active 2026 trade must charge 0.05% = ₹602.50');
+    });
 
-      const orderVal = 25000 * 25; // 625,000
-      assert.equal(futSell.orderValue, 625000.00);
-      // 0.02% of 625,000 = 125.00
-      assert.equal(futSell.stt, 125.00, 'Futures STT on SELL = 0.02% = ₹125.00');
-      // 0.00173% of 625,000 = 10.8125 -> 10.81
-      assert.equal(futSell.exchangeTurnover, 10.81, 'NSE Futures exchange fee = 0.00173% = ₹10.81');
-      assert.equal(futSell.brokerage, 20.00, 'Brokerage = flat ₹20.00');
+    it('should charge 0.02% STT on futures SELL on 31 March 2026 (boundary date prior to 1 April 2026)', () => {
+      const boundaryPre2026 = calculateTradeCharges({
+        price: 24100,
+        qty: 50,
+        action: 'SELL',
+        segment: 'NSE Futures',
+        tradeDate: '2026-03-31',
+        includeSlippage: false
+      });
+
+      assert.equal(boundaryPre2026.orderValue, 1205000.00);
+      // 0.02% of 1,205,000 = 241.00
+      assert.equal(boundaryPre2026.stt, 241.00, 'Mid-period Futures STT on SELL must be 0.02% = ₹241.00');
+      assert.equal(boundaryPre2026.exchangeTurnover, 20.85);
+      assert.equal(boundaryPre2026.totalCharges, 292.06, 'Total mid-period charges = ₹292.06');
+    });
+
+    it('should charge 0.0125% STT on futures SELL prior to 1 October 2024', () => {
+      const preOct2024 = calculateTradeCharges({
+        price: 24100,
+        qty: 50,
+        action: 'SELL',
+        segment: 'NSE Futures',
+        tradeDate: '2024-09-30',
+        includeSlippage: false
+      });
+
+      assert.equal(preOct2024.orderValue, 1205000.00);
+      // 0.0125% of 1,205,000 = 150.625 -> 150.63
+      assert.equal(preOct2024.stt, 150.63, 'Pre-Oct 2024 Futures STT on SELL must be 0.0125% = ₹150.63');
     });
   });
 
@@ -319,5 +365,53 @@ describe('CHINTU AI — AUTHORITATIVE INDIAN REGULATORY FINANCIAL CALCULATIONS A
       assert.equal(roundtripFees, 101.00);
       assert.equal(netPnl, 1899.00);
     });
+
+    it('should reconcile NIFTY Futures Intraday (50 qty @ ₹24,000 Buy, ₹24,100 Sell) post-April 2026 with exact delta = 0', () => {
+      const entry = calculateTradeCharges({
+        price: 24000,
+        qty: 50,
+        action: 'BUY',
+        segment: 'NSE Futures',
+        tradeDate: '2026-04-01',
+        includeSlippage: false
+      });
+      const exit = calculateTradeCharges({
+        price: 24100,
+        qty: 50,
+        action: 'SELL',
+        segment: 'NSE Futures',
+        tradeDate: '2026-04-01',
+        includeSlippage: false
+      });
+
+      const roundtripFees = Math.round((entry.totalCharges + exit.totalCharges) * 100) / 100;
+      const grossPnl = 5000.00;
+      const netPnl = Math.round((grossPnl - roundtripFees) * 100) / 100;
+
+      // Entry: 74.93, Exit: 653.56 -> Total: 728.49
+      assert.equal(entry.orderValue, 1200000.00);
+      assert.equal(entry.brokerage, 20.00);
+      assert.equal(entry.stt, 0.00, 'Entry STT must be 0 on BUY');
+      assert.equal(entry.exchangeTurnover, 20.76);
+      assert.equal(entry.ipft, 1.20);
+      assert.equal(entry.sebiCharges, 1.20);
+      assert.equal(entry.stampDuty, 24.00, 'Stamp duty on BUY = 0.002% = ₹24.00');
+      assert.equal(entry.gst, 7.77);
+      assert.equal(entry.totalCharges, 74.93, 'Entry charges must equal ₹74.93');
+
+      assert.equal(exit.orderValue, 1205000.00);
+      assert.equal(exit.brokerage, 20.00);
+      assert.equal(exit.stt, 602.50, 'Exit STT must be 0.05% of 1,205,000 = ₹602.50');
+      assert.equal(exit.exchangeTurnover, 20.85);
+      assert.equal(exit.ipft, 1.21);
+      assert.equal(exit.sebiCharges, 1.21);
+      assert.equal(exit.stampDuty, 0.00);
+      assert.equal(exit.gst, 7.79);
+      assert.equal(exit.totalCharges, 653.56, 'Exit charges must equal ₹653.56');
+
+      assert.equal(roundtripFees, 728.49, 'Roundtrip charges must equal ₹728.49');
+      assert.equal(netPnl, 4271.51, 'Net P&L must equal ₹4,271.51');
+    });
   });
 });
+
