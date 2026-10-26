@@ -113,3 +113,4 @@ All simulated trades are logged with complete statutory transaction charges (STT
 | `test_data_integrity_and_provenance.ts` | Provenance tagging (`LIVE_BROKER`, `HISTORICAL`) | ✅ PASSED (2.33s) |
 
 All feed and paper trading verification suites pass with 100% success rate.
+

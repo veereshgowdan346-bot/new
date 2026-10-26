@@ -131,3 +131,4 @@ The persistence layer is fully hardened against memory loss:
 1. **Navigation Stability:** Users can navigate freely between Workstation, Bots, Connections, Settings, and RMS without data loss.
 2. **Crash & Restart Resilience:** All configuration, bot allocations, and encrypted credentials survive server termination and system reboots.
 3. **Database Integrity:** SQLite WAL journaling ensures acid transactions with automatic point-in-time backup snapshots.
+
