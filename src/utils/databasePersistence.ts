@@ -35,6 +35,7 @@ export interface TradeRecord {
   charges: number;
   status: string;
   timestamp: string;
+  time?: string;
   breakdown?: any;
 }
 

@@ -84,6 +84,15 @@ export function calculateTradeCharges({
  *
  * CRITICAL RULE:
  * Rejects and aborts any order where expected net ROI is under 1.5% or expected net profit <= 0.
+ *
+ * @param {Object} params
+ * @param {number} [params.entryPrice=0]
+ * @param {number|null} [params.targetPrice=null]
+ * @param {number} [params.qty=1]
+ * @param {string} [params.action='BUY']
+ * @param {string} [params.segment='NSE Equity']
+ * @param {number} [params.safetyBufferPercent=20.0]
+ * @param {number} [params.hurdleNetRoiPct=1.50]
  */
 export function validateNetProfitGuardrail({
   entryPrice = 0,

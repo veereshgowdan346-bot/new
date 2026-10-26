@@ -1,7 +1,9 @@
 {
-  "feed_provider": "Angel One SmartStream 2.0",
+  "feed_provider": "Local SmartStream 51-byte Packet Simulator",
+  "feed_data_provenance": "SYNTHETIC_SIMULATION (Offline Protocol Test)",
+  "live_broker_connection_status": "NOT_CONNECTED (Pending Genuine Angel One Credentials)",
   "packet_specification": "51-byte Binary Packet (Mode: 1, Exch: 1, Token: 25B, Seq: 8B, Timestamp: 8B, LTP: 8B)",
-  "feed_status": "STREAMING_VERIFIED",
+  "feed_status": "SYNTHETIC_SIMULATION_PARSER_VERIFIED",
   "total_packets_received": 240,
   "valid_packets_parsed": 200,
   "packet_parse_success_rate_percent": 83.33,

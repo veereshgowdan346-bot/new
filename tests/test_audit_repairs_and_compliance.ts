@@ -8,6 +8,8 @@ import { AngelOrderExecutionAdapter } from '../src/utils/angelOrderAdapter';
 import { angelMarketDataAdapter } from '../src/utils/angelMarketDataAdapter';
 import { connectionVault } from '../src/utils/connectionVault';
 import { runtimeDb } from '../src/utils/databasePersistence';
+import { paperSessionEngine } from '../src/utils/paperSessionEngine';
+import { validateNetProfitGuardrail } from '../src/utils/taxCalculator';
 
 const TEST_DB = path.resolve('server/data/test_audit_repairs.db');
 
@@ -106,5 +108,55 @@ test('Setup and teardown', { concurrency: false }, async (t) => {
     
     assert.ok(serverContent.includes("LIVE_TRADING_LOCKED"), 'server.ts must contain LIVE_TRADING_LOCKED error code');
     assert.ok(serverContent.includes("if (mode === 'LIVE')"), 'server.ts must guard against mode === LIVE');
+  });
+
+  await t.test('7. Paper Session Engine Stop Union Typing & Reset Isolation', async () => {
+    // Verified production exit policies: 'MARKET_CLOSE' | 'LEAVE_OPEN'
+    const res = await paperSessionEngine.stopSession('MARKET_CLOSE');
+    assert.ok(res.success, 'stopSession with MARKET_CLOSE must succeed');
+    
+    paperSessionEngine.resetToNotStarted();
+    const metrics = paperSessionEngine.getSessionMetrics();
+    assert.strictEqual(metrics.status, 'NOT_STARTED', 'Engine must be reset to NOT_STARTED');
+  });
+
+  await t.test('8. Tax Calculator validateNetProfitGuardrail Numeric targetPrice Typing', () => {
+    // Numeric targetPrice parameter must be accepted and calculated
+    const hurdle = validateNetProfitGuardrail({
+      entryPrice: 2500,
+      targetPrice: 2575, // +3.0% target price as number
+      qty: 10,
+      action: 'BUY',
+      segment: 'NSE Equity',
+      hurdleNetRoiPct: 1.50
+    });
+    
+    assert.strictEqual(hurdle.isApproved, true, 'Hurdle must approve profitable target spread');
+    assert.strictEqual(hurdle.targetPrice, 2575, 'Target price must be preserved as number');
+    assert.ok(hurdle.expectedNetRoiPct > 1.50, 'Projected Net ROI must exceed 1.50% hurdle');
+  });
+
+  await t.test('9. Database Persistence TradeRecord Required Timestamp Contract', () => {
+    const tradeId = `test_trd_${Date.now()}`;
+    const isoTimestamp = new Date().toISOString();
+    
+    runtimeDb.saveTrade({
+      id: tradeId,
+      orderId: `ord_${tradeId}`,
+      symbol: 'RELIANCE',
+      bot: 'Alpha Trend DMA',
+      action: 'BUY',
+      qty: 25,
+      price: 2980.50,
+      pnl: 0,
+      charges: 45.20,
+      status: 'FILLED',
+      timestamp: isoTimestamp
+    });
+
+    const stored = runtimeDb.getRecentTrades(10).find((t) => t.id === tradeId);
+    assert.ok(stored, 'Saved trade must be retrievable from database');
+    assert.strictEqual(stored.symbol, 'RELIANCE');
+    assert.strictEqual(stored.timestamp, isoTimestamp, 'Timestamp must match ISO-8601 string');
   });
 });

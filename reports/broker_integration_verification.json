@@ -1,6 +1,7 @@
 {
   "broker": "Angel One (SmartAPI v2)",
-  "audit_timestamp": "2026-10-26T08:25:18.760Z",
+  "live_market_feed_provenance": "UNVERIFIED (Pending Live User Credentials & Active Market Session)",
+  "audit_timestamp": "2026-10-26T09:12:45.748Z",
   "endpoints_verified": {
     "authentication_and_session": {
       "route": "POST https://apiconnect.angelone.in/rest/auth/partner/v1/loginByPassword",

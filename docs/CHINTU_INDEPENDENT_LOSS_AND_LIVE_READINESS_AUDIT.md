@@ -232,3 +232,4 @@ The Angel One SmartAPI integration was evaluated against the official broker con
 
 **Audit Completed & Signed Off By:**  
 *Principal Quantitative Trading Systems Engineer & FinTech Architecture Lead*
+
