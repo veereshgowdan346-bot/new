@@ -14,7 +14,9 @@ class SoundEngine {
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      try {
+        this.ctx.resume();
+      } catch (e) {}
     }
   }
 
@@ -67,6 +69,59 @@ class SoundEngine {
 
       osc.start(now);
       osc.stop(now + 0.2);
+    } catch (e) {}
+  }
+
+  playSuccessChime() {
+    if (!this.enabled) return;
+    try {
+      this.init();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+
+      // Ascending C5-E5-G5 triad harmonic chime for successful operations
+      const notes = [523.25, 659.25, 783.99];
+      notes.forEach((freq, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const start = now + idx * 0.08;
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, start);
+
+        gain.gain.setValueAtTime(0.06, start);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.35);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(start);
+        osc.stop(start + 0.35);
+      });
+    } catch (e) {}
+  }
+
+  playVetoChime() {
+    if (!this.enabled) return;
+    try {
+      this.init();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+
+      // Descending warning tone for rejection/veto
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(370, now);
+      osc.frequency.linearRampToValueAtTime(220, now + 0.2);
+
+      gain.gain.setValueAtTime(0.07, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.22);
     } catch (e) {}
   }
 
@@ -128,7 +183,48 @@ class SoundEngine {
       osc2.stop(now + 0.35);
     } catch (e) {}
   }
+
+  playChime() {
+    this.playBuyChime();
+  }
+
+  playVolatilityAlert() {
+    this.playAlertChime();
+  }
+
+  playOrderClick() {
+    if (!this.enabled) return;
+    try {
+      this.init();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1200, now);
+      gain.gain.setValueAtTime(0.04, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.02);
+    } catch (e) {}
+  }
 }
 
-export const soundEngine = new SoundEngine();
+const rawSoundEngine = new SoundEngine();
 
+// Resilient Proxy: guarantees that soundEngine.anyMethod() is ALWAYS a callable function and never throws TypeError
+export const soundEngine = new Proxy(rawSoundEngine, {
+  get(target, prop, receiver) {
+    if (prop in target) {
+      const val = Reflect.get(target, prop, receiver);
+      if (typeof val === 'function') {
+        return val.bind(target);
+      }
+      return val;
+    }
+    // Safe fallback no-op function for any unmapped sound name
+    return () => {};
+  }
+});

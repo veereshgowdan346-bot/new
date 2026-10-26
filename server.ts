@@ -3808,15 +3808,15 @@ app.post('/api/connections/save', userAuthService.requireAuth, (req: Authenticat
 // Connection Vault: Test Connection (Strictly Authenticated)
 app.post('/api/connections/test', userAuthService.requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.userId;
-  const { provider } = req.body;
+  const { provider, credentials } = req.body;
 
   if (!provider) {
     return res.status(400).json({ status: 'error', message: 'Provider required.' });
   }
 
-  const result = await connectionVault.testConnection(userId, provider as ProviderType);
+  const result = await connectionVault.testConnection(userId, provider as ProviderType, credentials);
   if (provider === 'angel_one' && result.success) {
-    const creds = connectionVault.getDecryptedCredentials(userId, 'angel_one');
+    const creds = credentials || connectionVault.getDecryptedCredentials(userId, 'angel_one');
     if (creds) {
       angelMarketDataAdapter.updateCredentials({
         apiKey: creds.apiKey,
@@ -3866,67 +3866,6 @@ app.post('/api/connections/disconnect', userAuthService.requireAuth, (req: Authe
     });
   }
   res.json({ status: 'success', connection: disconnected });
-});
-
-// --- Connection Vault PIN Security & Recovery Endpoints ---
-app.get('/api/connections/vault/has-pin', userAuthService.requireAuth, (req: AuthenticatedRequest, res: Response) => {
-  const userId = req.user!.userId;
-  const pinStatus = connectionVault.hasVaultPin(userId);
-  res.json({ status: 'success', ...pinStatus });
-});
-
-app.post('/api/connections/vault/setup-pin', userAuthService.requireAuth, (req: AuthenticatedRequest, res: Response) => {
-  const userId = req.user!.userId;
-  const { pin } = req.body;
-  const result = connectionVault.setupVaultPin(userId, pin);
-  if (!result.success) {
-    return res.status(400).json({ status: 'error', message: result.message });
-  }
-  res.json({ status: 'success', message: result.message });
-});
-
-app.post('/api/connections/vault/verify-pin', userAuthService.requireAuth, (req: AuthenticatedRequest, res: Response) => {
-  const userId = req.user!.userId;
-  const { pin } = req.body;
-  const result = connectionVault.verifyVaultPin(userId, pin);
-  if (!result.success) {
-    return res.status(401).json({ status: 'error', ...result });
-  }
-  res.json({ status: 'success', ...result });
-});
-
-app.post('/api/connections/vault/reveal', userAuthService.requireAuth, (req: AuthenticatedRequest, res: Response) => {
-  const userId = req.user!.userId;
-  const { provider, pin } = req.body;
-  const result = connectionVault.revealSensitiveCredentials(userId, provider as ProviderType, pin);
-  if (!result.success) {
-    return res.status(result.isLocked ? 403 : 401).json({
-      status: 'error',
-      message: result.error,
-      isLocked: result.isLocked,
-      remainingAttempts: result.remainingAttempts
-    });
-  }
-  res.json({ status: 'success', credentials: result.credentials });
-});
-
-app.post('/api/connections/vault/request-recovery', userAuthService.requireAuth, async (req: AuthenticatedRequest, res: Response) => {
-  const userId = req.user!.userId;
-  const result = await connectionVault.requestTelegramPinRecovery(userId);
-  if (!result.success) {
-    return res.status(400).json({ status: 'error', message: result.message });
-  }
-  res.json({ status: 'success', message: result.message });
-});
-
-app.post('/api/connections/vault/reset-pin', userAuthService.requireAuth, (req: AuthenticatedRequest, res: Response) => {
-  const userId = req.user!.userId;
-  const { recoveryCode, newPin } = req.body;
-  const result = connectionVault.resetVaultPinWithRecoveryCode(userId, recoveryCode, newPin);
-  if (!result.success) {
-    return res.status(400).json({ status: 'error', message: result.message });
-  }
-  res.json({ status: 'success', message: result.message });
 });
 
 
@@ -4056,6 +3995,9 @@ async function startServer() {
   } else {
     const distPath = path.resolve(__dirname, 'dist');
     app.use(express.static(distPath));
+    app.all('/api/{*splat}', (req: Request, res: Response) => {
+      res.status(404).json({ status: 'error', message: 'API endpoint ' + req.method + ' ' + req.path + ' not found.' });
+    });
     app.get('{*splat}', (_req: Request, res: Response) => {
       res.sendFile(path.resolve(distPath, 'index.html'));
     });
