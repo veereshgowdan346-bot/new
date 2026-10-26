@@ -825,6 +825,10 @@ export default function App() {
     } catch (e) {}
     document.documentElement.classList.remove('dark', 'dim', 'light');
     document.documentElement.classList.add(theme);
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) {
+      metaTheme.setAttribute('content', theme === 'light' ? '#F5F7FA' : (theme === 'dim' ? '#0B0F19' : '#0F1117'));
+    }
   }, [theme]);
 
   return (
