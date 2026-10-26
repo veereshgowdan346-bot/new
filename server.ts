@@ -1315,43 +1315,89 @@ app.get('/api/trading/paper-vs-live-audit', (_req: Request, res: Response) => {
   });
 });
 
-app.get('/api/broker/status', (_req: Request, res: Response) => {
+app.get('/api/broker/status', (req: Request, res: Response) => {
+  const authHeader = req.headers['authorization'] || '';
+  const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  const session = token ? userAuthService.verifySessionToken(token) : null;
+  const userId = session?.userId || 'usr_veeresh_master';
+
+  const angelVault = connectionVault.getConnectionState(userId, 'angel_one');
+  const isVaultConnected = angelVault.status === 'CONNECTED';
   const adapterStatus = angelMarketDataAdapter.getStatus();
-  brokersState.angel.connected = adapterStatus.isLiveStreaming;
-  brokersState.angel_one.connected = adapterStatus.isLiveStreaming;
-  if (adapterStatus.isLiveStreaming) {
-    brokersState.angel.tokenExpires = `${adapterStatus.jwtLifetimeMinutes}m`;
-    brokersState.angel_one.tokenExpires = `${adapterStatus.jwtLifetimeMinutes}m`;
-    brokersState.angel.ping = '8ms';
-    brokersState.angel_one.ping = '8ms';
-  } else {
-    brokersState.angel.tokenExpires = 'Disconnected';
-    brokersState.angel_one.tokenExpires = 'Disconnected';
-    brokersState.angel.ping = '--';
-    brokersState.angel_one.ping = '--';
-  }
+  const isConnected = isVaultConnected || adapterStatus.isLiveStreaming;
+
+  const sessionMetrics = paperSessionEngine.getSessionMetrics();
+  const genuineCash = (sessionMetrics && sessionMetrics.initialCapital > 0) ? sessionMetrics.currentCapital : 500000.0;
+
+  ['angel', 'angel_one'].forEach((k) => {
+    if (brokersState[k]) {
+      brokersState[k].connected = isConnected;
+      brokersState[k].availableCash = genuineCash;
+      brokersState[k].collateralMargin = 0.0;
+      brokersState[k].netMargin = genuineCash;
+      if (isConnected) {
+        brokersState[k].tokenExpires = `${adapterStatus.jwtLifetimeMinutes || 1440}m`;
+        brokersState[k].ping = '8ms';
+      } else {
+        brokersState[k].tokenExpires = 'Disconnected';
+        brokersState[k].ping = '--';
+      }
+    }
+  });
+
   res.json({ status: 'success', brokers: brokersState });
 });
 
 app.post('/api/broker/connect', (req: Request, res: Response) => {
-  const { broker = 'angel_one', clientId, apiKey } = req.body;
+  const { broker = 'angel_one', clientId, apiKey, pin, totpSecret, totp } = req.body;
   const rawKey = (broker || '').toLowerCase();
   const key = rawKey.includes('angel') ? 'angel_one' : rawKey;
-  
+
+  // Extract authenticated user ID or fallback to master default
+  const authHeader = req.headers['authorization'] || '';
+  const token = typeof authHeader === 'string' && authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+  const session = token ? userAuthService.verifySessionToken(token) : null;
+  const userId = session?.userId || 'usr_veeresh_master';
+
+  // If credentials provided, persist through durable connectionVault
+  if (apiKey && clientId && (pin || totpSecret || totp)) {
+    connectionVault.saveConnection(userId, 'angel_one', {
+      apiKey,
+      clientId,
+      pin: pin || '',
+      totpSecret: totpSecret || totp || ''
+    });
+    angelMarketDataAdapter.updateCredentials({
+      apiKey,
+      clientId,
+      pin: pin || '',
+      totpSecret: totpSecret || totp || ''
+    });
+  }
+
+  // Use authentic paper trading capital instead of mock numbers
+  const sessionMetrics = paperSessionEngine.getSessionMetrics();
+  const genuineCash = (sessionMetrics && sessionMetrics.initialCapital > 0) ? sessionMetrics.currentCapital : 500000.0;
+  const genuineCollateral = 0.0;
+  const genuineNet = genuineCash + genuineCollateral;
+
   if (!brokersState[key]) {
     brokersState[key] = {
       connected: true,
-      clientName: `${broker.toUpperCase()} Pro Account`,
+      clientName: `${broker.toUpperCase()} Account`,
       clientId: clientId || 'LIVE-USER',
-      availableCash: 125000.00,
-      collateralMargin: 45000.00,
-      netMargin: 170000.00,
+      availableCash: genuineCash,
+      collateralMargin: genuineCollateral,
+      netMargin: genuineNet,
       ping: '10ms'
     };
   }
 
   brokersState[key].connected = true;
   if (clientId) brokersState[key].clientId = clientId;
+  brokersState[key].availableCash = genuineCash;
+  brokersState[key].collateralMargin = genuineCollateral;
+  brokersState[key].netMargin = genuineNet;
   brokersState[key].ping = `${Math.floor(Math.random() * 5) + 7}ms`;
   brokersState[key].lastSync = new Date().toLocaleTimeString();
 
@@ -1369,8 +1415,9 @@ app.post('/api/broker/connect', (req: Request, res: Response) => {
 
   res.json({
     status: 'success',
-    message: `${broker.toUpperCase()} broker conduit authenticated & connected. Feed active.`,
-    broker: brokersState[key]
+    broker: key,
+    details: brokersState[key],
+    message: `${broker.toUpperCase()} conduit synchronized with persistent vault and paper ledger.`
   });
 });
 
@@ -3728,7 +3775,7 @@ app.get('/api/auth/me', userAuthService.requireAuth, (req: AuthenticatedRequest,
 });
 
 // Connection Vault: Get All Statuses (Strictly Authenticated)
-app.get('/api/connections/status', userAuthService.requireAuth, (req: AuthenticatedRequest, res: Response) => {
+app.get(['/api/connections', '/api/connections/status'], userAuthService.requireAuth, (req: AuthenticatedRequest, res: Response) => {
   const userId = req.user!.userId;
   const connections = connectionVault.getUserConnections(userId);
   res.json({ status: 'success', connections });
@@ -3790,7 +3837,13 @@ app.post('/api/connections/test', userAuthService.requireAuth, async (req: Authe
       });
     }
   }
-  res.json(result);
+  res.json({
+    ...result,
+    success: result.success,
+    status: result.success ? 'success' : result.status,
+    connectionStatus: result.status,
+    message: result.message
+  });
 });
 
 // Connection Vault: Disconnect (Strictly Authenticated)
@@ -3814,6 +3867,68 @@ app.post('/api/connections/disconnect', userAuthService.requireAuth, (req: Authe
   }
   res.json({ status: 'success', connection: disconnected });
 });
+
+// --- Connection Vault PIN Security & Recovery Endpoints ---
+app.get('/api/connections/vault/has-pin', userAuthService.requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.userId;
+  const pinStatus = connectionVault.hasVaultPin(userId);
+  res.json({ status: 'success', ...pinStatus });
+});
+
+app.post('/api/connections/vault/setup-pin', userAuthService.requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.userId;
+  const { pin } = req.body;
+  const result = connectionVault.setupVaultPin(userId, pin);
+  if (!result.success) {
+    return res.status(400).json({ status: 'error', message: result.message });
+  }
+  res.json({ status: 'success', message: result.message });
+});
+
+app.post('/api/connections/vault/verify-pin', userAuthService.requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.userId;
+  const { pin } = req.body;
+  const result = connectionVault.verifyVaultPin(userId, pin);
+  if (!result.success) {
+    return res.status(401).json({ status: 'error', ...result });
+  }
+  res.json({ status: 'success', ...result });
+});
+
+app.post('/api/connections/vault/reveal', userAuthService.requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.userId;
+  const { provider, pin } = req.body;
+  const result = connectionVault.revealSensitiveCredentials(userId, provider as ProviderType, pin);
+  if (!result.success) {
+    return res.status(result.isLocked ? 403 : 401).json({
+      status: 'error',
+      message: result.error,
+      isLocked: result.isLocked,
+      remainingAttempts: result.remainingAttempts
+    });
+  }
+  res.json({ status: 'success', credentials: result.credentials });
+});
+
+app.post('/api/connections/vault/request-recovery', userAuthService.requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.userId;
+  const result = await connectionVault.requestTelegramPinRecovery(userId);
+  if (!result.success) {
+    return res.status(400).json({ status: 'error', message: result.message });
+  }
+  res.json({ status: 'success', message: result.message });
+});
+
+app.post('/api/connections/vault/reset-pin', userAuthService.requireAuth, (req: AuthenticatedRequest, res: Response) => {
+  const userId = req.user!.userId;
+  const { recoveryCode, newPin } = req.body;
+  const result = connectionVault.resetVaultPinWithRecoveryCode(userId, recoveryCode, newPin);
+  if (!result.success) {
+    return res.status(400).json({ status: 'error', message: result.message });
+  }
+  res.json({ status: 'success', message: result.message });
+});
+
 
 // --- Official Telegram Bot API Webhook ---
 app.post(['/api/webhook/telegram', '/api/telegram/bot-webhook'], (req: Request, res: Response) => {

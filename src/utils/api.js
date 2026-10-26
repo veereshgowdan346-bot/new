@@ -29,6 +29,56 @@ export const DIRECT_BACKEND_URL = RAW_API_URL
  * Universal fetch wrapper with automatic relative path resolution
  * Always safely resolves to relative '/api/...' if no custom host is configured.
  */
+async function wrapApiResponse(res) {
+  if (!res) return res;
+  let parsedJson = null;
+
+  if (typeof res.clone === 'function') {
+    try {
+      const clone = res.clone();
+      const text = await clone.text();
+      if (text && text.trim().length > 0) {
+        parsedJson = JSON.parse(text);
+      }
+    } catch (e) {}
+  } else if (typeof res.json === 'function') {
+    try {
+      parsedJson = await res.json();
+    } catch (e) {}
+  }
+
+  return new Proxy(res, {
+    get(target, prop, receiver) {
+      if (prop === 'then') return Reflect.get(target, prop, receiver);
+      if (prop === 'rawResponse') return target;
+      if (prop === 'httpStatus') return target.status;
+      if (prop === 'isJson') return parsedJson !== null && typeof parsedJson === 'object';
+      if (prop === 'json') {
+        return async () => (parsedJson !== null ? parsedJson : (typeof target.json === 'function' ? target.json() : target));
+      }
+      if (prop === 'text') {
+        return async () => (parsedJson !== null ? JSON.stringify(parsedJson) : (typeof target.text === 'function' ? target.text() : String(target)));
+      }
+
+      if (parsedJson !== null && typeof parsedJson === 'object' && prop in parsedJson) {
+        return parsedJson[prop];
+      }
+
+      if (prop === 'success') {
+        if (parsedJson && parsedJson.success !== undefined) return parsedJson.success;
+        if (parsedJson && parsedJson.status === 'success') return true;
+        return Boolean(target.ok);
+      }
+
+      const val = Reflect.get(target, prop, receiver);
+      if (typeof val === 'function') {
+        return val.bind(target);
+      }
+      return val;
+    }
+  });
+}
+
 export async function apiFetch(endpoint, options = {}) {
   // Normalize endpoint string
   let cleanEndpoint = (endpoint || '').trim();
@@ -81,7 +131,7 @@ export async function apiFetch(endpoint, options = {}) {
 
     const res = await fetch(relativeUrl, reqOptions);
     if (res.status) {
-      return res;
+      return await wrapApiResponse(res);
     }
   } catch (err) {
     // Relative fetch may fail if backend is listening strictly on separate direct port
@@ -96,7 +146,8 @@ export async function apiFetch(endpoint, options = {}) {
       ? cleanEndpoint
       : `${DIRECT_BACKEND_URL}${cleanEndpoint}`;
 
-    return await fetch(directUrl, reqOptions);
+    const directRes = await fetch(directUrl, reqOptions);
+    return await wrapApiResponse(directRes);
   } catch (directErr) {
     // If backend is entirely offline, return safe mock response rather than crashing the component
     return {

@@ -805,20 +805,19 @@ export default function App() {
   });
 
   const handleToggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+    setTheme((prev) => {
+      if (prev === 'dark') return 'dim';
+      if (prev === 'dim') return 'light';
+      return 'dark';
+    });
   };
 
   useEffect(() => {
     try {
       localStorage.setItem('chintu_theme', theme);
     } catch (e) {}
-    if (theme === 'light') {
-      document.documentElement.classList.add('light');
-      document.documentElement.classList.remove('dark');
-    } else {
-      document.documentElement.classList.add('dark');
-      document.documentElement.classList.remove('light');
-    }
+    document.documentElement.classList.remove('dark', 'dim', 'light');
+    document.documentElement.classList.add(theme);
   }, [theme]);
 
   return (

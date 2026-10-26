@@ -86,6 +86,19 @@ export interface UserConnectionRecord {
   updatedAt: string;
 }
 
+export interface UserVaultSecurityRecord {
+  userId: string;
+  pinHash: string;
+  pinSalt: string;
+  failedAttempts: number;
+  lockedUntil: string | null;
+  recoveryCodeHash?: string | null;
+  recoveryCodeExpiresAt?: string | null;
+  recoveryCodeAttempts?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AuditLogRecord {
   id: string;
   userId: string;
@@ -111,6 +124,7 @@ export class DatabasePersistenceService {
       }
       this.dbPath = path.join(dataDir, 'chintu_runtime.db');
     }
+    this.init();
   }
 
   public init(customPath?: string): void {
@@ -123,6 +137,9 @@ export class DatabasePersistenceService {
       this.dbPath = targetPath;
     } else if (!this.dbPath && process.env.CHINTU_DB_PATH) {
       this.dbPath = process.env.CHINTU_DB_PATH;
+    }
+    if (this.db && (!targetPath || targetPath === this.dbPath)) {
+      return;
     }
     try {
       const parentDir = path.dirname(this.dbPath);
@@ -221,6 +238,19 @@ export class DatabasePersistenceService {
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL,
           UNIQUE(user_id, provider)
+        );
+
+        CREATE TABLE IF NOT EXISTS user_vault_security (
+          user_id TEXT PRIMARY KEY,
+          pin_hash TEXT NOT NULL,
+          pin_salt TEXT NOT NULL,
+          failed_attempts INTEGER DEFAULT 0,
+          locked_until TEXT,
+          recovery_code_hash TEXT,
+          recovery_code_expires_at TEXT,
+          recovery_code_attempts INTEGER DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
         );
 
         CREATE TABLE IF NOT EXISTS user_audit_log (
@@ -663,6 +693,100 @@ export class DatabasePersistenceService {
       console.warn('[DB] Failed to load audit logs:', e);
       return [];
     }
+  }
+
+  // --- User Vault PIN Security ---
+  public getUserVaultSecurity(userId: string): UserVaultSecurityRecord | null {
+    if (!this.db) return null;
+    try {
+      const stmt = this.db.prepare('SELECT * FROM user_vault_security WHERE user_id = ?');
+      const row = stmt.get(userId) as any;
+      if (!row) return null;
+      return {
+        userId: row.user_id,
+        pinHash: row.pin_hash,
+        pinSalt: row.pin_salt,
+        failedAttempts: Number(row.failed_attempts || 0),
+        lockedUntil: row.locked_until || null,
+        recoveryCodeHash: row.recovery_code_hash || null,
+        recoveryCodeExpiresAt: row.recovery_code_expires_at || null,
+        recoveryCodeAttempts: Number(row.recovery_code_attempts || 0),
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      };
+    } catch (e) {
+      console.warn('[DB] Failed to get user vault security:', e);
+      return null;
+    }
+  }
+
+  public upsertUserVaultSecurity(sec: UserVaultSecurityRecord): void {
+    if (!this.db) return;
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO user_vault_security (user_id, pin_hash, pin_salt, failed_attempts, locked_until, recovery_code_hash, recovery_code_expires_at, recovery_code_attempts, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET
+          pin_hash = excluded.pin_hash,
+          pin_salt = excluded.pin_salt,
+          failed_attempts = excluded.failed_attempts,
+          locked_until = excluded.locked_until,
+          recovery_code_hash = excluded.recovery_code_hash,
+          recovery_code_expires_at = excluded.recovery_code_expires_at,
+          recovery_code_attempts = excluded.recovery_code_attempts,
+          updated_at = excluded.updated_at
+      `);
+      stmt.run(
+        sec.userId,
+        sec.pinHash,
+        sec.pinSalt,
+        sec.failedAttempts || 0,
+        sec.lockedUntil || null,
+        sec.recoveryCodeHash || null,
+        sec.recoveryCodeExpiresAt || null,
+        sec.recoveryCodeAttempts || 0,
+        sec.createdAt,
+        sec.updatedAt
+      );
+    } catch (e) {
+      console.warn('[DB] Failed to upsert user vault security:', e);
+    }
+  }
+
+  public recordFailedVaultPinAttempt(userId: string, lockoutMinutes = 15): { locked: boolean; lockedUntil: string | null; remainingAttempts: number } {
+    const existing = this.getUserVaultSecurity(userId);
+    if (!existing) {
+      return { locked: false, lockedUntil: null, remainingAttempts: 5 };
+    }
+    const failedAttempts = existing.failedAttempts + 1;
+    let lockedUntil: string | null = null;
+    let locked = false;
+    if (failedAttempts >= 5) {
+      lockedUntil = new Date(Date.now() + lockoutMinutes * 60 * 1000).toISOString();
+      locked = true;
+    }
+    this.upsertUserVaultSecurity({
+      ...existing,
+      failedAttempts,
+      lockedUntil,
+      updatedAt: new Date().toISOString()
+    });
+    return {
+      locked,
+      lockedUntil,
+      remainingAttempts: Math.max(0, 5 - failedAttempts)
+    };
+  }
+
+  public resetVaultPinLockout(userId: string): void {
+    const existing = this.getUserVaultSecurity(userId);
+    if (!existing) return;
+    this.upsertUserVaultSecurity({
+      ...existing,
+      failedAttempts: 0,
+      lockedUntil: null,
+      updatedAt: new Date().toISOString()
+    });
   }
 
   public close(): void {

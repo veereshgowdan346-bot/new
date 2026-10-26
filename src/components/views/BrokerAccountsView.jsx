@@ -192,7 +192,7 @@ export default function BrokerAccountsView({ brokerConnections, onUpdateBroker }
           return;
         }
 
-        const b = resData.broker || {};
+        const b = resData.details || (typeof resData.broker === 'object' ? resData.broker : {}) || {};
 
         // Strict real-time state with ZERO mock balance
         const realCash = Number(b.availableCash) || 0.00;

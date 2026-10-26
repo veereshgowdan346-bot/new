@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bot, Bell, Settings, Search, User, ShieldCheck, Keyboard, Sun, Moon, Lock } from 'lucide-react';
+import { Bot, Bell, Settings, Search, User, ShieldCheck, Keyboard, Sun, Moon, Lock, Contrast } from 'lucide-react';
 import EmergencyKillSwitch from './EmergencyKillSwitch';
 import RealtimePnlTracker from './RealtimePnlTracker';
 
@@ -160,18 +160,29 @@ export default function TopNavbar({
           <kbd className="text-[9px] px-1 py-0.5 rounded bg-slate-800 text-cyan-300 border border-slate-700 font-bold">?</kbd>
         </button>
 
-        {/* Theme Toggle (Dark / Light) */}
+        {/* Theme Toggle (Dark -> Dim -> Light -> Dark) */}
         <button
           type="button"
           onClick={onToggleTheme}
-          className="p-1.5 rounded-lg bg-[#091122] border border-[#16294a] text-slate-300 hover:text-cyan-400 hover:border-cyan-500/50 transition-all cursor-pointer shadow-sm active:scale-95"
-          title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Terminal Theme'}
+          className="p-1.5 rounded-lg bg-[#091122] border border-[#16294a] text-slate-300 hover:text-cyan-400 hover:border-cyan-500/50 transition-all cursor-pointer shadow-sm active:scale-95 flex items-center gap-1.5 px-2"
+          title={`Theme: ${theme.toUpperCase()} (Click to cycle Dark -> Dim -> Light)`}
           aria-label="Toggle visual theme"
         >
           {theme === 'dark' ? (
-            <Sun className="w-3.5 h-3.5 text-amber-400" />
+            <>
+              <Moon className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-[10px] font-mono text-cyan-300 hidden sm:inline">Dark</span>
+            </>
+          ) : theme === 'dim' ? (
+            <>
+              <Contrast className="w-3.5 h-3.5 text-sky-400" />
+              <span className="text-[10px] font-mono text-sky-300 hidden sm:inline">Dim</span>
+            </>
           ) : (
-            <Moon className="w-3.5 h-3.5 text-cyan-400" />
+            <>
+              <Sun className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-[10px] font-mono text-amber-600 hidden sm:inline">Light</span>
+            </>
           )}
         </button>
 

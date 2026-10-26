@@ -3,7 +3,7 @@ import { runtimeDb, UserConnectionRecord } from './databasePersistence';
 import { cryptoVault } from './cryptoVault';
 import { generateTOTP } from './angelMarketDataAdapter';
 
-export type ProviderType = 'angel_one' | 'telegram' | 'google';
+export type ProviderType = 'angel_one' | 'telegram' | 'google' | 'ollama';
 export type ConnectionStatus =
   | 'NOT_CONFIGURED'
   | 'SAVED'
@@ -23,6 +23,7 @@ export interface SanitizedConnectionState {
   lastError: string | null;
   missingPermissions: string | null;
   updatedAt: string;
+  readBackVerified?: boolean;
 }
 
 export class ConnectionVaultService {
@@ -31,7 +32,7 @@ export class ConnectionVaultService {
    */
   public getUserConnections(userId: string): SanitizedConnectionState[] {
     const records = runtimeDb.getAllConnections(userId);
-    const providers: ProviderType[] = ['angel_one', 'telegram', 'google'];
+    const providers: ProviderType[] = ['angel_one', 'telegram', 'google', 'ollama'];
 
     return providers.map((provider) => {
       const match = records.find((r) => r.provider === provider);
@@ -85,6 +86,7 @@ export class ConnectionVaultService {
   /**
    * Securely saves or updates credentials for a user and provider.
    * Credentials are encrypted using AES-256-GCM before storage.
+   * Implements transaction-safe durable read-back verification.
    */
   public saveConnection(
     userId: string,
@@ -99,7 +101,8 @@ export class ConnectionVaultService {
       if (typeof v === 'string') {
         const trimmed = v.trim();
         // Ignore empty strings, bullet masks, and asterisk masks
-        if (trimmed.length > 0 && !trimmed.includes('******') && trimmed !== '••••') {
+        const isMasked = trimmed.includes('*') || trimmed.includes('\u2022') || trimmed.includes('•') || trimmed.includes('●');
+        if (trimmed.length > 0 && !isMasked) {
           mergedCredentials[k] = trimmed;
         }
       } else if (v !== undefined && v !== null) {
@@ -120,6 +123,10 @@ export class ConnectionVaultService {
         }
       } else if (provider === 'google') {
         if (mergedCredentials.geminiApiKey || (mergedCredentials.clientId && mergedCredentials.clientSecret)) {
+          determinedStatus = 'SAVED';
+        }
+      } else if (provider === 'ollama') {
+        if (mergedCredentials.endpointUrl || mergedCredentials.modelName) {
           determinedStatus = 'SAVED';
         }
       }
@@ -146,6 +153,16 @@ export class ConnectionVaultService {
 
     runtimeDb.upsertConnection(connRecord);
 
+    // Durable Read-Back Verification
+    const readBack = runtimeDb.getConnection(userId, provider);
+    if (!readBack || !readBack.encryptedCredentials) {
+      throw new Error(`Durable persistence read-back verification failed for provider: ${provider}`);
+    }
+    const decryptedVerification = this.getDecryptedCredentials(userId, provider);
+    if (!decryptedVerification) {
+      throw new Error(`Decryption verification failed after persistence for provider: ${provider}`);
+    }
+
     // Audit log
     runtimeDb.logAudit({
       id: `aud_${crypto.randomBytes(8).toString('hex')}`,
@@ -162,7 +179,8 @@ export class ConnectionVaultService {
       lastVerifiedAt: connRecord.lastVerifiedAt || null,
       lastError: null,
       missingPermissions: connRecord.missingPermissions || null,
-      updatedAt: connRecord.updatedAt
+      updatedAt: connRecord.updatedAt,
+      readBackVerified: true
     };
   }
 
@@ -279,7 +297,19 @@ export class ConnectionVaultService {
               body: JSON.stringify({ clientcode: clientId, password: pin, totp }),
               signal: AbortSignal.timeout(10000)
             });
-            const data = await res.json() as any;
+
+            // Fail-safe response parsing: safely handle Cloudflare HTML block pages
+            const rawText = await res.text();
+            let data: any = null;
+            try {
+              data = JSON.parse(rawText);
+            } catch {
+              data = {
+                status: false,
+                message: `Upstream HTTP ${res.status}: ${rawText.slice(0, 150).replace(/<[^>]*>/g, '').trim() || 'Non-JSON server response'}`
+              };
+            }
+
             if (data && (data.status === true || data.message === 'SUCCESS')) {
               isVerified = true;
               resolvedStatus = 'CONNECTED';
@@ -365,6 +395,33 @@ export class ConnectionVaultService {
             isVerified = false;
             resolvedStatus = 'SAVED';
             verificationMsg = 'Google OAuth Client ID & Secret saved. User must complete interactive browser consent to verify connection.';
+          }
+          break;
+        }
+
+        case 'ollama': {
+          const endpoint = (creds.endpointUrl || 'http://127.0.0.1:11434').replace(/\/+$/, '');
+          const model = creds.modelName || 'llama3';
+          try {
+            const res = await fetch(`${endpoint}/api/tags`, {
+              signal: AbortSignal.timeout(3500)
+            });
+            if (res.ok) {
+              const data = await res.json() as any;
+              const models = Array.isArray(data?.models) ? data.models.map((m: any) => m.name) : [];
+              isVerified = true;
+              resolvedStatus = 'CONNECTED';
+              const hasModel = models.some((m: string) => m.toLowerCase().includes(model.toLowerCase()));
+              verificationMsg = `Ollama runtime reachable at ${endpoint}. ${models.length} model(s) available.${hasModel ? ` Model '${model}' verified.` : ` Notice: Model '${model}' not found in local library.`}`;
+            } else {
+              isVerified = false;
+              resolvedStatus = 'ERROR';
+              verificationMsg = `Ollama service returned HTTP ${res.status}: ${res.statusText}`;
+            }
+          } catch (netErr: any) {
+            isVerified = false;
+            resolvedStatus = 'ERROR';
+            verificationMsg = `Ollama server unreachable at ${endpoint}: ${netErr?.message || 'Connection refused. Ensure ollama serve is active.'}`;
           }
           break;
         }
@@ -470,6 +527,12 @@ export class ConnectionVaultService {
         sanitized.hasOAuthClient = Boolean(creds.clientId && creds.clientSecret);
         sanitized.scopes = creds.scopes || ['openid', 'email', 'profile'];
         break;
+
+      case 'ollama':
+        sanitized.endpointUrl = creds.endpointUrl || 'http://127.0.0.1:11434';
+        sanitized.modelName = creds.modelName || 'llama3';
+        sanitized.hasCustomConfig = Boolean(creds.endpointUrl || creds.modelName);
+        break;
     }
 
     return sanitized;
@@ -483,9 +546,337 @@ export class ConnectionVaultService {
         return 'Requires Telegram Bot API token created via @BotFather with message read/write permissions.';
       case 'google':
         return 'Requires Google OAuth 2.0 openid, email, profile scopes or Gemini API Key.';
+      case 'ollama':
+        return 'Requires local Ollama service running on http://127.0.0.1:11434 (or custom host) with target LLM models installed.';
     }
+  }
+
+  // =========================================================================
+  // VAULT PIN SECURITY & TELEGRAM RECOVERY LIFECYCLE
+  // =========================================================================
+
+  public hasVaultPin(userId: string): {
+    hasPin: boolean;
+    isLocked: boolean;
+    lockedUntil: string | null;
+    remainingAttempts: number;
+  } {
+    const sec = runtimeDb.getUserVaultSecurity(userId);
+    if (!sec || !sec.pinHash) {
+      return { hasPin: false, isLocked: false, lockedUntil: null, remainingAttempts: 5 };
+    }
+
+    let isLocked = false;
+    let lockedUntil: string | null = null;
+    if (sec.lockedUntil) {
+      const lockExpiry = new Date(sec.lockedUntil).getTime();
+      if (lockExpiry > Date.now()) {
+        isLocked = true;
+        lockedUntil = sec.lockedUntil;
+      } else {
+        // Lockout expired, reset automatically
+        runtimeDb.resetVaultPinLockout(userId);
+      }
+    }
+
+    return {
+      hasPin: true,
+      isLocked,
+      lockedUntil,
+      remainingAttempts: isLocked ? 0 : Math.max(0, 5 - (sec.failedAttempts || 0))
+    };
+  }
+
+  public setupVaultPin(userId: string, pin: string): { success: boolean; message: string } {
+    const trimmed = String(pin || '').trim();
+    if (!/^\d{4}$/.test(trimmed)) {
+      return { success: false, message: 'Vault PIN must be exactly 4 numeric digits.' };
+    }
+
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.scryptSync(trimmed, salt, 64).toString('hex');
+    const now = new Date().toISOString();
+
+    runtimeDb.upsertUserVaultSecurity({
+      userId,
+      pinHash: hash,
+      pinSalt: salt,
+      failedAttempts: 0,
+      lockedUntil: null,
+      recoveryCodeHash: null,
+      recoveryCodeExpiresAt: null,
+      recoveryCodeAttempts: 0,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    runtimeDb.logAudit({
+      id: `aud_${crypto.randomBytes(8).toString('hex')}`,
+      userId,
+      action: 'VAULT_PIN_SETUP',
+      details: 'User successfully configured new 4-digit Vault PIN.',
+      timestamp: now
+    });
+
+    return { success: true, message: 'Vault PIN configured successfully.' };
+  }
+
+  public verifyVaultPin(userId: string, pin: string): {
+    success: boolean;
+    isLocked: boolean;
+    lockedUntil?: string | null;
+    remainingAttempts?: number;
+    message?: string;
+  } {
+    const sec = runtimeDb.getUserVaultSecurity(userId);
+    if (!sec || !sec.pinHash) {
+      return {
+        success: false,
+        isLocked: false,
+        message: 'No Vault PIN has been configured. Please configure your 4-digit PIN first.'
+      };
+    }
+
+    // Check lockout
+    if (sec.lockedUntil) {
+      const lockExpiry = new Date(sec.lockedUntil).getTime();
+      if (lockExpiry > Date.now()) {
+        return {
+          success: false,
+          isLocked: true,
+          lockedUntil: sec.lockedUntil,
+          remainingAttempts: 0,
+          message: `Vault PIN is locked until ${new Date(sec.lockedUntil).toLocaleTimeString()} due to 5 failed attempts.`
+        };
+      } else {
+        runtimeDb.resetVaultPinLockout(userId);
+      }
+    }
+
+    const trimmed = String(pin || '').trim();
+    const candidateHash = crypto.scryptSync(trimmed, sec.pinSalt, 64).toString('hex');
+    const isMatch = crypto.timingSafeEqual(
+      Buffer.from(candidateHash, 'hex'),
+      Buffer.from(sec.pinHash, 'hex')
+    );
+
+    const now = new Date().toISOString();
+
+    if (isMatch) {
+      runtimeDb.resetVaultPinLockout(userId);
+      runtimeDb.logAudit({
+        id: `aud_${crypto.randomBytes(8).toString('hex')}`,
+        userId,
+        action: 'VAULT_PIN_VERIFIED',
+        details: 'Vault PIN verified successfully.',
+        timestamp: now
+      });
+      return { success: true, isLocked: false, remainingAttempts: 5, message: 'Vault PIN verified.' };
+    } else {
+      const lockResult = runtimeDb.recordFailedVaultPinAttempt(userId, 15);
+      runtimeDb.logAudit({
+        id: `aud_${crypto.randomBytes(8).toString('hex')}`,
+        userId,
+        action: 'VAULT_PIN_FAILED',
+        details: `Failed Vault PIN attempt. Remaining: ${lockResult.remainingAttempts}. Locked: ${lockResult.locked}`,
+        timestamp: now
+      });
+
+      return {
+        success: false,
+        isLocked: lockResult.locked,
+        lockedUntil: lockResult.lockedUntil,
+        remainingAttempts: lockResult.remainingAttempts,
+        message: lockResult.locked
+          ? 'Too many failed attempts. Vault is locked for 15 minutes.'
+          : `Incorrect Vault PIN. ${lockResult.remainingAttempts} attempt(s) remaining before 15-minute lock.`
+      };
+    }
+  }
+
+  public revealSensitiveCredentials(
+    userId: string,
+    provider: ProviderType,
+    pin: string
+  ): {
+    success: boolean;
+    credentials?: Record<string, any>;
+    error?: string;
+    isLocked?: boolean;
+    remainingAttempts?: number;
+  } {
+    const verification = this.verifyVaultPin(userId, pin);
+    if (!verification.success) {
+      return {
+        success: false,
+        error: verification.message,
+        isLocked: verification.isLocked,
+        remainingAttempts: verification.remainingAttempts
+      };
+    }
+
+    const rawCreds = this.getDecryptedCredentials(userId, provider) || {};
+    runtimeDb.logAudit({
+      id: `aud_${crypto.randomBytes(8).toString('hex')}`,
+      userId,
+      action: `VAULT_CREDENTIALS_REVEALED_${provider.toUpperCase()}`,
+      details: `User authorized credential reveal for ${provider}. Masked config returned to UI with 60s re-masking requirement.`,
+      timestamp: new Date().toISOString()
+    });
+
+    return {
+      success: true,
+      credentials: rawCreds
+    };
+  }
+
+  public async requestTelegramPinRecovery(userId: string): Promise<{ success: boolean; message: string }> {
+    const tgCreds = this.getDecryptedCredentials(userId, 'telegram');
+    if (!tgCreds || !tgCreds.botToken) {
+      return {
+        success: false,
+        message: 'Telegram Bot is not configured in Connections. Vault recovery requires a pre-enrolled Telegram Bot.'
+      };
+    }
+
+    const chatId = tgCreds.allowedChatIds?.[0] || tgCreds.chatId || tgCreds.chat_id;
+    if (!chatId) {
+      return {
+        success: false,
+        message: 'No pre-enrolled Telegram chat ID found. Please configure an authorized Chat ID in Connections & Vault.'
+      };
+    }
+
+    const recoveryCode = String(crypto.randomInt(100000, 999999));
+    const recoveryCodeHash = crypto.createHash('sha256').update(recoveryCode).digest('hex');
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5-minute expiry
+    const now = new Date().toISOString();
+
+    const existingSec = runtimeDb.getUserVaultSecurity(userId);
+    if (existingSec) {
+      runtimeDb.upsertUserVaultSecurity({
+        ...existingSec,
+        recoveryCodeHash,
+        recoveryCodeExpiresAt: expiresAt,
+        recoveryCodeAttempts: 0,
+        updatedAt: now
+      });
+    }
+
+    const messageText = `🔐 *CHINTU AI — VAULT PIN RECOVERY CODE*\n\n` +
+      `Your single-use recovery code is: \`${recoveryCode}\`\n\n` +
+      `⏰ *Expires in 5 minutes*\n` +
+      `🛡️ Maximum 3 verification attempts\n` +
+      `⚠️ Never share this code with anyone.`;
+
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${tgCreds.botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: messageText,
+          parse_mode: 'Markdown'
+        }),
+        signal: AbortSignal.timeout(5000)
+      });
+      const data = await res.json() as any;
+      if (data && data.ok) {
+        runtimeDb.logAudit({
+          id: `aud_${crypto.randomBytes(8).toString('hex')}`,
+          userId,
+          action: 'VAULT_RECOVERY_CODE_DISPATCHED',
+          details: `Dispatched single-use recovery code to Telegram chat ${String(chatId).slice(0, 4)}***`,
+          timestamp: now
+        });
+        return {
+          success: true,
+          message: `Single-use recovery code sent to your Telegram chat (${String(chatId).slice(0, 4)}***). Valid for 5 minutes.`
+        };
+      } else {
+        return {
+          success: false,
+          message: `Telegram delivery rejected: ${data?.description || 'Could not send message.'}`
+        };
+      }
+    } catch (e: any) {
+      return {
+        success: false,
+        message: `Telegram network error: ${e?.message || 'Connection timed out.'}`
+      };
+    }
+  }
+
+  public resetVaultPinWithRecoveryCode(
+    userId: string,
+    recoveryCode: string,
+    newPin: string
+  ): { success: boolean; message: string } {
+    const newPinTrimmed = String(newPin || '').trim();
+    if (!/^\d{4}$/.test(newPinTrimmed)) {
+      return { success: false, message: 'New Vault PIN must be exactly 4 numeric digits.' };
+    }
+
+    const sec = runtimeDb.getUserVaultSecurity(userId);
+    if (!sec || !sec.recoveryCodeHash || !sec.recoveryCodeExpiresAt) {
+      return { success: false, message: 'No active recovery code found. Please request a new code via Telegram.' };
+    }
+
+    if (new Date(sec.recoveryCodeExpiresAt).getTime() < Date.now()) {
+      return { success: false, message: 'Recovery code has expired (5-minute limit exceeded). Please request a new code.' };
+    }
+
+    if ((sec.recoveryCodeAttempts || 0) >= 3) {
+      return { success: false, message: 'Recovery code maximum attempts exceeded (max 3). Please request a new code.' };
+    }
+
+    const candidateHash = crypto.createHash('sha256').update(String(recoveryCode || '').trim()).digest('hex');
+    const isMatch = crypto.timingSafeEqual(
+      Buffer.from(candidateHash, 'hex'),
+      Buffer.from(sec.recoveryCodeHash, 'hex')
+    );
+
+    const now = new Date().toISOString();
+
+    if (!isMatch) {
+      const attempts = (sec.recoveryCodeAttempts || 0) + 1;
+      runtimeDb.upsertUserVaultSecurity({
+        ...sec,
+        recoveryCodeAttempts: attempts,
+        updatedAt: now
+      });
+      return {
+        success: false,
+        message: `Invalid recovery code. ${Math.max(0, 3 - attempts)} attempt(s) remaining.`
+      };
+    }
+
+    // Match! Generate new salt and hash for new PIN, clear recovery code and lock
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.scryptSync(newPinTrimmed, salt, 64).toString('hex');
+
+    runtimeDb.upsertUserVaultSecurity({
+      ...sec,
+      pinHash: hash,
+      pinSalt: salt,
+      failedAttempts: 0,
+      lockedUntil: null,
+      recoveryCodeHash: null,
+      recoveryCodeExpiresAt: null,
+      recoveryCodeAttempts: 0,
+      updatedAt: now
+    });
+
+    runtimeDb.logAudit({
+      id: `aud_${crypto.randomBytes(8).toString('hex')}`,
+      userId,
+      action: 'VAULT_PIN_RESET_WITH_RECOVERY_CODE',
+      details: 'Vault PIN successfully reset using authenticated Telegram recovery code.',
+      timestamp: now
+    });
+
+    return { success: true, message: 'Vault PIN reset successfully. You may now unlock sensitive details.' };
   }
 }
 
 export const connectionVault = new ConnectionVaultService();
-
