@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bot, Bell, Settings, Search, User, ShieldCheck, Keyboard, Sun, Moon } from 'lucide-react';
+import { Bot, Bell, Settings, Search, User, ShieldCheck, Keyboard, Sun, Moon, Lock } from 'lucide-react';
 import EmergencyKillSwitch from './EmergencyKillSwitch';
 import RealtimePnlTracker from './RealtimePnlTracker';
 
@@ -38,7 +38,7 @@ export default function TopNavbar({
   };
 
   return (
-    <header className="w-full h-14 bg-[#05070b]/95 backdrop-blur-md border-b border-[#16294a]/80 px-2 sm:px-4 flex items-center justify-between gap-1.5 sm:gap-3 sticky top-0 z-40 select-none titlebar-drag-region">
+    <header className="w-full h-14 bg-[var(--surface-overlay,#05070b)] backdrop-blur-md border-b border-[var(--border-subtle,#16294a)] px-2 sm:px-4 flex items-center justify-between gap-1.5 sm:gap-3 sticky top-0 z-40 select-none titlebar-drag-region">
       {/* 1. Left Brand: Logo + "Chintu AI" + "AI TRADING SYSTEM" */}
       <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
         <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500/20 via-blue-600/30 to-purple-600/20 border border-cyan-400/60 flex items-center justify-center shadow-[0_0_12px_rgba(0,240,255,0.4)]">
@@ -117,20 +117,25 @@ export default function TopNavbar({
           />
         </div>
 
-        {/* Engine Mode Toggle */}
-        <button
-          type="button"
-          onClick={() => onToggleExecutionMode && onToggleExecutionMode()}
-          className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10.5px] font-mono font-bold tracking-wider transition-all cursor-pointer ${
-            executionMode === 'LIVE'
-              ? 'bg-rose-500/20 text-rose-300 border border-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.3)] animate-pulse'
-              : 'bg-cyan-500/15 text-cyan-300 border border-cyan-400/40 shadow-[0_0_10px_rgba(0,240,255,0.2)]'
-          }`}
-          title={executionMode === 'LIVE' ? 'Live Broker Trading Active' : 'Paper Trading Simulation Active'}
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${executionMode === 'LIVE' ? 'bg-rose-400' : 'bg-cyan-400'}`} />
-          <span>{executionMode}</span>
-        </button>
+        {/* Engine Mode Toggle with Fail-Closed Lock */}
+        <div className="hidden md:flex items-center rounded-full bg-[#050a16] border border-[#16294a] p-0.5 text-[10.5px] font-mono">
+          <div
+            className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-400/40 shadow-[0_0_8px_rgba(0,240,255,0.2)]"
+            title="Active: Institutional Paper Trading Simulation"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            <span>PAPER</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onToggleExecutionMode && onToggleExecutionMode('LIVE')}
+            className="flex items-center gap-1 px-2 py-0.5 rounded-full text-slate-400 hover:text-rose-400 transition-colors cursor-pointer group"
+            title="Live Trading is Fail-Closed and Locked. Click to view Safety & Compliance Gate."
+          >
+            <Lock className="w-3 h-3 text-rose-400/80 group-hover:text-rose-400" />
+            <span className="text-[9.5px] font-bold text-slate-400 group-hover:text-rose-300">LIVE LOCKED</span>
+          </button>
+        </div>
 
         {/* Dedicated Pinned Emergency Kill Switch Control Dock */}
         <EmergencyKillSwitch

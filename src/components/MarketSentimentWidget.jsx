@@ -282,8 +282,8 @@ export default function MarketSentimentWidget({
               <h3 className="text-sm font-bold text-white tracking-wide">
                 Market Sentiment & Fear / Greed Engine
               </h3>
-              <span className="px-2 py-0.5 rounded text-[9px] font-bold font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                LIVE API
+              <span className={`px-2 py-0.5 rounded text-[9px] font-bold font-mono ${isFallback ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'}`}>
+                {isFallback ? 'STANDBY (BASELINE)' : 'LIVE API'}
               </span>
             </div>
             <p className="text-[10px] text-slate-400 font-mono mt-0.5">
@@ -407,7 +407,7 @@ export default function MarketSentimentWidget({
               {classification}
             </span>
             <div className="text-[10px] text-slate-400 font-mono mt-1">
-              Historical Range: 0 (Extreme Fear) — 100 (Extreme Greed)
+              Scale: 0 (Extreme Fear) — 100 (Extreme Greed) • {isFallback ? 'Standby Baseline Model' : 'Live Multi-Asset Behavioral Feed'}
             </div>
           </div>
 

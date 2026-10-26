@@ -20,6 +20,8 @@ import { instrumentMaster, InstrumentRecord } from './instrumentMaster';
 import { calculateTradeStatutoryCharges, AngelOrderExecutionAdapter } from './angelOrderAdapter';
 import { angelMarketDataAdapter, MarketQuote } from './angelMarketDataAdapter';
 import { runtimeDb } from './databasePersistence';
+import { jarvisReviewGate, JarvisReviewResult } from './jarvisReviewGate';
+import { evaluate14BotQuorumConsensus } from './quorumConsensusEngine';
 
 export type PaperSessionStatus =
   | 'NOT_STARTED'
@@ -37,6 +39,7 @@ export interface RiskSettings {
   targetProfitPct: number;         // Default: 3.0% above entry
   hurdleNetRoiPct: number;         // Default: 1.50% net institutional hurdle
   maxPositionAllocationPct: number;// Default: 25% max capital in single instrument
+  minDesiredNetProfit: number;     // User configurable desired minimum net profit per completed round trip (e.g. ₹60)
 }
 
 export interface PaperPosition {
@@ -100,6 +103,7 @@ export interface SelectedOpportunity {
   riskBudget: number;
   selectionReason: string;
   rankingScore: number;
+  jarvisReview?: JarvisReviewResult;
 }
 
 export interface SessionMetrics {
@@ -161,7 +165,8 @@ export class PaperSessionEngine {
     stopLossPct: 1.5,
     targetProfitPct: 3.0,
     hurdleNetRoiPct: 1.50,
-    maxPositionAllocationPct: 25.0
+    maxPositionAllocationPct: 25.0,
+    minDesiredNetProfit: 60.0
   };
 
   // State Collections
@@ -397,7 +402,7 @@ export class PaperSessionEngine {
    * 3. 2% Maximum Risk Budget Sizing
    * 4. Available Cash & Max Concurrent Positions
    */
-  public evaluateAndExecuteTrades(): void {
+  public async evaluateAndExecuteTrades(): Promise<void> {
     if (this.status !== 'PAPER_TRADING') return;
 
     // Check Max Concurrent Positions
@@ -429,7 +434,7 @@ export class PaperSessionEngine {
       const quote = angelMarketDataAdapter.getQuote(inst.symbol);
       const currentPrice = quote?.price || inst.basePrice || 100;
 
-      // 3. Strategy Signals & 14-Bot Quorum Consensus (Simulated Engine)
+      // 3. Strategy Signals & Master Brain 14-Bot Quorum Consensus
       const action: 'BUY' | 'SELL' = 'BUY'; // Primary trend continuation
       const quorumVotes = this.evaluateSimulatedQuorum(inst.symbol, currentPrice);
 
@@ -457,7 +462,7 @@ export class PaperSessionEngine {
       const lotSize = inst.lotsize || 1;
       calculatedQty = Math.floor(calculatedQty / lotSize) * lotSize;
       if (calculatedQty < lotSize) {
-        continue; // Cannot afford minimum lot size within 2% risk budget
+        continue; // Cannot afford minimum lot size within 2% risk budget (infeasible for small capital)
       }
 
       // Check Capital Allocation Limits (Max 25% of capital per position)
@@ -475,7 +480,7 @@ export class PaperSessionEngine {
         continue; // Insufficient cash remaining
       }
 
-      // 6. Pre-Trade Net ROI Hurdle Verification (1.50% Net)
+      // 6. Pre-Trade Net ROI Hurdle Verification (1.50% Net) & Minimum Desired Net Profit Check
       const entryCharges = calculateTradeStatutoryCharges(currentPrice, calculatedQty, action, 'NSE Equity', 0);
       const exitCharges = calculateTradeStatutoryCharges(targetPrice, calculatedQty, 'SELL', 'NSE Equity', 0);
       const roundtripCharges = entryCharges.totalCharges + exitCharges.totalCharges;
@@ -485,12 +490,46 @@ export class PaperSessionEngine {
       const orderValue = currentPrice * calculatedQty;
       const expectedNetRoiPct = orderValue > 0 ? Number(((expectedNetProfit / orderValue) * 100).toFixed(2)) : 0;
 
+      // Check 1.50% net hurdle
       if (expectedNetRoiPct < this.riskSettings.hurdleNetRoiPct || expectedNetProfit <= 0) {
         continue; // Rejected by institutional net profit hurdle
       }
 
-      // Confluence score calculation
+      // Check configurable minimum desired net profit (e.g. ₹60)
+      const minDesired = this.riskSettings.minDesiredNetProfit || 0;
+      if (expectedNetProfit < minDesired) {
+        continue; // Rejected: Net profit is below user's minimum desired threshold
+      }
+
+      // 7. JARVIS REVIEW GATE (APPROVE / REJECT / NEEDS_MORE_DATA)
       const confluenceScore = Math.round(70 + (quorumVotes * 2.1));
+      let jarvisReview: JarvisReviewResult;
+      try {
+        const quoteTimestamp = angelMarketDataAdapter.isLiveStreaming() ? quote?.timestamp : Date.now();
+        jarvisReview = await jarvisReviewGate.reviewTradeOpportunity({
+          symbol: inst.symbol,
+          token: inst.token,
+          action,
+          price: currentPrice,
+          targetPrice,
+          stopLossPrice,
+          expectedNetProfit,
+          expectedNetRoiPct,
+          minDesiredNetProfit: minDesired,
+          capital: currentEquity,
+          riskBudget,
+          quorumVotes,
+          confluenceScore,
+          marketDataTimestamp: quoteTimestamp
+        });
+      } catch (err) {
+        continue;
+      }
+
+      if (jarvisReview.decision !== 'APPROVE') {
+        continue; // Jarvis rejected or requested more data
+      }
+
       const rankingScore = (expectedNetRoiPct * 10) + (quorumVotes * 5) + (100 - (inst.typicalSpreadPct || 0.1) * 100);
 
       candidates.push({
@@ -507,16 +546,17 @@ export class PaperSessionEngine {
         recommendedQty: calculatedQty,
         requiredMargin: Number(requiredMargin.toFixed(2)),
         riskBudget: Number(riskBudget.toFixed(2)),
-        selectionReason: `Quorum ${quorumVotes}/14 Consensus • Net ROI ${expectedNetRoiPct}% (>1.50% Hurdle) • Risk Capped at ₹${riskBudget.toFixed(2)} (2%)`,
-        rankingScore
+        selectionReason: `Quorum ${quorumVotes}/14 Consensus • Jarvis APPROVED • Net ROI ${expectedNetRoiPct}% (Exp Net: ₹${expectedNetProfit.toFixed(2)}) • Risk Capped at ₹${riskBudget.toFixed(2)} (2%)`,
+        rankingScore,
+        jarvisReview
       });
     }
 
-    // 7. Rank Qualified Opportunities
+    // 8. Rank Qualified Opportunities
     candidates.sort((a, b) => b.rankingScore - a.rankingScore);
     this.selectedOpportunities = candidates;
 
-    // 8. Execute Top Qualified Opportunity if within risk capacity
+    // 9. Execute Top Qualified Opportunity if within risk capacity
     const slotsAvailable = this.riskSettings.maxConcurrentPositions - this.openPositions.size;
     const topSelections = candidates.slice(0, slotsAvailable);
 
@@ -525,6 +565,154 @@ export class PaperSessionEngine {
         this.executePaperEntry(opp);
       }
     }
+  }
+
+  /**
+   * Evaluates a single specific instrument opportunity against custom capital and min profit settings.
+   * Used for deterministic testing, API inspection, and single-asset validation.
+   */
+  public async evaluateSingleOpportunity(
+    symbol: string,
+    overrideCapital?: number,
+    overrideMinNetProfit?: number,
+    overrideQuorumVotes?: number
+  ): Promise<{
+    eligible: boolean;
+    reason: string;
+    opportunity?: SelectedOpportunity;
+    jarvisReview?: JarvisReviewResult;
+  }> {
+    const capital = overrideCapital || this.initialCapital || 100000;
+    const minDesired = overrideMinNetProfit !== undefined ? overrideMinNetProfit : (this.riskSettings.minDesiredNetProfit || 60);
+
+    const cleanSym = symbol.toUpperCase().replace('-EQ', '');
+    const quote = angelMarketDataAdapter.getQuote(symbol) || angelMarketDataAdapter.getQuote(cleanSym);
+    const inst = instrumentMaster.getAllInstruments().find((i) =>
+      i.symbol.toUpperCase() === symbol.toUpperCase() ||
+      i.symbol.toUpperCase() === `${cleanSym}-EQ` ||
+      i.name?.toUpperCase() === cleanSym
+    );
+    if (!inst) {
+      return { eligible: false, reason: `Instrument ${symbol} not found in instrument master.` };
+    }
+
+    const currentPrice = quote?.price || inst.basePrice || 100;
+    const action: 'BUY' | 'SELL' = 'BUY';
+
+    let quorumVotes = overrideQuorumVotes !== undefined ? overrideQuorumVotes : 10;
+    if (overrideQuorumVotes === undefined) {
+      try {
+        const q = evaluate14BotQuorumConsensus({ symbol, action, price: currentPrice });
+        if (q && typeof q.matchingVotes === 'number') quorumVotes = q.matchingVotes;
+      } catch (e) {}
+    }
+
+    if (quorumVotes < 9) {
+      return { eligible: false, reason: `Quorum consensus not met (${quorumVotes}/14; 9 required).` };
+    }
+
+    const stopDistancePct = this.riskSettings.stopLossPct / 100;
+    const targetDistancePct = this.riskSettings.targetProfitPct / 100;
+    const stopLossPrice = Number((currentPrice * (1 - stopDistancePct)).toFixed(2));
+    const targetPrice = Number((currentPrice * (1 + targetDistancePct)).toFixed(2));
+
+    const riskBudget = capital * (this.riskSettings.maxRiskPerTradePct / 100);
+    const riskPerShare = Math.max(0.10, currentPrice - stopLossPrice);
+
+    let calculatedQty = Math.floor(riskBudget / riskPerShare);
+    const lotSize = inst.lotsize || 1;
+    calculatedQty = Math.floor(calculatedQty / lotSize) * lotSize;
+
+    if (calculatedQty < lotSize) {
+      return {
+        eligible: false,
+        reason: `Infeasible with capital ₹${capital.toLocaleString()}: 2% risk budget (₹${riskBudget.toFixed(2)}) is insufficient to purchase minimum lot size (${lotSize} shares @ ₹${currentPrice.toFixed(2)}).`
+      };
+    }
+
+    const maxPositionCap = capital * (this.riskSettings.maxPositionAllocationPct / 100);
+    const marginRate = inst.exch_seg === 'NFO' || inst.exch_seg === 'MCX' ? 0.20 : 0.25;
+    let requiredMargin = calculatedQty * currentPrice * marginRate;
+
+    if (requiredMargin > maxPositionCap) {
+      calculatedQty = Math.floor(maxPositionCap / (currentPrice * marginRate));
+      calculatedQty = Math.floor(calculatedQty / lotSize) * lotSize;
+      requiredMargin = calculatedQty * currentPrice * marginRate;
+    }
+
+    if (calculatedQty < lotSize) {
+      return {
+        eligible: false,
+        reason: `Infeasible with capital ₹${capital.toLocaleString()}: required margin exceeds 25% single-position allocation cap (₹${maxPositionCap.toFixed(2)}).`
+      };
+    }
+
+    const entryCharges = calculateTradeStatutoryCharges(currentPrice, calculatedQty, action, 'NSE Equity', 0);
+    const exitCharges = calculateTradeStatutoryCharges(targetPrice, calculatedQty, 'SELL', 'NSE Equity', 0);
+    const roundtripCharges = entryCharges.totalCharges + exitCharges.totalCharges;
+    const expectedGrossProfit = (targetPrice - currentPrice) * calculatedQty;
+    const expectedNetProfit = expectedGrossProfit - roundtripCharges;
+    const orderValue = currentPrice * calculatedQty;
+    const expectedNetRoiPct = orderValue > 0 ? Number(((expectedNetProfit / orderValue) * 100).toFixed(2)) : 0;
+
+    if (expectedNetProfit < minDesired) {
+      return {
+        eligible: false,
+        reason: `Projected net profit of ₹${expectedNetProfit.toFixed(2)} is below the minimum desired net profit of ₹${minDesired.toFixed(2)}.`
+      };
+    }
+
+    const confluenceScore = Math.round(70 + (quorumVotes * 2.1));
+    const jarvisReview = await jarvisReviewGate.reviewTradeOpportunity({
+      symbol,
+      token: inst.token,
+      action,
+      price: currentPrice,
+      targetPrice,
+      stopLossPrice,
+      expectedNetProfit,
+      expectedNetRoiPct,
+      minDesiredNetProfit: minDesired,
+      capital,
+      riskBudget,
+      quorumVotes,
+      confluenceScore,
+      marketDataTimestamp: quote?.timestamp
+    });
+
+    if (jarvisReview.decision !== 'APPROVE') {
+      return {
+        eligible: false,
+        reason: `Jarvis Review Gate returned ${jarvisReview.decision}: ${jarvisReview.rationale}`,
+        jarvisReview
+      };
+    }
+
+    const opp: SelectedOpportunity = {
+      symbol,
+      token: inst.token,
+      action,
+      price: currentPrice,
+      targetPrice,
+      stopLossPrice,
+      quorumVotes,
+      confluenceScore,
+      expectedNetRoiPct,
+      projectedNetProfit: Number(expectedNetProfit.toFixed(2)),
+      recommendedQty: calculatedQty,
+      requiredMargin: Number(requiredMargin.toFixed(2)),
+      riskBudget: Number(riskBudget.toFixed(2)),
+      selectionReason: `Quorum ${quorumVotes}/14 Consensus • Jarvis APPROVED • Net ROI ${expectedNetRoiPct}% (Exp Net: ₹${expectedNetProfit.toFixed(2)}) • Risk Capped at ₹${riskBudget.toFixed(2)} (2%)`,
+      rankingScore: (expectedNetRoiPct * 10) + (quorumVotes * 5),
+      jarvisReview
+    };
+
+    return {
+      eligible: true,
+      reason: `Qualified & Approved: Projected Net ₹${expectedNetProfit.toFixed(2)} >= ₹${minDesired.toFixed(2)} with 2% risk budget ₹${riskBudget.toFixed(2)}.`,
+      opportunity: opp,
+      jarvisReview
+    };
   }
 
   /**
@@ -800,7 +988,7 @@ export class PaperSessionEngine {
       if (!status.isLiveStreaming && status.liveTicksCount === 0) {
         return;
       }
-      this.evaluateAndExecuteTrades();
+      this.evaluateAndExecuteTrades().catch((err) => console.error('[PAPER ENGINE] Loop error:', err));
     }, 3000);
     if (this.analysisInterval && typeof this.analysisInterval.unref === 'function') {
       this.analysisInterval.unref();

@@ -40,6 +40,7 @@ import { toastEmitter } from './utils/toastEmitter';
 import { calculateTradeCharges, validateNetProfitGuardrail } from './utils/taxCalculator';
 import ToastNotificationSystem from './components/ToastNotificationSystem';
 import KeyboardShortcutManager from './components/KeyboardShortcutManager';
+import LiveTradingSafetyModal from './components/LiveTradingSafetyModal';
 
 import {
   initialTickers,
@@ -206,36 +207,27 @@ export default function App() {
   const [wsConnected, setWsConnected] = useState(false);
   const [selectedBotForSkillsId, setSelectedBotForSkillsId] = useState(1);
 
+  const [isLiveSafetyModalOpen, setIsLiveSafetyModalOpen] = useState(false);
+
   // Execution Engine Mode (PAPER vs LIVE)
   const [executionMode, setExecutionMode] = useState(() => {
     return localStorage.getItem('chintu_execution_mode') || 'PAPER';
   });
 
   const handleToggleExecutionMode = async (targetMode = null) => {
-    const isBrokerLive = brokerConnections.some((b) => b.status === 'Connected');
-    const nextMode = (targetMode && typeof targetMode === 'string') ? targetMode : (executionMode === 'LIVE' ? 'PAPER' : 'LIVE');
-
-    if (nextMode === 'LIVE' && !isBrokerLive) {
-      toastEmitter.emitToast({
-        title: 'Live Mode Blocked',
-        message: 'Cannot enable Live Execution: No active broker connected. Please authenticate in Broker Accounts view first.',
-        type: 'error'
-      });
-      return;
-    }
-
-    setExecutionMode(nextMode);
+    // Fail-Closed Safety Gate: Real-money live trading is locked by LIVE_TRADING_ELIGIBLE = false
+    setIsLiveSafetyModalOpen(true);
+    setExecutionMode('PAPER');
     try {
-      localStorage.setItem('chintu_execution_mode', nextMode);
+      localStorage.setItem('chintu_execution_mode', 'PAPER');
       await apiFetch('/api/execution-mode', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: nextMode })
+        body: JSON.stringify({ mode: 'PAPER' })
       });
     } catch (e) {
       console.error(e);
     }
-    soundEngine.playBuyChime();
   };
 
   // Modals State
@@ -552,6 +544,14 @@ export default function App() {
             if (data.type === 'TICKER_PULSE') {
               setTickers((prev) =>
                 prev.map((t) => {
+                  if (t.symbol === data.symbol && data.price) {
+                    return {
+                      ...t,
+                      price: data.price,
+                      change: data.change !== undefined ? data.change : t.change,
+                      changePercent: data.pct !== undefined ? data.pct : t.changePercent
+                    };
+                  }
                   if (t.symbol === 'NIFTY 50' && data.nifty) {
                     return { ...t, price: data.nifty };
                   }
@@ -822,7 +822,7 @@ export default function App() {
   }, [theme]);
 
   return (
-    <div className="min-h-screen bg-[#05070b] text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200 w-full max-w-[100vw] overflow-x-hidden">
+    <div className="min-h-screen bg-[var(--bg-main)] text-[var(--text-primary)] flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200 w-full max-w-[100vw] overflow-x-hidden">
       {/* 1. Top Navigation Bar */}
       <TopNavbar
         theme={theme}
@@ -1245,6 +1245,12 @@ export default function App() {
         onToggleExecutionMode={handleToggleExecutionMode}
         isHelpOpen={isShortcutsHelpOpen}
         setIsHelpOpen={setIsShortcutsHelpOpen}
+      />
+
+      {/* Institutional Live Trading Safety & Regulatory Compliance Gate */}
+      <LiveTradingSafetyModal
+        isOpen={isLiveSafetyModalOpen}
+        onClose={() => setIsLiveSafetyModalOpen(false)}
       />
 
     </div>

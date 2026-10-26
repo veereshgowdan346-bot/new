@@ -4,7 +4,16 @@ import { cryptoVault } from './cryptoVault';
 import { generateTOTP } from './angelMarketDataAdapter';
 
 export type ProviderType = 'angel_one' | 'telegram' | 'google';
-export type ConnectionStatus = 'NOT_CONFIGURED' | 'CONNECTING' | 'CONNECTED' | 'EXPIRED' | 'ERROR' | 'DISCONNECTED';
+export type ConnectionStatus =
+  | 'NOT_CONFIGURED'
+  | 'SAVED'
+  | 'AUTHENTICATING'
+  | 'CONNECTED'
+  | 'AUTH_FAILED'
+  | 'SESSION_EXPIRED'
+  | 'RATE_LIMITED'
+  | 'DISCONNECTED'
+  | 'ERROR';
 
 export interface SanitizedConnectionState {
   provider: ProviderType;
@@ -83,8 +92,41 @@ export class ConnectionVaultService {
     credentials: Record<string, any>,
     status: ConnectionStatus = 'NOT_CONFIGURED'
   ): SanitizedConnectionState {
-    const encrypted = cryptoVault.encryptObject(credentials);
-    const sanitized = this.sanitizeConfig(provider, credentials);
+    // Non-destructive credential merge: preserve previously saved fields if not re-entered
+    const existingCreds = this.getDecryptedCredentials(userId, provider) || {};
+    const mergedCredentials: Record<string, any> = { ...existingCreds };
+    for (const [k, v] of Object.entries(credentials)) {
+      if (typeof v === 'string') {
+        const trimmed = v.trim();
+        // Ignore empty strings, bullet masks, and asterisk masks
+        if (trimmed.length > 0 && !trimmed.includes('******') && trimmed !== '••••') {
+          mergedCredentials[k] = trimmed;
+        }
+      } else if (v !== undefined && v !== null) {
+        mergedCredentials[k] = v;
+      }
+    }
+
+    // Determine appropriate state: if all essential fields are configured, state is SAVED
+    let determinedStatus: ConnectionStatus = status;
+    if (determinedStatus === 'NOT_CONFIGURED' || determinedStatus === 'DISCONNECTED') {
+      if (provider === 'angel_one') {
+        if (mergedCredentials.apiKey && mergedCredentials.clientId && mergedCredentials.pin && mergedCredentials.totpSecret) {
+          determinedStatus = 'SAVED';
+        }
+      } else if (provider === 'telegram') {
+        if (mergedCredentials.botToken) {
+          determinedStatus = 'SAVED';
+        }
+      } else if (provider === 'google') {
+        if (mergedCredentials.geminiApiKey || (mergedCredentials.clientId && mergedCredentials.clientSecret)) {
+          determinedStatus = 'SAVED';
+        }
+      }
+    }
+
+    const encrypted = cryptoVault.encryptObject(mergedCredentials);
+    const sanitized = this.sanitizeConfig(provider, mergedCredentials);
     const now = new Date().toISOString();
 
     const existing = runtimeDb.getConnection(userId, provider);
@@ -92,7 +134,7 @@ export class ConnectionVaultService {
       id: existing ? existing.id : `conn_${crypto.randomBytes(8).toString('hex')}`,
       userId,
       provider,
-      status,
+      status: determinedStatus,
       encryptedCredentials: encrypted,
       sanitizedConfig: JSON.stringify(sanitized),
       lastVerifiedAt: existing?.lastVerifiedAt || null,
@@ -206,15 +248,18 @@ export class ConnectionVaultService {
       let isVerified = false;
       let verificationMsg = '';
       let sessionTokens: any = null;
+      let resolvedStatus: ConnectionStatus = 'ERROR';
 
       switch (provider) {
         case 'angel_one': {
           const { apiKey, clientId, pin, totpSecret } = creds;
           if (!apiKey || !clientId || !pin || !totpSecret) {
+            resolvedStatus = 'NOT_CONFIGURED';
             throw new Error('Missing one or more required Angel One fields: API Key, Client Code, PIN, TOTP Secret.');
           }
           const cleanSecret = String(totpSecret).trim().replace(/\s+/g, '');
           if (cleanSecret.length < 16) {
+            resolvedStatus = 'AUTH_FAILED';
             throw new Error('Invalid TOTP Secret. Base32 key must be at least 16 characters.');
           }
           try {
@@ -237,14 +282,21 @@ export class ConnectionVaultService {
             const data = await res.json() as any;
             if (data && (data.status === true || data.message === 'SUCCESS')) {
               isVerified = true;
+              resolvedStatus = 'CONNECTED';
               verificationMsg = `Angel One SmartAPI authenticated successfully for Client ${clientId}. SmartStream authorized.`;
               sessionTokens = data.data;
             } else {
               isVerified = false;
+              const isRate = res.status === 429 || String(data?.errorcode || '').includes('8001') || String(data?.message || '').toLowerCase().includes('rate limit');
+              const isExpired = String(data?.message || '').toLowerCase().includes('expired') || String(data?.errorcode || '').includes('AB1004');
+              if (isRate) resolvedStatus = 'RATE_LIMITED';
+              else if (isExpired) resolvedStatus = 'SESSION_EXPIRED';
+              else resolvedStatus = 'AUTH_FAILED';
               verificationMsg = `Angel One authentication rejected: ${data?.message || 'Invalid API Key, PIN, or TOTP.'}`;
             }
           } catch (netErr: any) {
             isVerified = false;
+            resolvedStatus = 'ERROR';
             verificationMsg = `Angel One network test unreachable: ${netErr?.message || 'Connection timed out or network blocked.'}`;
           }
           break;
@@ -253,10 +305,12 @@ export class ConnectionVaultService {
         case 'telegram': {
           const { botToken } = creds;
           if (!botToken || typeof botToken !== 'string') {
+            resolvedStatus = 'NOT_CONFIGURED';
             throw new Error('Missing Telegram Bot Token.');
           }
           const tokenRegex = /^\d{8,12}:[A-Za-z0-9_-]{30,40}$/;
           if (!tokenRegex.test(botToken)) {
+            resolvedStatus = 'AUTH_FAILED';
             throw new Error('Invalid Telegram Bot Token format. Expected format: 123456789:ABCdefGHIjklMNOpqrSTUvwxYZ.');
           }
           try {
@@ -266,13 +320,16 @@ export class ConnectionVaultService {
             const data = await res.json() as any;
             if (data && data.ok) {
               isVerified = true;
+              resolvedStatus = 'CONNECTED';
               verificationMsg = `Telegram Bot @${data.result.username} verified successfully.`;
             } else {
               isVerified = false;
+              resolvedStatus = 'AUTH_FAILED';
               verificationMsg = `Telegram Bot API rejected token: ${data?.description || 'Unauthorized.'}`;
             }
           } catch (netErr: any) {
             isVerified = false;
+            resolvedStatus = 'ERROR';
             verificationMsg = `Telegram API test unreachable: ${netErr?.message || 'Connection timed out.'}`;
           }
           break;
@@ -281,6 +338,7 @@ export class ConnectionVaultService {
         case 'google': {
           const { clientId, clientSecret, geminiApiKey } = creds;
           if (!geminiApiKey && (!clientId || !clientSecret)) {
+            resolvedStatus = 'NOT_CONFIGURED';
             throw new Error('Missing Google credentials: provide Gemini API Key or Google OAuth Client ID & Secret.');
           }
           if (geminiApiKey) {
@@ -291,17 +349,21 @@ export class ConnectionVaultService {
               const data = await res.json() as any;
               if (data && data.models) {
                 isVerified = true;
+                resolvedStatus = 'CONNECTED';
                 verificationMsg = `Google Gemini API Key verified: ${data.models.length} models accessible.`;
               } else {
                 isVerified = false;
+                resolvedStatus = 'AUTH_FAILED';
                 verificationMsg = `Google Gemini API rejected key: ${data?.error?.message || 'Invalid key.'}`;
               }
             } catch (netErr: any) {
               isVerified = false;
+              resolvedStatus = 'ERROR';
               verificationMsg = `Google Gemini API test unreachable: ${netErr?.message || 'Connection timed out.'}`;
             }
           } else {
             isVerified = false;
+            resolvedStatus = 'SAVED';
             verificationMsg = 'Google OAuth Client ID & Secret saved. User must complete interactive browser consent to verify connection.';
           }
           break;
@@ -311,7 +373,7 @@ export class ConnectionVaultService {
       if (existing) {
         runtimeDb.upsertConnection({
           ...existing,
-          status: isVerified ? 'CONNECTED' : 'ERROR',
+          status: resolvedStatus,
           lastVerifiedAt: isVerified ? now : existing.lastVerifiedAt,
           lastError: isVerified ? null : verificationMsg,
           updatedAt: now
@@ -322,13 +384,13 @@ export class ConnectionVaultService {
         id: `aud_${crypto.randomBytes(8).toString('hex')}`,
         userId,
         action: `CONNECTION_TEST_${provider.toUpperCase()}`,
-        details: `Result: ${isVerified ? 'SUCCESS' : 'FAILED'}. Message: ${verificationMsg}`,
+        details: `Result: ${isVerified ? 'SUCCESS' : 'FAILED'} (Status: ${resolvedStatus}). Message: ${verificationMsg}`,
         timestamp: now
       });
 
       return {
         success: isVerified,
-        status: isVerified ? 'CONNECTED' : 'ERROR',
+        status: resolvedStatus,
         message: verificationMsg,
         lastVerifiedAt: isVerified ? now : undefined,
         sessionTokens: isVerified ? sessionTokens : undefined

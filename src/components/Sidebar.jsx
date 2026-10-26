@@ -105,7 +105,7 @@ export default function Sidebar({
   return (
     <>
       {/* Desktop Sidebar (Left column ~230px) */}
-      <aside className="hidden md:flex w-56 bg-[#05070b]/98 border-r border-[#16294a]/80 flex-col justify-between h-[calc(100vh-56px)] sticky top-14 select-none z-30 shrink-0 overflow-y-auto no-scrollbar">
+      <aside className="hidden md:flex w-56 bg-[var(--bg-secondary,#05070b)] border-r border-[var(--border-subtle,#16294a)] flex-col justify-between h-[calc(100vh-56px)] sticky top-14 select-none z-30 shrink-0 overflow-y-auto no-scrollbar">
         <div className="p-2.5 space-y-0.5">
           {navItems.map((item) => {
             const Icon = item.icon;

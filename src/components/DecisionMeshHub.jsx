@@ -50,8 +50,8 @@ export default function DecisionMeshHub({
   const totalPnl = bots.reduce((acc, b) => acc + (b.pnlToday || 0), 0);
   const totalTradesCount = bots.reduce((acc, b) => acc + (b.trades || 0), 0);
   const avgWinRate = totalTradesCount > 0
-    ? Math.round(bots.reduce((acc, b) => acc + (b.winRate || 0), 0) / bots.length)
-    : 0;
+    ? `${Math.round(bots.reduce((acc, b) => acc + (b.winRate || 0), 0) / bots.length)}%`
+    : 'N/A';
 
   return (
     <div className="space-y-3.5 select-none font-sans">
@@ -351,7 +351,7 @@ export default function DecisionMeshHub({
           </div>
           <div className="mt-2.5">
             <div className="text-lg font-mono font-bold text-slate-200 leading-none">
-              {avgWinRate}%
+              {avgWinRate}
             </div>
             <div className="text-xs text-slate-400 font-mono mt-1">
               {totalTradesCount > 0 ? 'Verified Net Profitable' : 'No Closed Trades'}

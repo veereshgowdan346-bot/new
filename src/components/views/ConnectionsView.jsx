@@ -80,6 +80,38 @@ export default function ConnectionsView() {
 
   // Action: Connect / Save Credentials
   const handleConnect = async (provider) => {
+    // Field validation before transmission
+    if (provider === 'angel_one') {
+      const f = forms.angel_one;
+      const conn = getConnection('angel_one');
+      const hasStored = Boolean(conn.sanitizedConfig?.clientId);
+
+      if (!hasStored && (!f.apiKey || !f.clientId || !f.pin || !f.totpSecret)) {
+        toastEmitter.emitToast({
+          title: 'Validation Error',
+          message: 'All 4 fields are required: API Key, Client Code, 4-Digit PIN, and Base32 TOTP Secret.',
+          type: 'error'
+        });
+        return;
+      }
+      if (f.pin && !/^\d{4}$/.test(f.pin.trim())) {
+        toastEmitter.emitToast({
+          title: 'Invalid PIN',
+          message: 'Angel One PIN must be exactly 4 numeric digits.',
+          type: 'error'
+        });
+        return;
+      }
+      if (f.totpSecret && f.totpSecret.trim().replace(/\s+/g, '').length < 16) {
+        toastEmitter.emitToast({
+          title: 'Invalid TOTP Secret',
+          message: 'Base32 TOTP Secret key must be at least 16 characters.',
+          type: 'error'
+        });
+        return;
+      }
+    }
+
     setActionLoading((prev) => ({ ...prev, [provider]: 'connecting' }));
     try {
       const payload = {
@@ -190,6 +222,41 @@ export default function ConnectionsView() {
 
   const renderStatusBadge = (status) => {
     switch (status) {
+      case 'SAVED':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+            <Lock className="w-3.5 h-3.5" />
+            Saved (Pending Verification)
+          </span>
+        );
+      case 'AUTHENTICATING':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30 animate-pulse">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            Authenticating...
+          </span>
+        );
+      case 'AUTH_FAILED':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
+            <ShieldAlert className="w-3.5 h-3.5" />
+            Authentication Failed
+          </span>
+        );
+      case 'RATE_LIMITED':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/30">
+            <Clock className="w-3.5 h-3.5" />
+            API Rate Limited
+          </span>
+        );
+      case 'SESSION_EXPIRED':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/30">
+            <Clock className="w-3.5 h-3.5" />
+            Session Expired
+          </span>
+        );
       case 'CONNECTED':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">

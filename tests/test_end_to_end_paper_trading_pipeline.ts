@@ -52,7 +52,7 @@ describe('CHINTU AI — PHASE 7 END-TO-END PAPER TRADING PIPELINE', () => {
     await paperSessionEngine.startSession(200000);
 
     // Evaluate opportunities across universe
-    paperSessionEngine.evaluateAndExecuteTrades();
+    await paperSessionEngine.evaluateAndExecuteTrades();
 
     const openPositions = paperSessionEngine.getOpenPositions();
     const metrics = paperSessionEngine.getSessionMetrics();

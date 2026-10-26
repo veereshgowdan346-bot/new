@@ -344,13 +344,19 @@ app.post('/api/user/sync', (req: Request, res: Response) => {
   res.json({ status: 'success', profile: userProfile });
 });
 
-// Execution Mode
+// Execution Mode: Fail-Closed Protection
 app.post('/api/execution-mode', (req: Request, res: Response) => {
   const { mode } = req.body;
-  if (mode === 'LIVE' || mode === 'PAPER') {
-    executionMode = mode;
+  if (mode === 'LIVE') {
+    return res.status(403).json({
+      status: 'error',
+      code: 'LIVE_TRADING_LOCKED',
+      mode: 'PAPER',
+      message: 'Live broker execution is locked. System invariant LIVE_TRADING_ELIGIBLE is False.'
+    });
   }
-  res.json({ status: 'success', mode: executionMode });
+  executionMode = 'PAPER';
+  res.json({ status: 'success', mode: 'PAPER' });
 });
 
 // Positions & Square-off
@@ -558,6 +564,22 @@ app.get('/api/paper/universe/scan', (req: Request, res: Response) => {
   res.json({
     status: 'success',
     scan: scanResult
+  });
+});
+
+app.post('/api/jarvis/review', async (req: Request, res: Response) => {
+  const { symbol, capital, minDesiredNetProfit } = req.body;
+  if (!symbol) {
+    return res.status(400).json({ status: 'error', message: 'Symbol is required' });
+  }
+  const result = await paperSessionEngine.evaluateSingleOpportunity(
+    String(symbol),
+    capital !== undefined ? Number(capital) : undefined,
+    minDesiredNetProfit !== undefined ? Number(minDesiredNetProfit) : undefined
+  );
+  res.json({
+    status: 'success',
+    ...result
   });
 });
 
@@ -3587,13 +3609,16 @@ app.post('/api/connections/save', userAuthService.requireAuth, (req: Authenticat
   }
 
   const saved = connectionVault.saveConnection(userId, provider as ProviderType, credentials);
-  if (provider === 'angel_one' && credentials) {
-    angelMarketDataAdapter.updateCredentials({
-      apiKey: credentials.apiKey,
-      clientId: credentials.clientId,
-      pin: credentials.pin,
-      totpSecret: credentials.totpSecret
-    });
+  if (provider === 'angel_one') {
+    const creds = connectionVault.getDecryptedCredentials(userId, 'angel_one');
+    if (creds) {
+      angelMarketDataAdapter.updateCredentials({
+        apiKey: creds.apiKey,
+        clientId: creds.clientId,
+        pin: creds.pin,
+        totpSecret: creds.totpSecret
+      });
+    }
   }
   res.json({ status: 'success', connection: saved });
 });

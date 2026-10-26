@@ -37,6 +37,7 @@ import {
 import { topMarketsLive, marketAllocation, marketWisePerformance, capitalGrowthHistory } from '../../data/tradingData';
 import MarketSentimentWidget from '../MarketSentimentWidget';
 import MarketHeatmap from '../MarketHeatmap';
+import { getPaperCapital, CAPITAL_DISCLAIMER } from '../../utils/capitalConfig';
 
 export default function MasterDashboardView({
   bots = [],
@@ -74,19 +75,20 @@ export default function MasterDashboardView({
 
   const winRatePct = totalTradesCount > 0
     ? ((winningTradesCount / totalTradesCount) * 100).toFixed(1)
-    : '0.0';
+    : 'N/A';
 
   const realizedPnl = recentTrades.reduce((sum, t) => sum + (Number(t.netPnl ?? t.pnl) || 0), 0);
   const unrealizedPnl = positions.reduce((sum, p) => sum + (Number(p.pnl) || 0), 0);
   const todayProfit = Number((realizedPnl + unrealizedPnl).toFixed(2));
-  const profitPct = totalTradesCount > 0 ? ((todayProfit / 100000) * 100).toFixed(2) : '0.00';
+  const basePaperCapital = getPaperCapital();
+  const profitPct = totalTradesCount > 0 ? ((todayProfit / basePaperCapital) * 100).toFixed(2) : '0.00';
 
-  const currentCapital = 100000 + todayProfit;
+  const currentCapital = basePaperCapital + todayProfit;
   const capitalGrowthText = totalTradesCount > 0
-    ? `₹1,00,000 → ₹${Math.round(currentCapital).toLocaleString('en-IN')}`
-    : `₹1,00,000 → ₹1,00,000`;
+    ? `₹${basePaperCapital.toLocaleString('en-IN')} → ₹${Math.round(currentCapital).toLocaleString('en-IN')}`
+    : `₹${basePaperCapital.toLocaleString('en-IN')} (Baseline)`;
   const capitalGrowthPct = totalTradesCount > 0
-    ? `${todayProfit >= 0 ? '+' : ''}${((todayProfit / 100000) * 100).toFixed(2)}%`
+    ? `${todayProfit >= 0 ? '+' : ''}${((todayProfit / basePaperCapital) * 100).toFixed(2)}%`
     : '+0.00%';
 
   // 2. Verified Institutional Risk Attribution Engine Metrics (Evaluated strictly AFTER todayProfit)
@@ -352,7 +354,7 @@ export default function MasterDashboardView({
         <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 tracking-wide">
           <TrendingUp className="w-4 h-4 text-emerald-400" />
           <span>Capital Growth &amp; Equity Curve</span>
-          <span className="text-[10px] text-slate-400 font-normal">(From ₹1,00,000 Base Capital)</span>
+          <span className="text-[10px] text-slate-400 font-normal">(Base: ₹{basePaperCapital.toLocaleString('en-IN')} • {CAPITAL_DISCLAIMER})</span>
         </h4>
         <span className={`px-2.5 py-0.5 rounded-md text-xs font-mono font-bold ${
           todayProfit > 0
@@ -946,7 +948,8 @@ return (
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 font-medium">Win Rate</div>
-                  <div className="text-base font-bold font-mono text-white leading-tight">{winRatePct}%</div>
+                  <div className="text-base font-bold font-mono text-white leading-tight">{winRatePct === 'N/A' ? 'N/A' : `${winRatePct}%`}</div>
+                  <div className="text-[9px] text-slate-400 font-mono mt-0.5">{totalTradesCount === 0 ? '0 closed trades' : `${winningTradesCount}W / ${losingTradesCount}L`}</div>
                 </div>
               </div>
             </div>
@@ -1265,7 +1268,7 @@ return (
           </div>
           <div>
             <div className="text-[9.5px] text-slate-400 font-medium">Winning Trades</div>
-            <div className="text-xs font-black font-mono text-emerald-400">{winningTradesCount} ({winRatePct}%)</div>
+            <div className="text-xs font-black font-mono text-emerald-400">{winningTradesCount} ({winRatePct === 'N/A' ? 'N/A' : `${winRatePct}%`})</div>
           </div>
         </div>
 
@@ -1276,7 +1279,7 @@ return (
           </div>
           <div>
             <div className="text-[9.5px] text-slate-400 font-medium">Losing Trades</div>
-            <div className="text-xs font-black font-mono text-rose-400">{losingTradesCount} ({totalTradesCount > 0 ? (100 - Number(winRatePct)).toFixed(1) : '0.0'}%)</div>
+            <div className="text-xs font-black font-mono text-rose-400">{losingTradesCount} ({winRatePct === 'N/A' ? 'N/A' : `${(100 - Number(winRatePct)).toFixed(1)}%`})</div>
           </div>
         </div>
 

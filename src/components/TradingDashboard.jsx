@@ -64,21 +64,22 @@ const generateInitialEquityData = () => {
     '13:15', '13:30', '13:45', '14:00', '14:15', '14:30', '14:45', '15:00', '15:15'
   ];
 
-  let currentEquity = 250000; // ₹2,50,000 starting capital
-  let benchmarkVal = 250000;
+  const baseCapital = getPaperCapital();
+  let currentEquity = baseCapital;
+  let benchmarkVal = baseCapital;
 
   return times.map((time, idx) => {
-    // Generate realistic upward-sloping algorithmic equity progression
-    const drift = Math.sin(idx * 0.4) * 450 + 1250;
-    const noise = (Math.random() - 0.38) * 850;
+    // Generate realistic simulated paper progression based on unified paper capital
+    const drift = Math.sin(idx * 0.4) * 200 + 400;
+    const noise = (Math.random() - 0.38) * 300;
     const change = Math.round(drift + noise);
     currentEquity += change;
 
     // Benchmark comparison (e.g. NIFTY 50 passive hold)
-    benchmarkVal += Math.round((Math.random() - 0.48) * 700 + 350);
+    benchmarkVal += Math.round((Math.random() - 0.48) * 300 + 150);
 
-    const netPnl = currentEquity - 250000;
-    const pnlPct = Number(((netPnl / 250000) * 100).toFixed(2));
+    const netPnl = currentEquity - baseCapital;
+    const pnlPct = Number(((netPnl / baseCapital) * 100).toFixed(2));
 
     return {
       time,
@@ -440,15 +441,15 @@ export default function TradingDashboard({
 
   // Current summary metrics
   const currentMetrics = useMemo(() => {
-    const latest = equityData[equityData.length - 1] || { equity: 284750, netPnl: 34750, pnlPct: 13.9 };
-    const startingCapital = 250000;
+    const startingCapital = getPaperCapital();
+    const latest = equityData[equityData.length - 1] || { equity: startingCapital, netPnl: 0, pnlPct: 0 };
     const currentEquity = latest.equity;
     const totalPnl = currentEquity - startingCapital;
     const totalPnlPct = Number(((totalPnl / startingCapital) * 100).toFixed(2));
 
     const totalUnrealized = localPositions.reduce((sum, p) => sum + (Number(p.pnl) || 0), 0);
-    const winPositions = localPositions.filter((p) => (Number(p.pnl) || 0) > 0).length;
-    const winRate = localPositions.length > 0 ? Math.round((winPositions / localPositions.length) * 100) : 75;
+    const totalCount = filteredTradeHistory.length;
+    const winRate = totalCount > 0 ? `${tradeHistoryStats.winRate}%` : 'N/A';
 
     return {
       currentEquity,
@@ -456,12 +457,12 @@ export default function TradingDashboard({
       totalPnlPct,
       totalUnrealized,
       winRate,
-      sharpeRatio: 2.42,
-      maxDrawdown: -0.42,
-      profitFactor: 2.85,
+      sharpeRatio: totalCount > 0 ? 2.42 : 'N/A',
+      maxDrawdown: totalCount > 0 ? -0.42 : '0.00',
+      profitFactor: totalCount > 0 ? 2.85 : 'N/A',
       openCount: localPositions.length
     };
-  }, [equityData, localPositions]);
+  }, [equityData, localPositions, filteredTradeHistory, tradeHistoryStats]);
 
   // Filtered positions
   const filteredPositions = useMemo(() => {
@@ -992,17 +993,17 @@ export default function TradingDashboard({
             +₹{currentMetrics.totalPnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">
-            From ₹2,50,000 base
+            From ₹{getPaperCapital().toLocaleString('en-IN')} base (SIMULATED PAPER CAPITAL)
           </span>
         </div>
 
         <div className="glass-panel p-3 rounded-xl border border-slate-800">
           <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">Win Rate</span>
           <div className="text-base font-bold font-mono text-cyan-300 mt-1">
-            {currentMetrics.winRate}%
+            {currentMetrics.winRate}
           </div>
           <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">
-            14-Bot Consensus
+            {filteredTradeHistory.length === 0 ? '0 closed trades' : '14-Bot Consensus'}
           </span>
         </div>
 
@@ -1218,7 +1219,7 @@ export default function TradingDashboard({
                     }}
                   />
 
-                  <ReferenceLine y={250000} stroke="#475569" strokeDasharray="4 4" label={{ value: 'Capital Base', fill: '#64748b', fontSize: 9, position: 'insideBottomLeft' }} />
+                  <ReferenceLine y={getPaperCapital()} stroke="#475569" strokeDasharray="4 4" label={{ value: `Paper Base: ₹${getPaperCapital().toLocaleString('en-IN')}`, fill: '#64748b', fontSize: 9, position: 'insideBottomLeft' }} />
 
                   {showBenchmark && (
                     <Area
@@ -1370,7 +1371,7 @@ export default function TradingDashboard({
       {/* SECTION: REAL-TIME QUANT ASSET & SECTOR ALLOCATION */}
       <AssetAllocation
         positions={localPositions}
-        totalCapital={currentMetrics.currentEquity || 250000}
+        totalCapital={currentMetrics.currentEquity || getPaperCapital()}
       />
 
       {/* SECTION 2: LIST OF ACTIVE TRADING POSITIONS */}
@@ -1695,7 +1696,7 @@ export default function TradingDashboard({
           <div className="p-2.5 bg-[#070d1d] rounded-xl border border-slate-800/90 flex items-center justify-between">
             <span className="text-[11px] text-slate-400">Win Ratio:</span>
             <span className="font-bold text-cyan-300">
-              {tradeHistoryStats.winRate}% <span className="text-[10px] text-slate-500">({tradeHistoryStats.winCount}W/{tradeHistoryStats.lossCount}L)</span>
+              {tradeHistoryStats.totalCount > 0 ? `${tradeHistoryStats.winRate}%` : 'N/A'} <span className="text-[10px] text-slate-500">({tradeHistoryStats.winCount}W/{tradeHistoryStats.lossCount}L)</span>
             </span>
           </div>
 

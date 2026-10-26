@@ -173,7 +173,7 @@ describe('CHINTU AI — PHASE 5: AUTHENTIC FEED TO PAPER-TRADING END-TO-END VERI
     assert.equal(initialMetrics.openPositionsCount, 0);
 
     // Trigger evaluation
-    engine.evaluateAndExecuteTrades();
+    await engine.evaluateAndExecuteTrades();
 
     // If trade executed, verify risk rules
     const positions = engine.getOpenPositions();
@@ -206,7 +206,7 @@ describe('CHINTU AI — PHASE 5: AUTHENTIC FEED TO PAPER-TRADING END-TO-END VERI
     const engine = new PaperSessionEngine();
     await engine.startSession(500000, conservativeRiskSettings);
 
-    engine.evaluateAndExecuteTrades();
+    await engine.evaluateAndExecuteTrades();
     const positions = engine.getOpenPositions();
 
     if (positions.length > 0) {
@@ -303,7 +303,7 @@ describe('CHINTU AI — PHASE 5: AUTHENTIC FEED TO PAPER-TRADING END-TO-END VERI
   it('8. Emergency Stop Atomic Liquidation & Bot Halting', async () => {
     const engine = new PaperSessionEngine();
     await engine.startSession(500000, conservativeRiskSettings);
-    engine.evaluateAndExecuteTrades();
+    await engine.evaluateAndExecuteTrades();
 
     // Trigger Emergency Stop
     const stopResult = await engine.stopSession('MARKET_CLOSE');

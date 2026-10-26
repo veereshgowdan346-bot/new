@@ -103,6 +103,7 @@ export class AngelMarketDataAdapter {
   private quotes: Record<string, MarketQuote> = {
     'NIFTY 50': { symbol: 'NIFTY 50', token: '26000', price: 25840.50, change: 142.30, pct: 0.55, volume: '14.2M', timestamp: Date.now(), exchangeTimestamp: Date.now(), receivedTimestamp: Date.now(), dataAgeStatus: 'SIMULATED', source: 'STANDBY_ANCHOR' },
     'BANKNIFTY': { symbol: 'BANKNIFTY', token: '26009', price: 54120.00, change: -88.40, pct: -0.16, volume: '8.7M', timestamp: Date.now(), exchangeTimestamp: Date.now(), receivedTimestamp: Date.now(), dataAgeStatus: 'SIMULATED', source: 'STANDBY_ANCHOR' },
+    'SENSEX': { symbol: 'SENSEX', token: '1', price: 82341.20, change: 295.40, pct: 0.36, volume: '2.4M', timestamp: Date.now(), exchangeTimestamp: Date.now(), receivedTimestamp: Date.now(), dataAgeStatus: 'SIMULATED', source: 'STANDBY_ANCHOR' },
     'FINNIFTY': { symbol: 'FINNIFTY', token: '26037', price: 24210.00, change: 64.20, pct: 0.27, volume: '3.1M', timestamp: Date.now(), exchangeTimestamp: Date.now(), receivedTimestamp: Date.now(), dataAgeStatus: 'SIMULATED', source: 'STANDBY_ANCHOR' },
     'MIDCPNIFTY': { symbol: 'MIDCPNIFTY', token: '26074', price: 13240.00, change: 48.50, pct: 0.37, volume: '2.5M', timestamp: Date.now(), exchangeTimestamp: Date.now(), receivedTimestamp: Date.now(), dataAgeStatus: 'SIMULATED', source: 'STANDBY_ANCHOR' },
     'GOLD MCX': { symbol: 'GOLD MCX', token: '234567', price: 78450.00, change: 320.00, pct: 0.41, volume: '4.2K', timestamp: Date.now(), exchangeTimestamp: Date.now(), receivedTimestamp: Date.now(), dataAgeStatus: 'SIMULATED', source: 'STANDBY_ANCHOR' },
@@ -528,6 +529,7 @@ export class AngelMarketDataAdapter {
       let symbol = 'UNKNOWN';
       if (token === '26000') symbol = 'NIFTY 50';
       else if (token === '26009') symbol = 'BANKNIFTY';
+      else if (token === '1' || token === '99919000') symbol = 'SENSEX';
       else if (token === '26037') symbol = 'FINNIFTY';
       else if (token === '26074') symbol = 'MIDCPNIFTY';
       else if (token === '2885') symbol = 'RELIANCE';
