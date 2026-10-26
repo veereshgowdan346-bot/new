@@ -92,56 +92,79 @@ Executed via `scratch/verify_providers_honest.ts` using live network handshakes:
 
 Executed via `node scratch/verify_financial_calculations_independent.js` against the canonical statutory calculation engine (`src/utils/taxCalculator.js`):
 
+### Authoritative Rounding Standard: Per-Leg Contract-Note Rounding
+Under Indian exchange bylaws (NSE/BSE/MCX), clearing members issue distinct contract notes for each execution leg. Each fee line item is rounded to 2 decimal places using half-up IEEE-754 epsilon protection (`round2`). The roundtrip total is the exact sum of the entry leg and exit leg charges:
+$$\text{Roundtrip Charges} = \text{Entry Total} + \text{Exit Total}$$
+$$\text{Net Realized P\&L} = \text{Gross P\&L} - \text{Roundtrip Charges}$$
+
+---
+
 ### Case 1: NSE Intraday Equity (HDFCBANK — 100 shares @ ₹1,500 Buy, ₹1,520 Sell)
 - **Order Turnover:** Buy ₹1,50,000; Sell ₹1,52,000. Total Turnover: ₹3,02,000.
-- **Gross P&L:** ₹2,000.00
-- **Statutory Charges (Official Rates):**
-  - **Brokerage:** Buy ₹20.00 ($\min(20, 150000 \times 0.03\% = 45)$) + Sell ₹20.00 ($\min(20, 152000 \times 0.03\% = 45.6)$) = **₹40.00**
-  - **STT (Statutory 0.025% on Sell Leg):** $152000 \times 0.00025 = \mathbf{₹38.00}$ *(Corrected from legacy report's erroneous 0.0125% / ₹19.00)*
-  - **Exchange Turnover (NSE True-to-Label 0.00297%):** $302000 \times 0.0000297 = \mathbf{₹8.97}$ *(Corrected from legacy flat 0.00325% / ₹9.82)*
-  - **IPFT (NSE 0.0001%):** $302000 \times 0.000001 = \mathbf{₹0.30}$
-  - **SEBI Turnover Fee (0.0001% / ₹10 per crore):** $302000 \times 0.000001 = \mathbf{₹0.30}$
-  - **Stamp Duty (0.003% Buy Leg Only):** $150000 \times 0.00003 = \mathbf{₹4.50}$
-  - **GST (18% strictly on Service Fees):** $18\% \times (40.00 + 8.97 + 0.30 + 0.30) = 18\% \times 49.57 = \mathbf{₹8.92}$
-  - **Total Statutory Charges:** $40.00 + 38.00 + 8.97 + 0.30 + 0.30 + 4.50 + 8.92 = \mathbf{₹100.99}$
-- **Net Realized P&L:** ₹2,000.00 - ₹100.99 = **₹1,899.01** (Verified: PASS)
+- **Gross P&L:** $100 \times (1,520 - 1,500) = \mathbf{+₹2,000.00}$.
+- **Per-Leg Contract Note Breakdown:**
+  - **Buy Leg (₹1,50,000):** Brokerage ₹20.00 + STT ₹0.00 + Exchange (0.00297%) ₹4.46 + IPFT ₹0.15 + SEBI ₹0.15 + Stamp Duty (0.003%) ₹4.50 + GST (18%) ₹4.46 = **₹33.72**.
+  - **Sell Leg (₹1,52,000):** Brokerage ₹20.00 + STT (0.025%) ₹38.00 + Exchange (0.00297%) ₹4.51 + IPFT ₹0.15 + SEBI ₹0.15 + Stamp Duty ₹0.00 + GST (18%) ₹4.47 = **₹67.28**.
+- **Roundtrip Total Deductions:** $33.72 + 67.28 = \mathbf{₹101.00}$ *(Reconciled: pooled-turnover single GST yielded ₹100.99; per-leg ledger settlement yields strictly ₹101.00)*.
+- **Net Realized P&L:** ₹2,000.00 - ₹101.00 = **₹1,899.00** (Verified: PASS)
+
+---
 
 ### Case 2: NFO Options Intraday (NIFTY 50 CE — 50 qty @ ₹120 Buy, ₹150 Sell)
 - **Order Turnover:** Buy Premium ₹6,000; Sell Premium ₹7,500. Total Premium: ₹13,500.
-- **Gross P&L:** ₹1,500.00
-- **Statutory Charges (Finance Act 2026 w.e.f. 1 April 2026):**
-  - **Brokerage:** Buy ₹1.80 ($\min(20, 6000 \times 0.03\% = 1.80)$) + Sell ₹2.25 ($\min(20, 7500 \times 0.03\% = 2.25)$) = **₹4.05**
-  - **STT (0.15% on Sell Premium):** $7500 \times 0.0015 = \mathbf{₹11.25}$ *(Corrected from legacy pre-Oct 2024 rate 0.0625% / ₹4.69)*
-  - **Exchange Turnover (0.03503% on Premium):** $13500 \times 0.0003503 = \mathbf{₹4.73}$
-  - **IPFT (0.0005% on Premium):** $13500 \times 0.000005 = \mathbf{₹0.07}$
-  - **SEBI Fee (0.0001%):** $13500 \times 0.000001 = \mathbf{₹0.01}$
-  - **Stamp Duty (0.003% Buy Leg Only):** $6000 \times 0.00003 = \mathbf{₹0.18}$
-  - **GST (18% on Services):** $18\% \times (4.05 + 4.73 + 0.07 + 0.01) = 18\% \times 8.86 = \mathbf{₹1.59}$
-  - **Total Statutory Charges:** $4.05 + 11.25 + 4.73 + 0.07 + 0.01 + 0.18 + 1.59 = \mathbf{₹21.88}$
-- **Net Realized P&L:** ₹1,500.00 - ₹21.88 = **₹1,478.12** (Verified: PASS)
+- **Gross P&L:** $50 \times (150 - 120) = \mathbf{+₹1,500.00}$.
+- **Brokerage Standard:** Discount Broker F&O Standard: **Flat ₹20.00 per executed order** (`isFlatBrokerage: true`).
+- **Per-Leg Contract Note Breakdown (Finance Act 2026 w.e.f. 1 April 2026):**
+  - **Buy Leg (Premium ₹6,000):** Brokerage ₹20.00 + STT ₹0.00 + Exchange (0.03503%) ₹2.10 + IPFT (0.0005%) ₹0.03 + SEBI ₹0.01 + Stamp Duty (0.003%) ₹0.18 + GST (18%) ₹3.98 = **₹26.30**.
+  - **Sell Leg (Premium ₹7,500):** Brokerage ₹20.00 + STT (0.15% under Finance Act 2026) ₹11.25 + Exchange (0.03503%) ₹2.63 + IPFT (0.0005%) ₹0.04 + SEBI ₹0.01 + Stamp Duty ₹0.00 + GST (18%) ₹4.08 = **₹38.01**.
+- **Roundtrip Total Deductions:** $26.30 + 38.01 = \mathbf{₹64.31}$ *(Reconciled: legacy 0.03% percentage brokerage yielded ₹21.88; official flat ₹20 options brokerage yields strictly ₹64.31)*.
+- **Net Realized P&L:** ₹1,500.00 - ₹64.31 = **₹1,435.69** (Verified: PASS)
+
+---
 
 ### Case 3: Institutional Net-Profit Guardrail (1.50% Hurdle)
-- Sub-case 3a (0.5% move): Rejected (`isApproved: false`, Net ROI 0.41% < 1.50% hurdle).
-- Sub-case 3b (4.0% move): Approved (`isApproved: true`, Net ROI 3.90% >= 1.50% hurdle).
+- Sub-case 3a (0.5% move): Rejected (`isApproved: false`, Net ROI 0.39% < 1.50% hurdle).
+- Sub-case 3b (4.0% move): Approved (`isApproved: true`, Net ROI 3.89% >= 1.50% hurdle).
+
+---
 
 ### Case 4: NFO Equity Futures Intraday (NIFTY Futures — 50 qty @ ₹24,000 Buy, ₹24,100 Sell)
 - **Order Turnover:** Buy ₹12,00,000; Sell ₹12,05,000. Total Turnover: ₹24,05,000.
-- **Gross P&L:** ₹5,000.00
-- **Statutory Charges (Finance Act 2026 / Budget 2026 FAQs w.e.f. 1 April 2026):**
-  - **Brokerage:** Buy ₹20.00 ($\min(20, 1200000 \times 0.03\% = 360)$) + Sell ₹20.00 ($\min(20, 1205000 \times 0.03\% = 361.50)$) = **₹40.00**
-  - **STT (Statutory 0.05% on Sell Leg):** $1205000 \times 0.0005 = \mathbf{₹602.50}$ *(Date-effective revision from mid-period 0.02% / ₹241.00)*
-  - **Exchange Turnover (NSE True-to-Label 0.00173%):** $2405000 \times 0.0000173 = \mathbf{₹41.61}$
-  - **IPFT (NSE 0.0001%):** $2405000 \times 0.000001 = \mathbf{₹2.41}$
-  - **SEBI Turnover Fee (0.0001% / ₹10 per crore):** $2405000 \times 0.000001 = \mathbf{₹2.41}$
-  - **Stamp Duty (0.002% Buy Leg Only):** $1200000 \times 0.00002 = \mathbf{₹24.00}$
-  - **GST (18% strictly on Service Fees):** $18\% \times (40.00 + 41.61 + 2.41 + 2.41) = 18\% \times 86.43 = \mathbf{₹15.56}$
-  - **Total Statutory Charges:** $40.00 + 602.50 + 41.61 + 2.41 + 2.41 + 24.00 + 15.56 = \mathbf{₹728.49}$
-- **Net Realized P&L:** ₹5,000.00 - ₹728.49 = **₹4,271.51** (Verified: PASS)
+- **Gross P&L:** $50 \times (24,100 - 24,000) = \mathbf{+₹5,000.00}$.
+- **Per-Leg Contract Note Breakdown (Finance Act 2026 w.e.f. 1 April 2026):**
+  - **Buy Leg (₹12,00,000):** Brokerage ₹20.00 + STT ₹0.00 + Exchange (0.00173%) ₹20.76 + IPFT ₹1.20 + SEBI ₹1.20 + Stamp Duty (0.002%) ₹24.00 + GST (18%) ₹7.77 = **₹74.93**.
+  - **Sell Leg (₹12,05,000):** Brokerage ₹20.00 + STT (0.05% under Finance Act 2026) ₹602.50 + Exchange (0.00173%) ₹20.85 + IPFT ₹1.21 + SEBI ₹1.21 + Stamp Duty ₹0.00 + GST (18%) ₹7.79 = **₹653.56**.
+- **Roundtrip Total Deductions:** $74.93 + 653.56 = \mathbf{₹728.49}$.
+- **Net Realized P&L:** ₹5,000.00 - ₹728.49 = **₹4,271.51** (Verified: PASS).
 
 #### Date-Effective Evolution of Equity Futures STT on ₹12,05,000 Sell Turnover:
-- **Pre-Oct 1, 2024:** 0.0125% = ₹150.63
+- **Pre-Oct 1, 2024:** 0.0125% = ₹150.63 (Total Charges: ₹278.43, Net P&L: ₹4,721.57)
 - **Oct 1, 2024 to Mar 31, 2026 (Boundary Date 31 Mar 2026):** 0.02% = ₹241.00 (Total Charges: ₹366.99, Net P&L: ₹4,633.01)
 - **Post-April 1, 2026 (Boundary Date 1 Apr 2026):** 0.05% = ₹602.50 (Total Charges: ₹728.49, Net P&L: ₹4,271.51)
+
+---
+
+### Case 5: Delivery Equity (RELIANCE — 100 shares @ ₹2,500 Buy, ₹2,600 Sell)
+- **Product Type:** `DELIVERY` (Cash CNC)
+- **Turnover:** Buy ₹2,50,000; Sell ₹2,60,000. Total Turnover: ₹5,10,000.
+- **Gross P&L:** $100 \times (2,600 - 2,500) = \mathbf{+₹10,000.00}$.
+- **Per-Leg Contract Note Breakdown:**
+  - **Buy Leg (₹2,50,000):** Brokerage ₹0.00 + STT (0.10%) ₹250.00 + Exchange (0.00297%) ₹7.43 + IPFT ₹0.25 + SEBI ₹0.25 + Stamp Duty (0.015%) ₹37.50 + GST (18%) ₹1.43 = **₹296.86**.
+  - **Sell Leg (₹2,60,000):** Brokerage ₹0.00 + STT (0.10%) ₹260.00 + Exchange (0.00297%) ₹7.72 + IPFT ₹0.26 + SEBI ₹0.26 + Stamp Duty ₹0.00 + GST (18%) ₹1.48 = **₹269.72**.
+- **Roundtrip Total Deductions:** $296.86 + 269.72 = \mathbf{₹566.58}$.
+- **Net Realized P&L:** ₹10,000.00 - ₹566.58 = **₹9,433.42** (Verified: PASS).
+
+---
+
+### Case 6: MCX Commodity Futures (GOLD MCX — 1 lot @ ₹75,000 Buy, ₹75,500 Sell)
+- **Segment:** `COMMODITY_FUTURES` (MCX Gold)
+- **Turnover:** Buy ₹75,000; Sell ₹75,500. Total Turnover: ₹1,50,500.
+- **Gross P&L:** $1 \times (75,500 - 75,000) = \mathbf{+₹500.00}$.
+- **Per-Leg Contract Note Breakdown:**
+  - **Buy Leg (₹75,000):** Brokerage ₹20.00 + CTT ₹0.00 + Exchange (0.0021%) ₹1.58 + IPFT ₹0.08 + SEBI ₹0.08 + Stamp Duty (0.002%) ₹1.50 + GST (18%) ₹3.91 = **₹27.15**.
+  - **Sell Leg (₹75,500):** Brokerage ₹20.00 + CTT (0.01%) ₹7.55 + Exchange (0.0021%) ₹1.59 + IPFT ₹0.08 + SEBI ₹0.08 + Stamp Duty ₹0.00 + GST (18%) ₹3.91 = **₹33.21**.
+- **Roundtrip Total Deductions:** $27.15 + 33.21 = \mathbf{₹60.36}$.
+- **Net Realized P&L:** ₹500.00 - ₹60.36 = **₹439.64** (Verified: PASS).
 
 ---
 
@@ -155,13 +178,10 @@ Summary Report: scratch/full_test_matrix.json
 Pass Rate: 100%
 ==========================================
 ```
-- **New Statutory Matrix Test:** `tests/test_financial_calculations_statutory_matrix.ts` (15 test specifications verifying all rate changes, futures 0.05% boundary dates, options 0.15%, GST base purity, date-effective schedules, and hand calculations).
-- **Independent Verification:** `scratch/verify_financial_calculations_independent.js` (4/4 test cases passed with mathematical proof).
-- **OxLint:** 0 errors across all modified modules.
+- **New Statutory Matrix Test:** `tests/test_financial_calculations_statutory_matrix.ts` (19 test specifications verifying all rate changes, futures 0.05% boundary dates, options 0.15%, delivery equity, MCX commodities, GST base purity, date-effective schedules, and hand calculations).
+- **Independent Verification:** `scratch/verify_financial_calculations_independent.js` (6/6 test cases passed with mathematical proof).
+- **OxLint:** 0 errors, 0 warnings across all modified modules.
 - **Vite Production Build:** Completed cleanly in 7.84s (`dist/` generated with zero errors).
-- **Live HTTP Integration Tests:** 14/14 passed on live Express daemon.
-- **OxLint:** 0 errors across all modified modules.
-- **Vite Production Build:** Completed cleanly in 3.51s (`dist/` generated with zero errors).
 - **Live HTTP Integration Tests:** 14/14 passed on live Express daemon.
 
 ---

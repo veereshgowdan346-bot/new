@@ -412,6 +412,160 @@ describe('CHINTU AI — AUTHORITATIVE INDIAN REGULATORY FINANCIAL CALCULATIONS A
       assert.equal(roundtripFees, 728.49, 'Roundtrip charges must equal ₹728.49');
       assert.equal(netPnl, 4271.51, 'Net P&L must equal ₹4,271.51');
     });
+
+    it('should reconcile NIFTY Options Intraday (50 qty @ ₹120 Buy, ₹150 Sell) post-April 2026 with exact delta = 0', () => {
+      const entry = calculateTradeCharges({
+        price: 120,
+        qty: 50,
+        action: 'BUY',
+        segment: 'NFO Options',
+        tradeDate: '2026-04-01',
+        includeSlippage: false
+      });
+      const exit = calculateTradeCharges({
+        price: 150,
+        qty: 50,
+        action: 'SELL',
+        segment: 'NFO Options',
+        tradeDate: '2026-04-01',
+        includeSlippage: false
+      });
+
+      const roundtripFees = Math.round((entry.totalCharges + exit.totalCharges) * 100) / 100;
+      const grossPnl = 1500.00;
+      const netPnl = Math.round((grossPnl - roundtripFees) * 100) / 100;
+
+      // Entry: 26.30, Exit: 38.01 -> Total: 64.31
+      assert.equal(entry.orderValue, 6000.00);
+      assert.equal(entry.brokerage, 20.00, 'Options brokerage is flat ₹20.00 per order');
+      assert.equal(entry.stt, 0.00);
+      assert.equal(entry.exchangeTurnover, 2.10);
+      assert.equal(entry.ipft, 0.03);
+      assert.equal(entry.sebiCharges, 0.01);
+      assert.equal(entry.stampDuty, 0.18);
+      assert.equal(entry.gst, 3.98);
+      assert.equal(entry.totalCharges, 26.30);
+
+      assert.equal(exit.orderValue, 7500.00);
+      assert.equal(exit.brokerage, 20.00, 'Options brokerage is flat ₹20.00 per order');
+      assert.equal(exit.stt, 11.25, 'Options STT 0.15% on sell premium = ₹11.25');
+      assert.equal(exit.exchangeTurnover, 2.63);
+      assert.equal(exit.ipft, 0.04);
+      assert.equal(exit.sebiCharges, 0.01);
+      assert.equal(exit.stampDuty, 0.00);
+      assert.equal(exit.gst, 4.08);
+      assert.equal(exit.totalCharges, 38.01);
+
+      assert.equal(roundtripFees, 64.31, 'Roundtrip options charges must equal ₹64.31');
+      assert.equal(netPnl, 1435.69, 'Net options P&L must equal ₹1,435.69');
+    });
+
+    it('should reconcile NIFTY Futures Intraday on 31 March 2026 (50 qty @ ₹24,000 Buy, ₹24,100 Sell) with exact delta = 0', () => {
+      const entry = calculateTradeCharges({
+        price: 24000,
+        qty: 50,
+        action: 'BUY',
+        segment: 'NSE Futures',
+        tradeDate: '2026-03-31',
+        includeSlippage: false
+      });
+      const exit = calculateTradeCharges({
+        price: 24100,
+        qty: 50,
+        action: 'SELL',
+        segment: 'NSE Futures',
+        tradeDate: '2026-03-31',
+        includeSlippage: false
+      });
+
+      const roundtripFees = Math.round((entry.totalCharges + exit.totalCharges) * 100) / 100;
+      const grossPnl = 5000.00;
+      const netPnl = Math.round((grossPnl - roundtripFees) * 100) / 100;
+
+      // Entry: 74.93, Exit: 292.06 -> Total: 366.99
+      assert.equal(entry.totalCharges, 74.93);
+      assert.equal(exit.stt, 241.00, 'Mid-period STT on 31 March 2026 = 0.02% = ₹241.00');
+      assert.equal(exit.totalCharges, 292.06);
+      assert.equal(roundtripFees, 366.99);
+      assert.equal(netPnl, 4633.01);
+    });
+
+    it('should reconcile Delivery Equity (100 shares @ ₹2,500 Buy, ₹2,600 Sell) with exact delta = 0', () => {
+      const entry = calculateTradeCharges({
+        price: 2500,
+        qty: 100,
+        action: 'BUY',
+        segment: 'NSE Equity',
+        productType: 'DELIVERY',
+        tradeDate: '2026-10-26',
+        includeSlippage: false
+      });
+      const exit = calculateTradeCharges({
+        price: 2600,
+        qty: 100,
+        action: 'SELL',
+        segment: 'NSE Equity',
+        productType: 'DELIVERY',
+        tradeDate: '2026-10-26',
+        includeSlippage: false
+      });
+
+      const roundtripFees = Math.round((entry.totalCharges + exit.totalCharges) * 100) / 100;
+      const grossPnl = 10000.00;
+      const netPnl = Math.round((grossPnl - roundtripFees) * 100) / 100;
+
+      // Entry: 296.86, Exit: 269.72 -> Total: 566.58
+      assert.equal(entry.brokerage, 0.00);
+      assert.equal(entry.stt, 250.00, '0.10% on BUY = ₹250.00');
+      assert.equal(entry.stampDuty, 37.50, '0.015% on BUY = ₹37.50');
+      assert.equal(entry.totalCharges, 296.86);
+
+      assert.equal(exit.brokerage, 0.00);
+      assert.equal(exit.stt, 260.00, '0.10% on SELL = ₹260.00');
+      assert.equal(exit.stampDuty, 0.00);
+      assert.equal(exit.totalCharges, 269.72);
+
+      assert.equal(roundtripFees, 566.58);
+      assert.equal(netPnl, 9433.42);
+    });
+
+    it('should reconcile MCX Commodity Futures (1 lot @ ₹75,000 Buy, ₹75,500 Sell) with exact delta = 0', () => {
+      const entry = calculateTradeCharges({
+        price: 75000,
+        qty: 1,
+        action: 'BUY',
+        segment: 'MCX Gold Futures',
+        tradeDate: '2026-10-26',
+        includeSlippage: false
+      });
+      const exit = calculateTradeCharges({
+        price: 75500,
+        qty: 1,
+        action: 'SELL',
+        segment: 'MCX Gold Futures',
+        tradeDate: '2026-10-26',
+        includeSlippage: false
+      });
+
+      const roundtripFees = Math.round((entry.totalCharges + exit.totalCharges) * 100) / 100;
+      const grossPnl = 500.00;
+      const netPnl = Math.round((grossPnl - roundtripFees) * 100) / 100;
+
+      // Entry: 27.15, Exit: 33.21 -> Total: 60.36
+      assert.equal(entry.brokerage, 20.00);
+      assert.equal(entry.stt, 0.00);
+      assert.equal(entry.exchangeTurnover, 1.58, 'MCX Futures exchange fee = 0.0021% = ₹1.58');
+      assert.equal(entry.stampDuty, 1.50, 'MCX stamp duty = 0.002% = ₹1.50');
+      assert.equal(entry.totalCharges, 27.15);
+
+      assert.equal(exit.brokerage, 20.00);
+      assert.equal(exit.stt, 7.55, 'MCX CTT = 0.01% = ₹7.55');
+      assert.equal(exit.exchangeTurnover, 1.59);
+      assert.equal(exit.totalCharges, 33.21);
+
+      assert.equal(roundtripFees, 60.36);
+      assert.equal(netPnl, 439.64);
+    });
   });
 });
 
