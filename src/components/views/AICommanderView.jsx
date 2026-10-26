@@ -578,11 +578,29 @@ export default function AICommanderView({
 
   const handleStopVoice = handleStopJarvis;
 
+  const handleClearScreenOnly = () => {
+    handleStopJarvis();
+    const welcomeMsg = {
+      id: Date.now(),
+      sender: 'jarvis',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      text:
+        speechLang === 'kn-IN'
+          ? 'ನಮಸ್ಕಾರ ಕಮಾಂಡರ್ ವೀರೇಶ್. ಟರ್ಮಿನಲ್ ಸ್ಕ್ರೀನ್ ತೆರವುಗೊಳಿಸಲಾಗಿದೆ. SQLite ಮೆಮೊರಿ ಸಂರಕ್ಷಿತವಾಗಿದೆ.'
+          : 'Greetings Commander Veeresh. Terminal screen cleared. Persistent SQLite chat memory remains safely preserved on disk.',
+      quickChips:
+        speechLang === 'kn-IN'
+          ? ['📊 ಬಾಟ್ ಆಲ್ಫಾ & ರಿಸ್ಕ್ ಆಡಿಟ್', '🌅 ಪ್ರೀ-ಮಾರ್ಕೆಟ್ ಸ್ಕ್ಯಾನ್', '🔍 ಸಂಪೂರ್ಣ ಡಯಾಗ್ನೋಸ್ಟಿಕ್ಸ್', '📈 ಲಾಭದಾಯಕತೆಯ ಸಲಹೆ']
+          : ['📊 Bot Alpha & Risk Audit', '🌅 Pre-Market Scan', '🔍 Run Full Diagnostics', '📈 Profitability Advisor']
+    };
+    setMessages([welcomeMsg]);
+  };
+
   const handleClearChatHistory = async () => {
     const confirmed = window.confirm(
       speechLang === 'kn-IN'
-        ? 'ನೀವು ಚಾಟ್ ಇತಿಹಾಸವನ್ನು ಅಳಿಸಲು ಖಚಿತವಾಗಿ ಬಯಸುವಿರಾ?'
-        : 'Are you sure you want to clear conversational history from the terminal and SQLite database?'
+        ? 'ನೀವು ಈ ಸೆಷನ್‌ನ ಚಾಟ್ ಇತಿಹಾಸವನ್ನು SQLite ಡೇಟಾಬೇಸ್‌ನಿಂದ ಶಾಶ್ವತವಾಗಿ ಅಳಿಸಲು ಖಚಿತವಾಗಿ ಬಯಸುವಿರಾ?'
+        : 'Are you sure you want to PERMANENTLY purge all persisted conversational history for this session from the SQLite database?'
     );
     if (!confirmed) return;
 
@@ -595,8 +613,8 @@ export default function AICommanderView({
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       text:
         speechLang === 'kn-IN'
-          ? 'ನಮಸ್ಕಾರ ಕಮಾಂಡರ್ ವೀರೇಶ್. ಚಾಟ್ ಮೆಮೊರಿ ತೆರವುಗೊಳಿಸಲಾಗಿದೆ. 14 ಬಾಟ್‌ಗಳು ಮತ್ತು ರಿಸ್ಕ್ ನಿಯತಾಂಕಗಳು ಸಕ್ರಿಯವಾಗಿವೆ. ನಾನು ನಿಮಗೆ ಹೇಗೆ ಸಹಾಯ ಮಾಡಲಿ?'
-          : 'Greetings Commander Veeresh. Chat memory cleared. All 14 multi-asset bots, quorum consensus, and risk gates remain primed. How may I direct operations?',
+          ? 'ನಮಸ್ಕಾರ ಕಮಾಂಡರ್ ವೀರೇಶ್. ಚಾಟ್ ಮೆಮೊರಿ ಶಾಶ್ವತವಾಗಿ ಅಳಿಸಲಾಗಿದೆ. SQLite ಡೇಟಾಬೇಸ್ ನವೀಕರಿಸಲಾಗಿದೆ.'
+          : 'Greetings Commander Veeresh. Persistent chat memory permanently purged from SQLite. Session history reset.',
       quickChips:
         speechLang === 'kn-IN'
           ? ['📊 ಬಾಟ್ ಆಲ್ಫಾ & ರಿಸ್ಕ್ ಆಡಿಟ್', '🌅 ಪ್ರೀ-ಮಾರ್ಕೆಟ್ ಸ್ಕ್ಯಾನ್', '🔍 ಸಂಪೂರ್ಣ ಡಯಾಗ್ನೋಸ್ಟಿಕ್ಸ್', '📈 ಲಾಭದಾಯಕತೆಯ ಸಲಹೆ']
@@ -605,14 +623,14 @@ export default function AICommanderView({
     setMessages([welcomeMsg]);
 
     try {
-      await clearPersistentChatHistory('web_dashboard');
+      await clearPersistentChatHistory('web_dashboard', { permanent: true });
     } catch (e) {
       console.warn('Backend chat clear error:', e);
     }
 
     if (!isMuted) {
       voiceAssistant.speak(
-        speechLang === 'kn-IN' ? 'ಚಾಟ್ ಇತಿಹಾಸವನ್ನು ಅಳಿಸಲಾಗಿದೆ.' : 'Chat history cleared.',
+        speechLang === 'kn-IN' ? 'ಚಾಟ್ ಇತಿಹಾಸವನ್ನು ಶಾಶ್ವತವಾಗಿ ಅಳಿಸಲಾಗಿದೆ.' : 'Chat history permanently purged.',
         { lang: speechLang }
       );
     }
@@ -857,13 +875,28 @@ export default function AICommanderView({
       try {
         const past = await fetchPersistentChatHistory('web_dashboard', 40);
         if (isMounted && past && past.length > 0) {
-          const formatted = past.map((c) => ({
-            id: c.id,
-            sender: c.sender === 'user' ? 'user' : 'jarvis',
-            time: new Date(c.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            text: c.content,
-            quickChips: c.sender !== 'user' ? ['🌅 Pre-Market Scan', '🔍 Run Full Diagnostics', '📈 Profitability Advisor'] : undefined
-          }));
+          const formatted = past.map((c) => {
+            let displayTime = c.time;
+            if (!displayTime && c.timestamp) {
+              try {
+                const parsed = new Date(c.timestamp);
+                if (!isNaN(parsed.getTime())) {
+                  displayTime = parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                } else {
+                  displayTime = c.timestamp;
+                }
+              } catch {
+                displayTime = c.timestamp;
+              }
+            }
+            return {
+              id: c.id || Date.now() + Math.random(),
+              sender: c.sender === 'user' ? 'user' : 'jarvis',
+              time: displayTime || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              text: c.content || c.text || '',
+              quickChips: c.sender !== 'user' ? ['🌅 Pre-Market Scan', '🔍 Run Full Diagnostics', '📈 Profitability Advisor'] : undefined
+            };
+          });
           setMessages(formatted);
         }
       } catch (err) {
@@ -2412,12 +2445,20 @@ export default function AICommanderView({
                 <span>•</span>
                 <button
                   type="button"
+                  onClick={handleClearScreenOnly}
+                  className="px-2 py-0.5 rounded-lg bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700 text-slate-300 hover:text-white transition-colors flex items-center gap-1 text-[10.5px] cursor-pointer"
+                  title="Clear visible messages from screen (preserves SQLite persistent database)"
+                >
+                  <span>{speechLang === 'kn-IN' ? 'ಸ್ಕ್ರೀನ್ ತೆರವು' : 'Clear View'}</span>
+                </button>
+                <button
+                  type="button"
                   onClick={handleClearChatHistory}
                   className="px-2 py-0.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 hover:text-rose-200 transition-colors flex items-center gap-1 text-[10.5px] cursor-pointer"
-                  title="Clear chat history from screen and SQLite database"
+                  title="Permanently purge session chat history from SQLite database"
                 >
                   <Trash2 className="w-3 h-3 text-rose-400" />
-                  <span>{speechLang === 'kn-IN' ? 'ಅಳಿಸು' : 'Clear History'}</span>
+                  <span>{speechLang === 'kn-IN' ? 'ಶಾಶ್ವತ ಅಳಿಸು' : 'Purge SQLite'}</span>
                 </button>
               </div>
             </div>

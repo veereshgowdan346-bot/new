@@ -39,6 +39,16 @@ export interface TradeRecord {
   breakdown?: any;
 }
 
+export interface ChatMessageRecord {
+  id?: number;
+  sender: string;
+  text: string;
+  content: string;
+  timestamp: string;
+  time?: string;
+  sessionId?: string;
+}
+
 export interface RmsEventRecord {
   id: string;
   timestamp: string;
@@ -198,7 +208,8 @@ export class DatabasePersistenceService {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           sender TEXT NOT NULL,
           text TEXT NOT NULL,
-          timestamp TEXT NOT NULL
+          timestamp TEXT NOT NULL,
+          session_id TEXT DEFAULT 'web_dashboard'
         );
 
         CREATE TABLE IF NOT EXISTS users (
@@ -242,6 +253,9 @@ export class DatabasePersistenceService {
           updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
       `);
+      try {
+        this.db.exec("ALTER TABLE chat_messages ADD COLUMN session_id TEXT DEFAULT 'web_dashboard';");
+      } catch {}
       console.log(`[DB PERSISTENCE] SQLite database initialized at: ${this.dbPath}`);
     } catch (err) {
       console.error('[DB PERSISTENCE ERROR] Initialization failed:', err);
@@ -478,24 +492,88 @@ export class DatabasePersistenceService {
   }
 
   // --- Chat History ---
-  public saveChatMessage(sender: string, text: string, timestamp: string): void {
+  public saveChatMessage(sender: string, text: string, timestamp?: string, sessionId: string = 'web_dashboard'): void {
     if (!this.db) return;
     try {
-      const stmt = this.db.prepare('INSERT INTO chat_messages (sender, text, timestamp) VALUES (?, ?, ?)');
-      stmt.run(sender, text, timestamp);
-    } catch (e) {
-      console.warn('[DB] Failed to save chat message:', e);
+      const ts = timestamp || new Date().toISOString();
+      const stmt = this.db.prepare('INSERT INTO chat_messages (sender, text, timestamp, session_id) VALUES (?, ?, ?, ?)');
+      stmt.run(sender, text, ts, sessionId);
+    } catch {
+      try {
+        const stmt = this.db.prepare('INSERT INTO chat_messages (sender, text, timestamp) VALUES (?, ?, ?)');
+        stmt.run(sender, text, timestamp || new Date().toISOString());
+      } catch (err) {
+        console.warn('[DB] Failed to save chat message:', err);
+      }
     }
   }
 
-  public getRecentChatMessages(limit = 50): any[] {
+  public getRecentChatMessages(limit = 50, sessionId?: string): ChatMessageRecord[] {
     if (!this.db) return [];
     try {
-      const stmt = this.db.prepare('SELECT sender, text, timestamp FROM chat_messages ORDER BY id DESC LIMIT ?');
-      return (stmt.all(limit) as any[]).reverse();
+      let rows: any[];
+      if (sessionId) {
+        try {
+          const stmt = this.db.prepare('SELECT id, sender, text, timestamp, session_id FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT ?');
+          rows = stmt.all(sessionId, limit) as any[];
+        } catch {
+          const stmt = this.db.prepare('SELECT id, sender, text, timestamp FROM chat_messages ORDER BY id DESC LIMIT ?');
+          rows = stmt.all(limit) as any[];
+        }
+      } else {
+        try {
+          const stmt = this.db.prepare('SELECT id, sender, text, timestamp, session_id FROM chat_messages ORDER BY id DESC LIMIT ?');
+          rows = stmt.all(limit) as any[];
+        } catch {
+          const stmt = this.db.prepare('SELECT id, sender, text, timestamp FROM chat_messages ORDER BY id DESC LIMIT ?');
+          rows = stmt.all(limit) as any[];
+        }
+      }
+      return rows.reverse().map((r) => {
+        let displayTime = r.timestamp;
+        try {
+          const parsed = new Date(r.timestamp);
+          if (!isNaN(parsed.getTime())) {
+            displayTime = parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          }
+        } catch {}
+        return {
+          id: r.id,
+          sender: r.sender,
+          text: r.text || '',
+          content: r.text || '',
+          timestamp: r.timestamp,
+          time: displayTime,
+          sessionId: r.session_id || 'web_dashboard'
+        };
+      });
     } catch (e) {
       console.warn('[DB] Failed to load chat messages:', e);
       return [];
+    }
+  }
+
+  public clearChatMessages(sessionId?: string): { success: boolean; deletedCount: number } {
+    if (!this.db) return { success: false, deletedCount: 0 };
+    try {
+      if (sessionId && sessionId !== 'all') {
+        try {
+          const stmt = this.db.prepare('DELETE FROM chat_messages WHERE session_id = ?');
+          const info = stmt.run(sessionId);
+          return { success: true, deletedCount: Number(info.changes) };
+        } catch {
+          const stmt = this.db.prepare('DELETE FROM chat_messages');
+          const info = stmt.run();
+          return { success: true, deletedCount: Number(info.changes) };
+        }
+      } else {
+        const stmt = this.db.prepare('DELETE FROM chat_messages');
+        const info = stmt.run();
+        return { success: true, deletedCount: Number(info.changes) };
+      }
+    } catch (e) {
+      console.warn('[DB] Failed to clear chat messages:', e);
+      return { success: false, deletedCount: 0 };
     }
   }
 

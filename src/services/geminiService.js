@@ -133,6 +133,7 @@ STRICT CONSTRAINTS:
 2. ZERO BOT JARGON: DO NOT mention Bot #1 to #14, stop-loss percentages, consensus quorums, risk-to-reward ratios, P&L stats, or execution modes.
 3. NO REPETITIVE TRADING DISCLAIMERS: Absolutely NEVER output boilerplates like "Disclaimer: Trading involves financial risk" or "All 14 bots are synchronized" during casual conversation.
 4. Voice-First Brevity: Keep responses lively, conversational, and under 100-140 words so speech synthesis delivers smoothly through laptop speakers.
+${historicalMemoryContext ? `\nRELEVANT PERSISTED CONVERSATIONAL CONTEXT:\n${historicalMemoryContext}\n` : ''}
 ${isKannada ? `
 KANNADA MANDATE (ಕನ್ನಡ):
 • Respond naturally and warmly in authentic, fluent Kannada script (ಕನ್ನಡ ಲಿಪಿ).
@@ -229,12 +230,12 @@ CRITICAL BILINGUAL MANDATE (ಕನ್ನಡ / KANNADA):
 /**
  * Fetches consolidated persistent SQLite memory context from python_stream_server.
  */
-export async function fetchPersistentMemorySummary() {
+export async function fetchPersistentMemorySummary(sessionId = 'web_dashboard') {
   try {
-    const res = await apiFetch('/api/memory/summary');
+    const res = await apiFetch(`/api/memory/summary?session_id=${encodeURIComponent(sessionId)}`);
     if (res.ok) {
       const data = await res.json();
-      return data.prompt_context || '';
+      return data.prompt_context || data.summary || '';
     }
   } catch (e) {
     console.warn('[Memory Engine] Backend offline or unreachable:', e);
@@ -250,7 +251,14 @@ export async function savePersistentChatMessage({ sender, content, sessionId = '
     await apiFetch('/api/memory/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sender, content, session_id: sessionId, metadata })
+      body: JSON.stringify({
+        sender,
+        content,
+        text: content,
+        session_id: sessionId,
+        sessionId,
+        metadata
+      })
     });
   } catch (e) {
     console.warn('[Memory Engine] Failed to save chat turn:', e);
@@ -262,10 +270,10 @@ export async function savePersistentChatMessage({ sender, content, sessionId = '
  */
 export async function fetchPersistentChatHistory(sessionId = 'web_dashboard', limit = 40) {
   try {
-    const res = await apiFetch(`/api/memory/chat?session_id=${sessionId}&limit=${limit}`);
+    const res = await apiFetch(`/api/memory/chat?session_id=${encodeURIComponent(sessionId)}&limit=${limit}`);
     if (res.ok) {
       const data = await res.json();
-      return data.chats || [];
+      return data.chats || data.messages || [];
     }
   } catch (e) {
     console.warn('[Memory Engine] Failed to load persistent chats:', e);
@@ -276,12 +284,16 @@ export async function fetchPersistentChatHistory(sessionId = 'web_dashboard', li
 /**
  * Clears persistent chat history from SQLite memory.
  */
-export async function clearPersistentChatHistory(sessionId = 'web_dashboard') {
+export async function clearPersistentChatHistory(sessionId = 'web_dashboard', options = { permanent: true }) {
   try {
     const res = await apiFetch('/api/memory/chat/clear', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: sessionId })
+      body: JSON.stringify({
+        session_id: sessionId,
+        sessionId,
+        permanent: options && options.permanent !== false
+      })
     });
     return res.ok;
   } catch (e) {

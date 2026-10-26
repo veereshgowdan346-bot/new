@@ -3121,35 +3121,147 @@ app.get(['/api/diagnostics', '/api/health'], (_req: Request, res: Response) => {
   });
 });
 
-// AI Memory Store
-app.get('/api/memory/summary', (_req: Request, res: Response) => {
+// AI Memory Store (Normalized Schema & Multi-Session Persistent Storage)
+app.get('/api/memory/summary', (req: Request, res: Response) => {
+  const sessionId = (req.query.session_id as string) || (req.query.sessionId as string) || 'web_dashboard';
+  const recentMessages = runtimeDb.getRecentChatMessages(10, sessionId);
+
+  // Format safe, non-sensitive historical context from recent turns
+  let promptContext = '';
+  if (recentMessages.length > 0) {
+    const formattedTurns = recentMessages
+      .filter((m) => {
+        const text = m.text || '';
+        const lower = text.toLowerCase();
+        return (
+          !lower.includes('api_key') &&
+          !lower.includes('totp') &&
+          !lower.includes('password') &&
+          !lower.includes('pin') &&
+          !lower.includes('bearer ')
+        );
+      })
+      .slice(-6)
+      .map((m) => `${m.sender === 'user' ? 'Commander' : 'Jarvis'}: ${m.text.slice(0, 300)}`)
+      .join('\n');
+    if (formattedTurns) {
+      promptContext = `RECENT CONVERSATIONAL HISTORY:\n${formattedTurns}`;
+    }
+  }
+
+  const baselineSummary = 'Master session active. Quorum consensus running at 85%+ win rate across 14 bots. Trailing drawdown 0.42%.';
+  const fullSummary = promptContext ? `${baselineSummary}\n\n${promptContext}` : baselineSummary;
+
   res.json({
     status: 'success',
-    summary: 'Master session active. Quorum consensus running at 85%+ win rate across 14 bots. Trailing drawdown 0.42%.'
+    summary: fullSummary,
+    prompt_context: promptContext || baselineSummary,
+    recent_turns: recentMessages.length
   });
 });
 
-app.get('/api/memory/chat', (_req: Request, res: Response) => {
-  const history = chatHistoryStore.slice(-20);
-  res.json({ status: 'success', messages: history, chats: history });
+app.get('/api/memory/chat', (req: Request, res: Response) => {
+  const sessionId = (req.query.session_id as string) || (req.query.sessionId as string);
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 40));
+
+  let matchingChats: any[];
+  if (chatHistoryStore.length > 0) {
+    matchingChats = sessionId
+      ? chatHistoryStore.filter((c) => !c.sessionId || c.sessionId === sessionId)
+      : chatHistoryStore;
+  } else {
+    matchingChats = runtimeDb.getRecentChatMessages(limit, sessionId);
+  }
+
+  // Canonical schema normalization: ensure id, sender, text, content, timestamp, time, sessionId
+  const normalized = matchingChats.slice(-limit).map((c, idx) => ({
+    id: c.id || idx + 1,
+    sender: c.sender || 'user',
+    text: c.text || c.content || '',
+    content: c.content || c.text || '',
+    timestamp: c.timestamp || new Date().toISOString(),
+    time:
+      c.time ||
+      (c.timestamp && !isNaN(new Date(c.timestamp).getTime())
+        ? new Date(c.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : c.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })),
+    sessionId: c.sessionId || c.session_id || 'web_dashboard'
+  }));
+
+  res.json({
+    status: 'success',
+    messages: normalized,
+    chats: normalized,
+    total: normalized.length
+  });
 });
 
 app.post('/api/memory/chat', (req: Request, res: Response) => {
+  const sessionId = req.body.session_id || req.body.sessionId || 'web_dashboard';
+  const content = req.body.content || req.body.text || '';
+  const text = req.body.text || req.body.content || '';
+  const sender = req.body.sender || 'user';
+  const ts = req.body.timestamp || new Date().toISOString();
+
+  let displayTime = ts;
+  try {
+    const parsed = new Date(ts);
+    if (!isNaN(parsed.getTime())) {
+      displayTime = parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+  } catch {}
+
   const item = {
-    ...req.body,
-    content: req.body.content || req.body.text || '',
-    text: req.body.text || req.body.content || ''
+    id: Date.now(),
+    sender,
+    text,
+    content,
+    timestamp: ts,
+    time: displayTime,
+    sessionId,
+    session_id: sessionId,
+    metadata: req.body.metadata || {}
   };
+
   chatHistoryStore.push(item);
   try {
-    runtimeDb.saveChatMessage(item.sender || 'user', item.content, item.timestamp || new Date().toLocaleTimeString());
-  } catch (e) {}
+    runtimeDb.saveChatMessage(sender, text, ts, sessionId);
+  } catch (e) {
+    console.warn('[SERVER] Failed to persist chat message to SQLite:', e);
+  }
   res.json({ status: 'success', chat: item });
 });
 
-app.post('/api/memory/chat/clear', (_req: Request, res: Response) => {
-  chatHistoryStore.length = 0;
-  res.json({ status: 'success' });
+app.post('/api/memory/chat/clear', (req: Request, res: Response) => {
+  const sessionId =
+    (req.body && (req.body.session_id || req.body.sessionId)) ||
+    (req.query && ((req.query.session_id || req.query.sessionId) as string)) ||
+    'web_dashboard';
+  const permanent = req.body && req.body.permanent !== false;
+
+  let deletedCount = 0;
+  if (permanent) {
+    const result = runtimeDb.clearChatMessages(sessionId);
+    deletedCount = result.deletedCount;
+  }
+
+  // Synchronize in-memory cache for this specific session without affecting other sessions
+  for (let i = chatHistoryStore.length - 1; i >= 0; i--) {
+    const msg = chatHistoryStore[i];
+    if (!msg.sessionId || msg.sessionId === sessionId || sessionId === 'all') {
+      chatHistoryStore.splice(i, 1);
+    }
+  }
+
+  res.json({
+    status: 'success',
+    message: permanent
+      ? `Permanently deleted ${deletedCount} chat message(s) for session '${sessionId}' from SQLite and in-memory cache.`
+      : `Cleared in-memory chat view for session '${sessionId}'.`,
+    sessionId,
+    deletedCount,
+    permanent
+  });
 });
 
 app.get('/api/pnl', (_req: Request, res: Response) => {
