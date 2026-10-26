@@ -351,34 +351,10 @@ export default function AICommanderView({
     }
   };
 
-  // 4. WhatsApp / SMS Alert Settings State
-  const [alertSettings, setAlertSettings] = useState(() => {
-    try {
-      const saved = localStorage.getItem(ALERTS_STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error(e);
-    }
-    return {
-      countryCode: '+91',
-      phone: '',
-      callMeBotApiKey: '',
-      channelWhatsApp: true,
-      channelSMS: false,
-      alertOnTradeFills: true,
-      alertOnStopLoss: true,
-      alertOnQuorum: true,
-      alertHourlyPnl: true,
-      alertOnCircuitBreaker: true
-    };
-  });
-
   const [testSending, setTestSending] = useState(false);
   const [testAlertSuccess, setTestAlertSuccess] = useState(null);
-  const [isWhatsAppSaving, setIsWhatsAppSaving] = useState(false);
-  const [whatsAppSaveStatus, setWhatsAppSaveStatus] = useState(null);
 
-  // Sync Telegram and WhatsApp configs from SQLite backend on mount
+  // Sync Telegram config from SQLite backend on mount
   useEffect(() => {
     const syncGatewayConfigs = async () => {
       try {
@@ -396,21 +372,6 @@ export default function AICommanderView({
               chat_id: tgData.chat_id || prev.chat_id || '6912523089',
               enabled: tgData.enabled !== undefined ? tgData.enabled : true,
               bot_username: tgData.bot_username || 'chintu_jarvis_veer_bot'
-            }));
-          }
-        }
-      } catch (e) {}
-
-      try {
-        const waRes = await apiFetch('/api/whatsapp/config');
-        if (waRes.ok) {
-          const waData = await waRes.json();
-          if (waData.status === 'success' && waData.phone) {
-            setAlertSettings((prev) => ({
-              ...prev,
-              phone: waData.phone.replace(/^91/, ''),
-              callMeBotApiKey: prev.callMeBotApiKey || (waData.masked_key !== 'Configured' ? '' : prev.callMeBotApiKey),
-              channelWhatsApp: waData.enabled !== undefined ? waData.enabled : prev.channelWhatsApp
             }));
           }
         }
@@ -530,100 +491,6 @@ export default function AICommanderView({
     } finally {
       setIsTelegramTesting(false);
       setTimeout(() => setTelegramStatusMsg(null), 8000);
-    }
-  };
-
-
-
-  const handleSaveWhatsAppConfig = async () => {
-    const rawPhone = (alertSettings.phone || '').trim();
-    const cleanDigits = rawPhone.replace(/\D/g, '');
-    const fullPhone = cleanDigits.startsWith('91') && cleanDigits.length === 12
-      ? cleanDigits
-      : (alertSettings.countryCode.replace('+', '') + cleanDigits);
-
-    if (!cleanDigits || !alertSettings.callMeBotApiKey?.trim()) {
-      setWhatsAppSaveStatus({ success: false, text: 'Please enter both phone number and CallMeBot API key.' });
-      return;
-    }
-
-    setIsWhatsAppSaving(true);
-    setWhatsAppSaveStatus(null);
-    try {
-      const res = await apiFetch('/api/whatsapp/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: fullPhone,
-          apikey: alertSettings.callMeBotApiKey.trim(),
-          enabled: alertSettings.channelWhatsApp
-        })
-      });
-      const data = await res.json();
-      if (data.status === 'success') {
-        soundEngine.playBuyChime();
-        setWhatsAppSaveStatus({ success: true, text: 'CallMeBot WhatsApp gateway successfully synced & armed in SQLite!' });
-      } else {
-        soundEngine.playAlertChime();
-        setWhatsAppSaveStatus({ success: false, text: data.message || 'Failed to save WhatsApp config.' });
-      }
-    } catch (err) {
-      setWhatsAppSaveStatus({ success: false, text: err.message });
-    } finally {
-      setIsWhatsAppSaving(false);
-      setTimeout(() => setWhatsAppSaveStatus(null), 6000);
-    }
-  };
-
-  const handleSendTestWhatsAppAlert = async () => {
-    const rawPhone = (alertSettings.phone || '').trim();
-    const cleanDigits = rawPhone.replace(/\D/g, '');
-    const fullPhone = cleanDigits.startsWith('91') && cleanDigits.length === 12
-      ? cleanDigits
-      : (alertSettings.countryCode.replace('+', '') + cleanDigits);
-
-    if (!cleanDigits || !alertSettings.callMeBotApiKey?.trim()) {
-      setTestAlertSuccess({
-        isError: true,
-        text: 'Please enter phone number and CallMeBot API key first.'
-      });
-      return;
-    }
-
-    setTestSending(true);
-    setTestAlertSuccess(null);
-    try {
-      const res = await apiFetch('/api/whatsapp/test-ping', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: fullPhone,
-          apikey: alertSettings.callMeBotApiKey.trim()
-        })
-      });
-      const data = await res.json();
-      if (data.status === 'success') {
-        soundEngine.playBuyChime();
-        setTestAlertSuccess({
-          isError: false,
-          text: `✅ Instant WhatsApp Ping delivered to +${fullPhone} via CallMeBot! Check your phone.`
-        });
-      } else {
-        soundEngine.playAlertChime();
-        setTestAlertSuccess({
-          isError: true,
-          text: `❌ CallMeBot WhatsApp Ping Failed: ${data.message || 'Check your phone number or API key.'}`
-        });
-      }
-    } catch (err) {
-      soundEngine.playAlertChime();
-      setTestAlertSuccess({
-        isError: true,
-        text: `❌ Backend connection error: ${err.message}`
-      });
-    } finally {
-      setTestSending(false);
-      setTimeout(() => setTestAlertSuccess(null), 8000);
     }
   };
 
@@ -968,7 +835,7 @@ export default function AICommanderView({
       id: 1,
       sender: 'jarvis',
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      text: "Greetings Commander. I am CHINTU JARVIS CORE, your autonomous institutional Master Administrator AI and Quantitative Trading Copilot. I am actively monitoring all 14 multi-asset bots, quorum consensus, live screen vision, and 24/7 Telegram/WhatsApp notification gateways. How can I direct operations today?",
+      text: "Greetings Commander. I am CHINTU JARVIS CORE, your autonomous institutional Master Administrator AI and Quantitative Trading Copilot. I am actively monitoring all 14 multi-asset bots, quorum consensus, live screen vision, and 24/7 Telegram notification gateways. How can I direct operations today?",
       quickChips: [
         '🌅 Pre-Market Scan',
         '👁️ Live Screen Vision',
@@ -1933,33 +1800,7 @@ export default function AICommanderView({
   };
 
 
-  // Dispatch live test alert via WhatsApp API
-  const handleSendTestAlert = async () => {
-    setTestSending(true);
-    setTestAlertSuccess(null);
-    try {
-      const res = await apiFetch('/api/alerts/send-test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: `${alertSettings.countryCode} ${alertSettings.phone}`,
-          channel: alertSettings.channelWhatsApp ? 'WHATSAPP' : 'SMS',
-          alertType: 'TRADE_FILL'
-        })
-      });
-      const data = await res.json();
-      soundEngine.playBuyChime();
-      setTestAlertSuccess(data.message || 'WhatsApp alert dispatched successfully!');
-    } catch (err) {
-      soundEngine.playBuyChime();
-      setTestAlertSuccess(
-        `WhatsApp alert successfully simulated for ${alertSettings.countryCode} ${alertSettings.phone} via Meta Cloud API!`
-      );
-    } finally {
-      setTestSending(false);
-      setTimeout(() => setTestAlertSuccess(null), 5000);
-    }
-  };
+
 
   // Default Strategy Vault Presets if backend is offline/empty
   const DEFAULT_VAULT_STRATEGIES = [
@@ -2239,19 +2080,6 @@ export default function AICommanderView({
             >
               <Bot className="w-3.5 h-3.5 text-cyan-400" />
               <span>Telegram</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('alerts')}
-              className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === 'alerts'
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-              <span>WhatsApp</span>
             </button>
           </div>
         </div>
@@ -3691,280 +3519,6 @@ export default function AICommanderView({
         </div>
       )}
 
-      {/* 5. TAB 3: WhatsApp & SMS Real-Time Alert Center */}
-      {activeTab === 'alerts' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          <div className="lg:col-span-7 bg-[#0b1325]/90 border border-[#1e3a6e]/60 rounded-2xl p-5 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between border-b border-[#1e3a6e]/40 pb-3">
-              <h3 className="text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-2">
-                <Smartphone className="w-4 h-4 text-emerald-400" />
-                CallMeBot Free WhatsApp Gateway
-              </h3>
-              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
-                100% Free • No Meta Business Verification Required
-              </span>
-            </div>
-
-            {/* Quick 1-Click Setup Guide */}
-            <div className="p-3.5 rounded-xl bg-[#071324] border border-cyan-500/30 text-xs space-y-2">
-              <div className="flex items-center justify-between font-bold text-cyan-300 text-[11px]">
-                <span className="flex items-center gap-1.5">
-                  <Info className="w-3.5 h-3.5 text-cyan-400" />
-                  1-Click Onboarding Guide (Takes 10 Seconds)
-                </span>
-                <a
-                  href="https://api.callmebot.com/whatsapp.php"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[10.5px] text-cyan-400 hover:underline flex items-center gap-1"
-                >
-                  <span>CallMeBot Official</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              </div>
-              <ol className="text-[11px] text-slate-300 list-decimal list-inside space-y-1 font-sans">
-                <li>
-                  Save phone contact <strong className="text-emerald-400 font-mono">+34 644 44 24 55</strong> on your mobile.
-                </li>
-                <li className="flex items-center gap-1.5 flex-wrap">
-                  <span>Send WhatsApp message:</span>
-                  <span className="bg-slate-900 border border-slate-700 px-2 py-0.5 rounded font-mono text-emerald-300 text-[10.5px]">
-                    I allow callmebot to send me messages
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText('I allow callmebot to send me messages');
-                      soundEngine.playBuyChime();
-                    }}
-                    className="p-1 rounded bg-[#102a4e] hover:bg-cyan-600 text-cyan-300 hover:text-white transition-all text-[10px] flex items-center gap-1 cursor-pointer"
-                    title="Copy message text"
-                  >
-                    <Copy className="w-3 h-3" />
-                    <span>Copy</span>
-                  </button>
-                </li>
-                <li>
-                  CallMeBot will instantly reply with your personal <strong className="text-cyan-300 font-mono">API Key</strong>. Paste it below!
-                </li>
-              </ol>
-            </div>
-
-            {/* Phone Number Input */}
-            <div className="p-4 rounded-xl bg-[#070e1e]/80 border border-[#1e3a6e]/40 space-y-2">
-              <label className="text-xs font-bold text-slate-200">
-                Commander Mobile Phone Number (Include country code e.g. 91...)
-              </label>
-              <div className="flex items-center gap-2">
-                <select
-                  value={alertSettings.countryCode}
-                  onChange={(e) => updateAlertSetting('countryCode', e.target.value)}
-                  className="bg-[#09152e] border border-[#1e3a6e] text-xs font-mono text-cyan-300 rounded-lg px-2.5 py-2 focus:outline-none"
-                >
-                  <option value="+91">+91 (India)</option>
-                  <option value="+1">+1 (US / Canada)</option>
-                  <option value="+44">+44 (UK)</option>
-                  <option value="+971">+971 (UAE)</option>
-                  <option value="+65">+65 (Singapore)</option>
-                </select>
-
-                <input
-                  type="text"
-                  value={alertSettings.phone}
-                  onChange={(e) => updateAlertSetting('phone', e.target.value)}
-                  placeholder="e.g. 9845012345"
-                  className="flex-1 bg-[#09152e] border border-[#1e3a6e] focus:border-cyan-400 rounded-lg px-3 py-2 text-xs font-mono text-white placeholder-slate-500 focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {/* CallMeBot API Key Input */}
-            <div className="p-4 rounded-xl bg-[#070e1e]/80 border border-[#1e3a6e]/40 space-y-2">
-              <label className="text-xs font-bold text-slate-200">
-                CallMeBot API Key (Received from WhatsApp bot)
-              </label>
-              <input
-                type="password"
-                value={alertSettings.callMeBotApiKey || ''}
-                onChange={(e) => updateAlertSetting('callMeBotApiKey', e.target.value)}
-                placeholder="e.g. 4829103"
-                className="w-full bg-[#09152e] border border-[#1e3a6e] focus:border-cyan-400 rounded-lg px-3 py-2 text-xs font-mono text-white placeholder-slate-500 focus:outline-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div
-                onClick={() => updateAlertSetting('channelWhatsApp', !alertSettings.channelWhatsApp)}
-                className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
-                  alertSettings.channelWhatsApp
-                    ? 'bg-emerald-950/20 border-emerald-500/50 text-white shadow-sm'
-                    : 'bg-[#070e1e] border-[#1e3a6e]/40 text-slate-400'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-                  <span className="text-xs font-bold">WhatsApp Push Alerts</span>
-                </div>
-                <input type="checkbox" checked={alertSettings.channelWhatsApp} readOnly className="accent-emerald-400" />
-              </div>
-
-              <div
-                onClick={() => updateAlertSetting('channelSMS', !alertSettings.channelSMS)}
-                className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
-                  alertSettings.channelSMS
-                    ? 'bg-cyan-950/20 border-cyan-500/50 text-white shadow-sm'
-                    : 'bg-[#070e1e] border-[#1e3a6e]/40 text-slate-400'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
-                  <span className="text-xs font-bold">SMS Emergency Failover</span>
-                </div>
-                <input type="checkbox" checked={alertSettings.channelSMS} readOnly className="accent-cyan-400" />
-              </div>
-            </div>
-
-            <div className="space-y-2 pt-1">
-              <div className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Select Automatic Notification Events
-              </div>
-
-              <div className="space-y-2 text-xs font-sans">
-                {[
-                  { key: 'alertOnTradeFills', label: 'Trade Execution Fills (BUY / SELL)', desc: 'Real-time ticket with fill price, lot size, asset symbol, and order ID.' },
-                  { key: 'alertOnStopLoss', label: 'Stop-Loss & Profit Target Hits', desc: 'Instant alert when a trailing circuit breaker or stop-loss limit is triggered.' },
-                  { key: 'alertOnQuorum', label: '11/13 Bot Consensus Quorum Formed', desc: 'Advance notice when 11+ peer bots agree on high-conviction breakout setups.' },
-                  { key: 'alertHourlyPnl', label: 'Hourly P&L & Exposure Summary Digest', desc: 'Periodic rollup of realized earnings, margin consumption, and open risk.' },
-                  { key: 'alertOnCircuitBreaker', label: 'Emergency Hard Risk & Circuit Breaker Trips', desc: 'High-priority SMS/WhatsApp dispatch if hard daily loss threshold is breached.' }
-                ].map((item) => (
-                  <div
-                    key={item.key}
-                    onClick={() => updateAlertSetting(item.key, !alertSettings[item.key])}
-                    className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-start justify-between gap-3 ${
-                      alertSettings[item.key] ? 'bg-[#070e1e] border-cyan-500/40' : 'bg-[#060c1c] border-[#1e3a6e]/30 opacity-70'
-                    }`}
-                  >
-                    <div>
-                      <div className="font-semibold text-slate-200">{item.label}</div>
-                      <div className="text-[10px] text-slate-400 font-sans mt-0.5">{item.desc}</div>
-                    </div>
-                    <input type="checkbox" checked={alertSettings[item.key]} readOnly className="accent-cyan-400 mt-1 cursor-pointer" />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* WhatsApp Save & Test Feedback */}
-            {whatsAppSaveStatus && (
-              <div
-                className={`p-3 rounded-xl border text-xs flex items-center gap-2 animate-fadeIn ${
-                  whatsAppSaveStatus.success
-                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
-                    : 'bg-rose-500/15 border-rose-500/40 text-rose-300'
-                }`}
-              >
-                {whatsAppSaveStatus.success ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                ) : (
-                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                )}
-                <span>{whatsAppSaveStatus.text}</span>
-              </div>
-            )}
-
-            {testAlertSuccess && (
-              <div
-                className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center gap-2.5 animate-fadeIn ${
-                  (typeof testAlertSuccess === 'object' ? !testAlertSuccess.isError : testAlertSuccess.startsWith('✅'))
-                    ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.25)]'
-                    : 'bg-rose-500/15 border-rose-500/50 text-rose-300 shadow-[0_0_15px_rgba(244,63,94,0.25)]'
-                }`}
-              >
-                {(typeof testAlertSuccess === 'object' ? !testAlertSuccess.isError : testAlertSuccess.startsWith('✅')) ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                ) : (
-                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-                )}
-                <span>{typeof testAlertSuccess === 'object' ? testAlertSuccess.text : testAlertSuccess}</span>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <button
-                type="button"
-                onClick={handleSendTestWhatsAppAlert}
-                disabled={testSending || !alertSettings.phone.trim() || !alertSettings.callMeBotApiKey?.trim()}
-                className="py-3 rounded-xl bg-[#0e2a22] hover:bg-[#133d32] disabled:opacity-40 text-emerald-300 border border-emerald-500/40 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-[0_0_12px_rgba(16,185,129,0.15)]"
-              >
-                {testSending ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Smartphone className="w-4 h-4" />}
-                <span>{testSending ? 'Dispatching Ping...' : 'Send Test Ping'}</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleSaveWhatsAppConfig}
-                disabled={isWhatsAppSaving || !alertSettings.phone.trim() || !alertSettings.callMeBotApiKey?.trim()}
-                className="py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all cursor-pointer"
-              >
-                {isWhatsAppSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                <span>{isWhatsAppSaving ? 'Saving...' : 'Save & Arm WhatsApp'}</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="lg:col-span-5 flex flex-col items-center justify-center">
-            <div className="w-full max-w-[340px] bg-[#070d1e] border-4 border-[#1e3a6e] rounded-[36px] p-4 shadow-[0_0_35px_rgba(0,0,0,0.8)] relative overflow-hidden">
-              <div className="w-24 h-4 bg-[#142347] rounded-full mx-auto mb-4"></div>
-
-              <div className="bg-[#0b141a] rounded-2xl p-3 space-y-3 min-h-[460px] flex flex-col justify-between border border-[#1e3a6e]/40">
-                <div className="flex items-center gap-2.5 pb-2 border-b border-slate-800">
-                  <div className="w-8 h-8 rounded-full bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center">
-                    C
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <span>CHINTU AI Bot Alerts</span>
-                      <CheckCircle2 className="w-3 h-3 text-emerald-400 fill-current" />
-                    </div>
-                    <div className="text-[9px] text-emerald-400 font-mono">Official Verified Business</div>
-                  </div>
-                </div>
-
-                <div className="space-y-2.5 font-sans">
-                  <div className="p-2.5 rounded-xl bg-[#005c4b] text-white text-[11px] leading-relaxed shadow-sm">
-                    <div className="font-bold text-[11px] text-emerald-200">🚨 LIVE EXECUTION CONFIRMATION</div>
-                    <div className="mt-1 font-mono text-[10px]">
-                      • Bot: <strong>#01 Scalper Bot</strong>
-                      <br />• Action: <strong className="text-emerald-300">BUY 50x NIFTY 50</strong>
-                      <br />• Fill Price: <strong>₹24,730.50</strong>
-                      <br />• Quorum: <strong>11/13 Consensus</strong>
-                      <br />• Stop-Loss: 24,680.00
-                      <br />• OrderID: ORD8491023
-                    </div>
-                    <div className="text-right text-[8.5px] text-emerald-200/80 mt-1">10:24 AM • Delivered</div>
-                  </div>
-
-                  <div className="p-2.5 rounded-xl bg-[#005c4b] text-white text-[11px] leading-relaxed shadow-sm">
-                    <div className="font-bold text-[11px] text-amber-200">📊 HOURLY P&L DIGEST</div>
-                    <div className="mt-1 font-mono text-[10px]">
-                      • Today's Net P&L: <strong>+₹1,240.50</strong>
-                      <br />• Executed Trades: 4 fills
-                      <br />• Active Risk: ₹500 deployed
-                      <br />• System Status: 14/14 Running
-                    </div>
-                    <div className="text-right text-[8.5px] text-emerald-200/80 mt-1">11:00 AM • Delivered</div>
-                  </div>
-                </div>
-
-                <div className="text-center text-[10px] text-slate-500 font-mono py-1">
-                  🔒 End-to-end encrypted notification stream
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 6. MODAL: Universal Multi-Model LLM Engine Drawer */}
       {isApiKeyModalOpen && (

@@ -305,7 +305,7 @@ export default function ToastNotificationSystem({
   return (
     <aside
       aria-label="Real-time Trade Execution Alerts"
-      className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2.5 max-w-[380px] w-full pointer-events-none"
+      className="fixed top-16 right-4 z-40 flex flex-col items-end gap-2.5 max-w-[360px] w-full pointer-events-none"
     >
       {/* Multi-Toast Top Bar (when > 1 toast) */}
       {toasts.length > 1 && (

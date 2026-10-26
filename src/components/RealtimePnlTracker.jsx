@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   TrendingUp,
   TrendingDown,
@@ -28,6 +29,7 @@ export default function RealtimePnlTracker({
   compact = false,
   positions = [],
   bots = [],
+  recentTrades = [],
   executionMode = 'PAPER',
   onTierChange = null
 }) {
@@ -44,81 +46,100 @@ export default function RealtimePnlTracker({
   const [isTierMenuOpen, setIsTierMenuOpen] = useState(false);
   const [tickDirection, setTickDirection] = useState('up'); // 'up' | 'down' | 'neutral'
   const [lastTickTime, setLastTickTime] = useState(Date.now());
-  const [historyPoints, setHistoryPoints] = useState(() => {
-    // Generate initial 20 points
-    const base = 4850;
-    return Array.from({ length: 20 }, (_, i) => base + (Math.sin(i / 3) * 120) + (i * 15));
-  });
+  const [historyPoints, setHistoryPoints] = useState(() => [0]);
 
-  // Base bot P&L sum
-  const rawBotPnl = useMemo(() => {
-    if (!bots || bots.length === 0) return 4850.50;
-    return bots.reduce((acc, b) => acc + (Number(b.pnlToday) || 0), 0);
-  }, [bots]);
+  const prevPnlRef = useRef(0);
+  const modalCloseBtnRef = useRef(null);
 
-  // Dynamic scale multiplier relative to baseline capital (₹1,00,000)
-  const scaleMultiplier = useMemo(() => {
-    const baseline = 100000;
-    return Math.max(0.005, selectedTier.amount / baseline);
-  }, [selectedTier.amount]);
-
-  // Live fluctuating Gross P&L
-  const [fluctuatingDelta, setFluctuatingDelta] = useState(0);
-
-  // Second-by-second live performance streamer
+  // Background interaction and scroll lock when Live P&L modal is open
   useEffect(() => {
-    const interval = setInterval(() => {
-      // Natural high-frequency micro-jitter
-      const deltaShift = (Math.random() - 0.47) * (selectedTier.amount * 0.0008);
-      setFluctuatingDelta((prev) => {
-        const next = prev + deltaShift;
-        const dir = deltaShift >= 0 ? 'up' : 'down';
-        setTickDirection(dir);
-        setLastTickTime(Date.now());
-        return next;
-      });
-
-      // Update mini equity sparkline
-      setHistoryPoints((prev) => {
-        const lastVal = prev[prev.length - 1] || 4850;
-        const nextVal = lastVal + deltaShift;
-        const updated = [...prev.slice(1), nextVal];
-        return updated;
-      });
-    }, 1200);
-
-    return () => clearInterval(interval);
-  }, [selectedTier.amount]);
-
-  // Derived financials scaled to selected capital tier
-  const grossPnl = useMemo(() => {
-    const scaled = (rawBotPnl * scaleMultiplier) + fluctuatingDelta;
-    return Number(scaled.toFixed(2));
-  }, [rawBotPnl, scaleMultiplier, fluctuatingDelta]);
-
-  // Real-time statutory taxes & brokerage deductions
-  const statutoryCharges = useMemo(() => {
-    const estTurnover = selectedTier.amount * 1.8;
-    // STT (0.0125% for F&O sell / turnover), GST (18% on brokerage), SEBI turnover (₹10/crore), Stamp duty (0.003%)
-    const estBrokerage = Math.min(200, Math.max(20, Math.floor(selectedTier.amount * 0.0006)));
-    const estStt = Number((estTurnover * 0.00012).toFixed(2));
-    const estGst = Number((estBrokerage * 0.18).toFixed(2));
-    const estSebi = Number((estTurnover * 0.000001).toFixed(2));
-    const estStamp = Number((estTurnover * 0.00003).toFixed(2));
-    const total = estBrokerage + estStt + estGst + estSebi + estStamp;
-    return {
-      brokerage: estBrokerage,
-      stt: estStt,
-      gst: estGst,
-      sebi: estSebi,
-      stamp: estStamp,
-      total: Number(total.toFixed(2))
+    if (!isDrawerOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
     };
-  }, [selectedTier.amount]);
+  }, [isDrawerOpen]);
 
+  // Focus management: auto-focus close button for keyboard accessibility
+  useEffect(() => {
+    if (isDrawerOpen && modalCloseBtnRef.current) {
+      modalCloseBtnRef.current.focus();
+    }
+  }, [isDrawerOpen]);
+
+  // Escape key handler to dismiss modal cleanly
+  useEffect(() => {
+    if (!isDrawerOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDrawerOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDrawerOpen]);
+
+  // Authoritative financial calculations strictly deriving from runtime trades and positions
+  const realizedPnl = useMemo(() => {
+    return (recentTrades || []).reduce((sum, t) => sum + (Number(t.netPnl ?? t.pnl) || 0), 0);
+  }, [recentTrades]);
+
+  const unrealizedPnl = useMemo(() => {
+    return (positions || []).reduce((sum, p) => sum + (Number(p.pnl) || 0), 0);
+  }, [positions]);
+
+  // Authoritative Net P&L (strictly matching MasterDashboardView todayProfit)
   const netPnl = useMemo(() => {
-    return Number((grossPnl - statutoryCharges.total).toFixed(2));
-  }, [grossPnl, statutoryCharges.total]);
+    return Number((realizedPnl + unrealizedPnl).toFixed(2));
+  }, [realizedPnl, unrealizedPnl]);
+
+  // Aggregate verified statutory deductions from executed trades
+  const statutoryCharges = useMemo(() => {
+    if ((!recentTrades || recentTrades.length === 0) && (!positions || positions.length === 0)) {
+      return { brokerage: 0, stt: 0, gst: 0, sebi: 0, stamp: 0, total: 0 };
+    }
+    const actualBrokerage = (recentTrades || []).reduce((sum, t) => sum + (Number(t.brokerage) || 0), 0);
+    const actualStt = (recentTrades || []).reduce((sum, t) => sum + (Number(t.stt) || 0), 0);
+    const actualGst = (recentTrades || []).reduce((sum, t) => sum + (Number(t.gst) || 0), 0);
+    const actualSebi = (recentTrades || []).reduce((sum, t) => sum + (Number(t.sebiCharges) || 0), 0);
+    const actualStamp = (recentTrades || []).reduce((sum, t) => sum + (Number(t.stampDuty) || 0), 0);
+    const actualTotal = (recentTrades || []).reduce((sum, t) => sum + (Number(t.totalCharges) || 0), 0);
+
+    return {
+      brokerage: Number(actualBrokerage.toFixed(2)),
+      stt: Number(actualStt.toFixed(2)),
+      gst: Number(actualGst.toFixed(2)),
+      sebi: Number(actualSebi.toFixed(2)),
+      stamp: Number(actualStamp.toFixed(2)),
+      total: Number(actualTotal.toFixed(2))
+    };
+  }, [recentTrades, positions]);
+
+  const grossPnl = useMemo(() => {
+    if ((!recentTrades || recentTrades.length === 0) && (!positions || positions.length === 0)) {
+      return 0.00;
+    }
+    return Number((netPnl + statutoryCharges.total).toFixed(2));
+  }, [netPnl, statutoryCharges.total, recentTrades, positions]);
+
+  // Tick direction strictly tracks authentic P&L shifts without synthetic drift
+  useEffect(() => {
+    if (netPnl > prevPnlRef.current) {
+      setTickDirection('up');
+      setLastTickTime(Date.now());
+      setHistoryPoints((prev) => [...prev.slice(-19), netPnl]);
+    } else if (netPnl < prevPnlRef.current) {
+      setTickDirection('down');
+      setLastTickTime(Date.now());
+      setHistoryPoints((prev) => [...prev.slice(-19), netPnl]);
+    } else {
+      setTickDirection('neutral');
+    }
+    prevPnlRef.current = netPnl;
+  }, [netPnl]);
 
   const returnPct = useMemo(() => {
     if (selectedTier.amount <= 0) return 0;
@@ -157,6 +178,15 @@ export default function RealtimePnlTracker({
     <>
       {/* 1. Header / Navbar Live Streaming Pill */}
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Open Real-Time P&L Telemetry Modal"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsDrawerOpen(true);
+          }
+        }}
         className={`flex items-center gap-2 px-2.5 py-1 rounded-lg border transition-all select-none cursor-pointer group ${
           isProfitable
             ? 'bg-emerald-950/25 border-emerald-500/40 hover:border-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.15)]'
@@ -185,7 +215,7 @@ export default function RealtimePnlTracker({
         </div>
 
         {/* Live Sparkline */}
-        <div className="hidden sm:block shrink-0">
+        <div className="hidden md:block shrink-0">
           <svg width="56" height="16" className="overflow-visible">
             <path
               d={sparklineSvgPath}
@@ -205,7 +235,7 @@ export default function RealtimePnlTracker({
               {isProfitable ? '+' : ''}₹{netPnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
-          <div className="flex items-center gap-1 justify-end text-[9px] font-mono font-bold text-slate-400 mt-0.5">
+          <div className="hidden sm:flex items-center gap-1 justify-end text-[9px] font-mono font-bold text-slate-400 mt-0.5">
             <span className={isProfitable ? 'text-emerald-400' : 'text-rose-400'}>
               {isProfitable ? '+' : ''}{returnPct}%
             </span>
@@ -214,15 +244,27 @@ export default function RealtimePnlTracker({
         </div>
 
         {/* Tier dropdown chevron */}
-        <div className="shrink-0 pl-0.5 text-slate-500 group-hover:text-cyan-400 transition-colors">
+        <div className="hidden sm:block shrink-0 pl-0.5 text-slate-500 group-hover:text-cyan-400 transition-colors">
           <ChevronDown className="w-3 h-3" />
         </div>
       </div>
 
-      {/* 2. Institutional P&L Live Streaming Modal / Telemetry Drawer */}
-      {isDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-xl rounded-2xl bg-[#070b16] border border-cyan-500/40 shadow-[0_0_40px_rgba(0,240,255,0.2)] overflow-hidden">
+      {/* 2. Institutional P&L Live Streaming Modal / Telemetry Drawer via React Portal */}
+      {isDrawerOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 w-screen h-screen z-[9999] overflow-y-auto flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200 pointer-events-auto select-none font-sans"
+          style={{ WebkitAppRegion: 'no-drag' }}
+          role="presentation"
+          onClick={() => setIsDrawerOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-xl my-auto rounded-2xl bg-[#070b16] border border-cyan-500/40 shadow-[0_0_50px_rgba(0,240,255,0.25)] overflow-hidden max-h-[calc(100vh-2rem)] flex flex-col pointer-events-auto"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pnl-telemetry-modal-title"
+            tabIndex={-1}
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
             <div className="p-4 border-b border-[#16294a] flex items-center justify-between bg-[#0a1122]/90">
               <div className="flex items-center gap-2.5">
@@ -230,7 +272,7 @@ export default function RealtimePnlTracker({
                   <Activity className="w-4 h-4 animate-pulse" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-white tracking-wide flex items-center gap-2">
+                  <h3 id="pnl-telemetry-modal-title" className="text-sm font-black text-white tracking-wide flex items-center gap-2">
                     <span>Real-Time P&L Live Telemetry</span>
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-mono">
                       {executionMode}
@@ -243,16 +285,19 @@ export default function RealtimePnlTracker({
               </div>
 
               <button
+                ref={modalCloseBtnRef}
                 type="button"
                 onClick={() => setIsDrawerOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+                aria-label="Close Real-Time P&L Modal"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Capital Scale Selector Banner */}
-            <div className="p-4 border-b border-[#16294a]/60 bg-[#091122]/50">
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-4 border-b border-[#16294a]/60 bg-[#091122]/50">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-mono font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                   <Layers className="w-3.5 h-3.5 text-cyan-400" />
@@ -378,6 +423,8 @@ export default function RealtimePnlTracker({
               </div>
             </div>
 
+            </div>
+
             {/* Footer */}
             <div className="p-3 border-t border-[#16294a] bg-[#091122]/90 flex items-center justify-between">
               <span className="text-[10px] font-mono text-slate-500">
@@ -392,7 +439,8 @@ export default function RealtimePnlTracker({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

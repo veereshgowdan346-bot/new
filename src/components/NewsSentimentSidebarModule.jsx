@@ -276,8 +276,8 @@ export default function NewsSentimentSidebarModule({ onNavigateToDecisionNetwork
 
       {/* FULL SCREEN / EXPANDED MODAL DIALOG */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-6 animate-fadeIn">
-          <div className="bg-[#05070b] border border-[#1e3a6e] rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.9)] overflow-hidden">
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-6 animate-fadeIn">
+          <div className="bg-[#05070b] border border-[#1e3a6e] rounded-2xl w-full max-w-4xl my-auto max-h-[calc(100vh-2rem)] flex flex-col shadow-[0_0_50px_rgba(0,0,0,0.9)] overflow-hidden">
             {/* Modal Header */}
             <div className="px-5 py-4 border-b border-[#16294a] flex items-center justify-between bg-[#081124]">
               <div className="flex items-center gap-3">

@@ -1,0 +1,429 @@
+import crypto from 'node:crypto';
+import { runtimeDb, UserConnectionRecord } from './databasePersistence';
+import { cryptoVault } from './cryptoVault';
+import { generateTOTP } from './angelMarketDataAdapter';
+
+export type ProviderType = 'angel_one' | 'telegram' | 'google';
+export type ConnectionStatus = 'NOT_CONFIGURED' | 'CONNECTING' | 'CONNECTED' | 'EXPIRED' | 'ERROR' | 'DISCONNECTED';
+
+export interface SanitizedConnectionState {
+  provider: ProviderType;
+  status: ConnectionStatus;
+  sanitizedConfig: Record<string, any>;
+  lastVerifiedAt: string | null;
+  lastError: string | null;
+  missingPermissions: string | null;
+  updatedAt: string;
+}
+
+export class ConnectionVaultService {
+  /**
+   * Retrieves all connection statuses for a user, sanitized of all secret values.
+   */
+  public getUserConnections(userId: string): SanitizedConnectionState[] {
+    const records = runtimeDb.getAllConnections(userId);
+    const providers: ProviderType[] = ['angel_one', 'telegram', 'google'];
+
+    return providers.map((provider) => {
+      const match = records.find((r) => r.provider === provider);
+      if (!match) {
+        return {
+          provider,
+          status: 'NOT_CONFIGURED',
+          sanitizedConfig: {},
+          lastVerifiedAt: null,
+          lastError: null,
+          missingPermissions: this.getRequiredPermissions(provider),
+          updatedAt: new Date().toISOString()
+        };
+      }
+
+      let parsedConfig = {};
+      try {
+        parsedConfig = JSON.parse(match.sanitizedConfig || '{}');
+      } catch {
+        parsedConfig = {};
+      }
+
+      return {
+        provider,
+        status: match.status as ConnectionStatus,
+        sanitizedConfig: parsedConfig,
+        lastVerifiedAt: match.lastVerifiedAt || null,
+        lastError: match.lastError || null,
+        missingPermissions: match.missingPermissions || null,
+        updatedAt: match.updatedAt
+      };
+    });
+  }
+
+  /**
+   * Retrieves a single sanitized connection state for a user and provider.
+   */
+  public getConnectionState(userId: string, provider: ProviderType): SanitizedConnectionState {
+    const connections = this.getUserConnections(userId);
+    return connections.find((c) => c.provider === provider) || {
+      provider,
+      status: 'NOT_CONFIGURED',
+      sanitizedConfig: {},
+      lastVerifiedAt: null,
+      lastError: null,
+      missingPermissions: this.getRequiredPermissions(provider),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Securely saves or updates credentials for a user and provider.
+   * Credentials are encrypted using AES-256-GCM before storage.
+   */
+  public saveConnection(
+    userId: string,
+    provider: ProviderType,
+    credentials: Record<string, any>,
+    status: ConnectionStatus = 'NOT_CONFIGURED'
+  ): SanitizedConnectionState {
+    const encrypted = cryptoVault.encryptObject(credentials);
+    const sanitized = this.sanitizeConfig(provider, credentials);
+    const now = new Date().toISOString();
+
+    const existing = runtimeDb.getConnection(userId, provider);
+    const connRecord: UserConnectionRecord = {
+      id: existing ? existing.id : `conn_${crypto.randomBytes(8).toString('hex')}`,
+      userId,
+      provider,
+      status,
+      encryptedCredentials: encrypted,
+      sanitizedConfig: JSON.stringify(sanitized),
+      lastVerifiedAt: existing?.lastVerifiedAt || null,
+      lastError: null,
+      missingPermissions: this.getRequiredPermissions(provider),
+      createdAt: existing ? existing.createdAt : now,
+      updatedAt: now
+    };
+
+    runtimeDb.upsertConnection(connRecord);
+
+    // Audit log
+    runtimeDb.logAudit({
+      id: `aud_${crypto.randomBytes(8).toString('hex')}`,
+      userId,
+      action: `CONNECTION_SAVED_${provider.toUpperCase()}`,
+      details: `Saved credentials for ${provider}. Masked config: ${JSON.stringify(sanitized)}`,
+      timestamp: now
+    });
+
+    return {
+      provider,
+      status: connRecord.status as ConnectionStatus,
+      sanitizedConfig: sanitized,
+      lastVerifiedAt: connRecord.lastVerifiedAt || null,
+      lastError: null,
+      missingPermissions: connRecord.missingPermissions || null,
+      updatedAt: connRecord.updatedAt
+    };
+  }
+
+  /**
+   * Retrieves decrypted credentials for backend execution. Never exposed to clients.
+   */
+  public getDecryptedCredentials<T = Record<string, any>>(userId: string, provider: ProviderType): T | null {
+    const conn = runtimeDb.getConnection(userId, provider);
+    if (!conn || !conn.encryptedCredentials) return null;
+    try {
+      return cryptoVault.decryptObject<T>(conn.encryptedCredentials);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Safely disconnects a provider and removes stored credentials.
+   */
+  public disconnectConnection(userId: string, provider: ProviderType): SanitizedConnectionState {
+    const existing = runtimeDb.getConnection(userId, provider);
+    const now = new Date().toISOString();
+
+    if (existing) {
+      const connRecord: UserConnectionRecord = {
+        ...existing,
+        status: 'DISCONNECTED',
+        encryptedCredentials: '',
+        sanitizedConfig: '{}',
+        lastError: null,
+        updatedAt: now
+      };
+      runtimeDb.upsertConnection(connRecord);
+    }
+
+    runtimeDb.logAudit({
+      id: `aud_${crypto.randomBytes(8).toString('hex')}`,
+      userId,
+      action: `CONNECTION_DISCONNECTED_${provider.toUpperCase()}`,
+      details: `User disconnected and purged credentials for ${provider}`,
+      timestamp: now
+    });
+
+    return {
+      provider,
+      status: 'DISCONNECTED',
+      sanitizedConfig: {},
+      lastVerifiedAt: existing?.lastVerifiedAt || null,
+      lastError: null,
+      missingPermissions: this.getRequiredPermissions(provider),
+      updatedAt: now
+    };
+  }
+
+  /**
+   * Tests and validates connection using real provider-side verification.
+   */
+  public async testConnection(userId: string, provider: ProviderType): Promise<{
+    success: boolean;
+    status: ConnectionStatus;
+    message: string;
+    lastVerifiedAt?: string;
+    sessionTokens?: any;
+  }> {
+    const creds = this.getDecryptedCredentials(userId, provider);
+    const now = new Date().toISOString();
+    const existing = runtimeDb.getConnection(userId, provider);
+
+    if (!creds || Object.keys(creds).length === 0) {
+      const err = `No credentials configured for ${provider}. Please provide required fields first.`;
+      if (existing) {
+        runtimeDb.upsertConnection({
+          ...existing,
+          status: 'ERROR',
+          lastError: err,
+          updatedAt: now
+        });
+      }
+      return { success: false, status: 'ERROR', message: err };
+    }
+
+    try {
+      let isVerified = false;
+      let verificationMsg = '';
+      let sessionTokens: any = null;
+
+      switch (provider) {
+        case 'angel_one': {
+          const { apiKey, clientId, pin, totpSecret } = creds;
+          if (!apiKey || !clientId || !pin || !totpSecret) {
+            throw new Error('Missing one or more required Angel One fields: API Key, Client Code, PIN, TOTP Secret.');
+          }
+          const cleanSecret = String(totpSecret).trim().replace(/\s+/g, '');
+          if (cleanSecret.length < 16) {
+            throw new Error('Invalid TOTP Secret. Base32 key must be at least 16 characters.');
+          }
+          try {
+            const totp = generateTOTP(cleanSecret);
+            const res = await fetch('https://apiconnect.angelbroking.com/rest/auth/angelbroking/user/v1/loginByPassword', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-UserType': 'USER',
+                'X-SourceID': 'WEB',
+                'X-ClientLocalIP': '127.0.0.1',
+                'X-ClientPublicIP': '127.0.0.1',
+                'X-MACAddress': '00:00:00:00:00:00',
+                'X-PrivateKey': apiKey
+              },
+              body: JSON.stringify({ clientcode: clientId, password: pin, totp }),
+              signal: AbortSignal.timeout(10000)
+            });
+            const data = await res.json() as any;
+            if (data && (data.status === true || data.message === 'SUCCESS')) {
+              isVerified = true;
+              verificationMsg = `Angel One SmartAPI authenticated successfully for Client ${clientId}. SmartStream authorized.`;
+              sessionTokens = data.data;
+            } else {
+              isVerified = false;
+              verificationMsg = `Angel One authentication rejected: ${data?.message || 'Invalid API Key, PIN, or TOTP.'}`;
+            }
+          } catch (netErr: any) {
+            isVerified = false;
+            verificationMsg = `Angel One network test unreachable: ${netErr?.message || 'Connection timed out or network blocked.'}`;
+          }
+          break;
+        }
+
+        case 'telegram': {
+          const { botToken } = creds;
+          if (!botToken || typeof botToken !== 'string') {
+            throw new Error('Missing Telegram Bot Token.');
+          }
+          const tokenRegex = /^\d{8,12}:[A-Za-z0-9_-]{30,40}$/;
+          if (!tokenRegex.test(botToken)) {
+            throw new Error('Invalid Telegram Bot Token format. Expected format: 123456789:ABCdefGHIjklMNOpqrSTUvwxYZ.');
+          }
+          try {
+            const res = await fetch(`https://api.telegram.org/bot${botToken}/getMe`, {
+              signal: AbortSignal.timeout(3500)
+            });
+            const data = await res.json() as any;
+            if (data && data.ok) {
+              isVerified = true;
+              verificationMsg = `Telegram Bot @${data.result.username} verified successfully.`;
+            } else {
+              isVerified = false;
+              verificationMsg = `Telegram Bot API rejected token: ${data?.description || 'Unauthorized.'}`;
+            }
+          } catch (netErr: any) {
+            isVerified = false;
+            verificationMsg = `Telegram API test unreachable: ${netErr?.message || 'Connection timed out.'}`;
+          }
+          break;
+        }
+
+        case 'google': {
+          const { clientId, clientSecret, geminiApiKey } = creds;
+          if (!geminiApiKey && (!clientId || !clientSecret)) {
+            throw new Error('Missing Google credentials: provide Gemini API Key or Google OAuth Client ID & Secret.');
+          }
+          if (geminiApiKey) {
+            try {
+              const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${geminiApiKey}`, {
+                signal: AbortSignal.timeout(3500)
+              });
+              const data = await res.json() as any;
+              if (data && data.models) {
+                isVerified = true;
+                verificationMsg = `Google Gemini API Key verified: ${data.models.length} models accessible.`;
+              } else {
+                isVerified = false;
+                verificationMsg = `Google Gemini API rejected key: ${data?.error?.message || 'Invalid key.'}`;
+              }
+            } catch (netErr: any) {
+              isVerified = false;
+              verificationMsg = `Google Gemini API test unreachable: ${netErr?.message || 'Connection timed out.'}`;
+            }
+          } else {
+            isVerified = false;
+            verificationMsg = 'Google OAuth Client ID & Secret saved. User must complete interactive browser consent to verify connection.';
+          }
+          break;
+        }
+      }
+
+      if (existing) {
+        runtimeDb.upsertConnection({
+          ...existing,
+          status: isVerified ? 'CONNECTED' : 'ERROR',
+          lastVerifiedAt: isVerified ? now : existing.lastVerifiedAt,
+          lastError: isVerified ? null : verificationMsg,
+          updatedAt: now
+        });
+      }
+
+      runtimeDb.logAudit({
+        id: `aud_${crypto.randomBytes(8).toString('hex')}`,
+        userId,
+        action: `CONNECTION_TEST_${provider.toUpperCase()}`,
+        details: `Result: ${isVerified ? 'SUCCESS' : 'FAILED'}. Message: ${verificationMsg}`,
+        timestamp: now
+      });
+
+      return {
+        success: isVerified,
+        status: isVerified ? 'CONNECTED' : 'ERROR',
+        message: verificationMsg,
+        lastVerifiedAt: isVerified ? now : undefined,
+        sessionTokens: isVerified ? sessionTokens : undefined
+      };
+    } catch (err: any) {
+      const errMsg = err?.message || 'Verification test failed.';
+      if (existing) {
+        runtimeDb.upsertConnection({
+          ...existing,
+          status: 'ERROR',
+          lastError: errMsg,
+          updatedAt: now
+        });
+      }
+
+      runtimeDb.logAudit({
+        id: `aud_${crypto.randomBytes(8).toString('hex')}`,
+        userId,
+        action: `CONNECTION_TEST_FAILED_${provider.toUpperCase()}`,
+        details: `Error: ${errMsg}`,
+        timestamp: now
+      });
+
+      return {
+        success: false,
+        status: 'ERROR',
+        message: errMsg
+      };
+    }
+  }
+
+  /**
+   * Sanitizes configuration dictionary for client exposure. All secrets are masked or removed.
+   */
+  private sanitizeConfig(provider: ProviderType, creds: Record<string, any>): Record<string, any> {
+    const sanitized: Record<string, any> = {};
+
+    switch (provider) {
+      case 'angel_one':
+        if (creds.clientId) {
+          const c = String(creds.clientId);
+          sanitized.clientId = c.length > 3 ? `${c.slice(0, 2)}***${c.slice(-1)}` : '***';
+        }
+        sanitized.hasApiKey = Boolean(creds.apiKey);
+        sanitized.hasPin = Boolean(creds.pin);
+        sanitized.hasTotpSecret = Boolean(creds.totpSecret);
+        sanitized.brokerName = 'Angel One SmartAPI 2.0';
+        break;
+
+      case 'telegram': {
+        const u = creds.botUsername || creds.bot_username;
+        if (u) {
+          sanitized.botUsername = u.startsWith('@') ? u : `@${u}`;
+          sanitized.bot_username = sanitized.botUsername;
+        }
+        const t = creds.botToken || creds.bot_token;
+        if (t) {
+          const str = String(t);
+          if (str.includes(':')) {
+            const [id, secret] = str.split(':');
+            sanitized.maskedToken = `${id.slice(0, 3)}***:${secret.slice(-3)}`;
+          } else {
+            sanitized.maskedToken = '***';
+          }
+          sanitized.bot_token = sanitized.maskedToken;
+        }
+        sanitized.allowedChatIds = creds.allowedChatIds || creds.allowed_chat_ids || (creds.chat_id ? [creds.chat_id] : []);
+        break;
+      }
+
+      case 'google':
+        if (creds.email) {
+          const parts = String(creds.email).split('@');
+          sanitized.email = parts.length === 2 ? `${parts[0].slice(0, 2)}***@${parts[1]}` : '***';
+        }
+        sanitized.hasGeminiApiKey = Boolean(creds.geminiApiKey);
+        sanitized.hasOAuthClient = Boolean(creds.clientId && creds.clientSecret);
+        sanitized.scopes = creds.scopes || ['openid', 'email', 'profile'];
+        break;
+    }
+
+    return sanitized;
+  }
+
+  private getRequiredPermissions(provider: ProviderType): string {
+    switch (provider) {
+      case 'angel_one':
+        return 'Requires SmartAPI Historical & Market Data permissions and TOTP enabled.';
+      case 'telegram':
+        return 'Requires Telegram Bot API token created via @BotFather with message read/write permissions.';
+      case 'google':
+        return 'Requires Google OAuth 2.0 openid, email, profile scopes or Gemini API Key.';
+    }
+  }
+}
+
+export const connectionVault = new ConnectionVaultService();
+

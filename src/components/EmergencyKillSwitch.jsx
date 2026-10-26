@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AlertOctagon,
   ShieldAlert,
@@ -48,6 +49,26 @@ export default function EmergencyKillSwitch({
   const holdStartTimeRef = useRef(null);
   const lastClickTimeRef = useRef(0);
   const HOLD_DURATION_MS = 750; // 750ms fastpath hold to fire
+
+  const cancelButtonRef = useRef(null);
+  const confirmButtonRef = useRef(null);
+
+  // Background interaction and scroll lock when modal is open
+  useEffect(() => {
+    if (!isModalOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isModalOpen]);
+
+  // Accessibility focus management: focus Cancel button on open for safe default
+  useEffect(() => {
+    if (isModalOpen && cancelButtonRef.current) {
+      cancelButtonRef.current.focus();
+    }
+  }, [isModalOpen]);
 
   const openPositionsCount = positions ? positions.length : 0;
   const connectedBrokers = (brokerConnections || []).filter((b) => b.status === 'Connected');
@@ -126,16 +147,22 @@ export default function EmergencyKillSwitch({
       }
 
       // Voice notification
+      const modeVoice = executionMode === 'LIVE'
+        ? `${squaredCount} active live broker positions squared off.`
+        : `${squaredCount} active paper trading positions squared off in simulation engine. Real-money live trading remains disabled.`;
       voiceAssistant.speak(
-        `Emergency Kill Switch Activated. ${squaredCount} active positions squared off across all connected broker APIs. RMS Circuit Breaker engaged.`,
+        `Emergency Kill Switch Activated. ${modeVoice} RMS Circuit Breaker engaged.`,
         { rate: 1.1 }
       );
 
       // Global toast
+      const modeDesc = executionMode === 'LIVE'
+        ? `${squaredCount} position(s) squared off across broker conduits.`
+        : `${squaredCount} paper position(s) squared off in simulation engine (Live trading disabled).`;
       toastEmitter.emitEmergencyStop({
         count: squaredCount,
         executionMode: executionMode,
-        message: `RMS Fastpath Kill Switch: ${squaredCount} position(s) squared off across ${connectedBrokers.length || 'active'} broker conduits.`
+        message: `RMS Fastpath Kill Switch: ${modeDesc}`
       });
     } catch (err) {
       console.error('[EmergencyKillSwitch] Error executing kill switch:', err);
@@ -244,7 +271,7 @@ export default function EmergencyKillSwitch({
   return (
     <>
       {/* Dedicated Pinned Header Dock Button */}
-      <div className="relative inline-flex items-center select-none font-sans">
+      <div className="relative inline-flex items-center select-none font-sans shrink-0 titlebar-no-drag" style={{ WebkitAppRegion: 'no-drag' }}>
         <button
           type="button"
           onClick={handleClick}
@@ -254,7 +281,7 @@ export default function EmergencyKillSwitch({
           onTouchStart={startHold}
           onTouchEnd={endHold}
           disabled={isExecuting}
-          className={`relative group overflow-hidden px-2.5 py-1 sm:px-3 sm:py-1 rounded-full text-xs font-mono font-bold tracking-wider transition-all cursor-pointer flex items-center gap-1.5 border shadow-sm ${
+          className={`relative group overflow-hidden px-2.5 py-1 sm:px-3 sm:py-1 rounded-full text-xs font-mono font-bold tracking-wider transition-all cursor-pointer flex items-center gap-1.5 border shadow-sm shrink-0 titlebar-no-drag pointer-events-auto ${
             isHalted
               ? 'bg-amber-950/80 hover:bg-amber-900 border-amber-500/80 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.35)] animate-pulse'
               : openPositionsCount > 0
@@ -319,13 +346,21 @@ export default function EmergencyKillSwitch({
         </button>
       </div>
 
-      {/* Secure Emergency Confirmation Modal */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150 select-none font-sans">
+      {/* Secure Emergency Confirmation Modal rendered into document.body via React Portal */}
+      {isModalOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 w-screen h-screen z-[9999] bg-black/85 backdrop-blur-md overflow-y-auto flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150 select-none font-sans titlebar-no-drag pointer-events-auto"
+          style={{ WebkitAppRegion: 'no-drag' }}
+          role="presentation"
+          onClick={() => setIsModalOpen(false)}
+        >
           <div
-            className="w-full max-w-lg bg-[#070b14] border border-red-500/60 rounded-2xl p-6 space-y-5 shadow-[0_0_60px_rgba(239,68,68,0.45)] relative"
+            className="w-full max-w-lg my-auto bg-[#070b14] border border-red-500/60 rounded-2xl p-6 space-y-5 shadow-[0_0_60px_rgba(239,68,68,0.45)] relative max-h-[calc(100vh-2rem)] overflow-y-auto pointer-events-auto"
             role="dialog"
             aria-modal="true"
+            aria-labelledby="kill-switch-modal-title"
+            tabIndex={-1}
+            onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
             <div className="flex items-start justify-between pb-3 border-b border-[#15233d]">
@@ -334,7 +369,7 @@ export default function EmergencyKillSwitch({
                   <AlertOctagon className="w-6 h-6 animate-pulse" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-white uppercase tracking-wider font-mono flex items-center gap-2">
+                  <h3 id="kill-switch-modal-title" className="text-base font-black text-white uppercase tracking-wider font-mono flex items-center gap-2">
                     RMS EMERGENCY KILL SWITCH
                   </h3>
                   <p className="text-xs text-red-300/90 font-mono">
@@ -424,9 +459,10 @@ export default function EmergencyKillSwitch({
             {/* Fast Action Buttons */}
             <div className="pt-2 border-t border-[#15233d] flex items-center gap-3">
               <button
+                ref={cancelButtonRef}
                 type="button"
                 onClick={() => setIsModalOpen(false)}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-[#091122] hover:bg-[#111e3b] text-slate-300 hover:text-white border border-[#1a2e56] text-xs font-mono font-bold transition-all cursor-pointer"
+                className="flex-1 py-2.5 px-4 rounded-xl bg-[#091122] hover:bg-[#111e3b] text-slate-300 hover:text-white border border-[#1a2e56] text-xs font-mono font-bold transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
               >
                 CANCEL (ESC)
               </button>
@@ -456,7 +492,8 @@ export default function EmergencyKillSwitch({
               <span>Hold button 750ms for instant bypass</span>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

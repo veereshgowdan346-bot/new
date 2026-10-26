@@ -278,8 +278,8 @@ export default function KeyboardShortcutManager({
 
       {/* 2. Interactive Keyboard Shortcuts Palette Modal */}
       {isHelpOpen && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn select-none">
-          <div className="bg-[#080e1b] border border-[#1e3a6e] rounded-2xl max-w-2xl w-full p-6 space-y-5 shadow-[0_0_40px_rgba(0,82,204,0.3)] relative">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md overflow-y-auto flex items-center justify-center p-3 sm:p-4 animate-fadeIn select-none">
+          <div className="bg-[#080e1b] border border-[#1e3a6e] rounded-2xl max-w-2xl w-full p-4 sm:p-6 space-y-5 shadow-[0_0_40px_rgba(0,82,204,0.3)] relative my-auto max-h-[calc(100vh-2rem)] overflow-y-auto">
             {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-[#16294a]">
               <div className="flex items-center gap-2.5">

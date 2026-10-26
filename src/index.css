@@ -2,70 +2,235 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* =========================================================================
+     CHINTU AI — REFINED PROFESSIONAL TRADING TERMINAL PALETTE (DARK THEME)
+     ========================================================================= */
+  --bg-main: #0B1020;
+  --bg-secondary: #10182A;
+  --surface-card: #151F33;
+  --surface-elevated: #1B2740;
+  --surface-overlay: rgba(21, 31, 51, 0.88);
+  --accent-cyan: #38D9F5;
+  --accent-cyan-rgb: 56, 217, 245;
+  --accent-violet: #8B7CFF;
+  --accent-violet-rgb: 139, 124, 255;
+  --color-positive: #35D49A;
+  --color-negative: #FF657A;
+  --color-warning: #F5B942;
+  --text-primary: #F3F6FC;
+  --text-secondary: #A8B4CA;
+  --text-muted: #6B7A99;
+  --border-subtle: rgba(56, 80, 120, 0.28);
+  --border-highlight: rgba(56, 217, 245, 0.35);
+  --border-card: rgba(30, 58, 110, 0.5);
+
+  /* 3D Neumorphism & Depth Tokens */
+  --shadow-neumorph-card: 0 4px 20px -2px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.08), inset 0 -1px 0 0 rgba(0, 0, 0, 0.35);
+  --shadow-neumorph-elevated: 0 10px 30px -4px rgba(0, 0, 0, 0.65), inset 0 1px 0 0 rgba(255, 255, 255, 0.12), inset 0 -1px 0 0 rgba(0, 0, 0, 0.45);
+  --shadow-neumorph-inset: inset 0 2px 4px 0 rgba(0, 0, 0, 0.45), inset 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-neumorph-button: 0 2px 8px -1px rgba(0, 0, 0, 0.35), inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+  --shadow-glow-cyan: 0 0 16px rgba(56, 217, 245, 0.28);
+  --shadow-glow-positive: 0 0 16px rgba(53, 212, 154, 0.28);
+  --shadow-glow-negative: 0 0 16px rgba(255, 101, 122, 0.28);
+}
+
+html.light, body.light {
+  /* =========================================================================
+     CHINTU AI — REFINED PROFESSIONAL TRADING TERMINAL PALETTE (LIGHT THEME)
+     ========================================================================= */
+  --bg-main: #F4F7FC;
+  --bg-secondary: #EAEFF8;
+  --surface-card: #FFFFFF;
+  --surface-elevated: #F0F4FA;
+  --surface-overlay: rgba(255, 255, 255, 0.94);
+  --accent-cyan: #0284C7;
+  --accent-cyan-rgb: 2, 132, 199;
+  --accent-violet: #6D28D9;
+  --accent-violet-rgb: 109, 40, 217;
+  --color-positive: #059669;
+  --color-negative: #E11D48;
+  --color-warning: #D97706;
+  --text-primary: #172033;
+  --text-secondary: #4A5568;
+  --text-muted: #718096;
+  --border-subtle: rgba(180, 195, 215, 0.65);
+  --border-highlight: rgba(2, 132, 199, 0.35);
+  --border-card: rgba(203, 213, 225, 0.85);
+
+  /* 3D Neumorphism Tokens (Light) */
+  --shadow-neumorph-card: 0 2px 14px -2px rgba(23, 32, 51, 0.08), 0 1px 3px rgba(23, 32, 51, 0.04), inset 0 1px 0 0 rgba(255, 255, 255, 0.95);
+  --shadow-neumorph-elevated: 0 10px 25px -4px rgba(23, 32, 51, 0.12), inset 0 1px 0 0 rgba(255, 255, 255, 0.95);
+  --shadow-neumorph-inset: inset 0 2px 4px 0 rgba(23, 32, 51, 0.06);
+  --shadow-neumorph-button: 0 2px 6px -1px rgba(23, 32, 51, 0.1), inset 0 1px 0 0 rgba(255, 255, 255, 0.85);
+  --shadow-glow-cyan: 0 0 12px rgba(2, 132, 199, 0.2);
+  --shadow-glow-positive: 0 0 12px rgba(5, 150, 105, 0.2);
+  --shadow-glow-negative: 0 0 12px rgba(225, 29, 72, 0.2);
+}
+
 @layer base {
   * {
-    border-color: rgba(22, 41, 74, 0.6);
+    border-color: var(--border-subtle);
+  }
+  html, body, #root {
+    overflow-x: hidden;
+    max-width: 100vw;
+    width: 100%;
+    min-height: 100vh;
   }
   body {
-    background-color: #05070b;
-    color: #e2e8f0;
+    background-color: var(--bg-main);
+    color: var(--text-primary);
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+
+  /* Tabular Numerals for Numerical & Financial Data Precision */
+  .tabular-nums,
+  .font-mono,
+  [data-financial],
+  table td,
+  .metric-value {
+    font-variant-numeric: tabular-nums;
+    -webkit-font-feature-settings: 'tnum' 1;
+    font-feature-settings: 'tnum' 1;
   }
 }
 
-/* Custom Scrollbar */
+/* Custom Sleek Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #060b17;
+  background: var(--bg-secondary);
 }
 ::-webkit-scrollbar-thumb {
   background: #1e3a6e;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #00f0ff;
+  background: var(--accent-cyan);
+}
+html.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
-/* Glassmorphism card styles */
-.glass-panel {
-  background: rgba(11, 19, 37, 0.82);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(30, 58, 110, 0.5);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+/* Standalone & Desktop Window Drag Region Support */
+.titlebar-drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+}
+
+.no-drag,
+button,
+input,
+select,
+textarea,
+a,
+[role="button"],
+.clickable,
+form,
+svg {
+  -webkit-app-region: no-drag !important;
+  app-region: no-drag !important;
+}
+
+/* =========================================================================
+   3D NEUMORPHISM & GLASSMORPHISM SURFACES
+   ========================================================================= */
+
+/* Primary 3D Neumorphic Card */
+.neumorph-card,
+.cyber-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-neumorph-card);
+  border-radius: 0.875rem; /* 14px */
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.neumorph-card:hover {
+  border-color: var(--border-highlight);
+}
+
+/* Elevated Surface for Overlays, Modals, Key Control Docks */
+.neumorph-elevated {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-neumorph-elevated);
+  border-radius: 1rem;
+}
+
+/* Recessed Inset Surface for Search, Inputs, Telemetry Bays */
+.neumorph-inset {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-neumorph-inset);
+  border-radius: 0.75rem;
+}
+
+/* Tactile 3D Button */
+.neumorph-button {
+  box-shadow: var(--shadow-neumorph-button);
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+}
+.neumorph-button:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+.neumorph-button:active {
+  transform: translateY(1px);
+  box-shadow: var(--shadow-neumorph-inset);
+}
+
+/* Refined Glassmorphism Panel with Restrained Blur */
+.glass-panel,
+.glass-terminal {
+  background: var(--surface-overlay);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-neumorph-card);
 }
 
 .glass-panel-glow {
-  background: rgba(11, 19, 37, 0.9);
+  background: var(--surface-overlay);
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(0, 240, 255, 0.35);
-  box-shadow: 0 0 20px rgba(0, 240, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-highlight);
+  box-shadow: var(--shadow-glow-cyan), var(--shadow-neumorph-card);
 }
 
 .glass-panel-subtle {
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(21, 31, 51, 0.65);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
 }
 
-/* Neon glow texts & badges */
+html.light .glass-panel-subtle {
+  background: rgba(240, 244, 250, 0.75);
+}
+
+/* Glow Text & Indicator Utilities */
 .text-glow-cyan {
-  text-shadow: 0 0 8px rgba(0, 240, 255, 0.6);
+  text-shadow: 0 0 10px rgba(var(--accent-cyan-rgb), 0.5);
 }
 .text-glow-green {
-  text-shadow: 0 0 8px rgba(0, 230, 118, 0.6);
+  text-shadow: 0 0 10px rgba(53, 212, 154, 0.5);
 }
 .text-glow-red {
-  text-shadow: 0 0 8px rgba(255, 51, 102, 0.6);
+  text-shadow: 0 0 10px rgba(255, 101, 122, 0.5);
 }
 
 /* Pulse animation for live nodes */
 @keyframes pulse-subtle {
   0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.75; transform: scale(1.04); }
+  50% { opacity: 0.8; transform: scale(1.03); }
 }
 
 .animate-pulse-subtle {
@@ -101,10 +266,10 @@
 
 @keyframes pulseGlowGreen {
   0%, 100% {
-    box-shadow: 0 0 15px rgba(16, 185, 129, 0.25), inset 0 0 10px rgba(16, 185, 129, 0.1);
+    box-shadow: 0 0 15px rgba(53, 212, 154, 0.25), inset 0 0 10px rgba(53, 212, 154, 0.1);
   }
   50% {
-    box-shadow: 0 0 25px rgba(16, 185, 129, 0.5), inset 0 0 15px rgba(16, 185, 129, 0.2);
+    box-shadow: 0 0 25px rgba(53, 212, 154, 0.45), inset 0 0 15px rgba(53, 212, 154, 0.2);
   }
 }
 
@@ -114,13 +279,983 @@
 
 @keyframes pulseGlowRed {
   0%, 100% {
-    box-shadow: 0 0 12px rgba(244, 63, 94, 0.25);
+    box-shadow: 0 0 12px rgba(255, 101, 122, 0.25);
   }
   50% {
-    box-shadow: 0 0 24px rgba(244, 63, 94, 0.5);
+    box-shadow: 0 0 24px rgba(255, 101, 122, 0.45);
   }
 }
 
 .pulse-stop-loss {
   animation: pulseGlowRed 1.8s infinite ease-in-out;
+}
+
+/* =========================================================================
+   CHINTU AI — COMPREHENSIVE LIGHT THEME TOKENS & CONTRAST REPAIR SYSTEM
+   Ensures 100% of screens, cards, metrics, tables, dropdowns and overlays
+   meet WCAG AA/AAA contrast without invisible text or bleed-through.
+   ========================================================================= */
+
+html.light .bg-\[\#030712\],
+html.light .bg-\[\#030712\]\/95,
+html.light .bg-\[\#030712\]\/98,
+html.light .bg-\[\#030712\]\/90,
+html.light .bg-\[\#04060a\],
+html.light .bg-\[\#04060a\]\/95,
+html.light .bg-\[\#04060a\]\/98,
+html.light .bg-\[\#04060a\]\/90,
+html.light .bg-\[\#040812\],
+html.light .bg-\[\#040812\]\/95,
+html.light .bg-\[\#040812\]\/98,
+html.light .bg-\[\#040812\]\/90,
+html.light .bg-\[\#040813\],
+html.light .bg-\[\#040813\]\/95,
+html.light .bg-\[\#040813\]\/98,
+html.light .bg-\[\#040813\]\/90,
+html.light .bg-\[\#05070b\],
+html.light .bg-\[\#05070b\]\/95,
+html.light .bg-\[\#05070b\]\/98,
+html.light .bg-\[\#05070b\]\/90,
+html.light .bg-\[\#050914\],
+html.light .bg-\[\#050914\]\/95,
+html.light .bg-\[\#050914\]\/98,
+html.light .bg-\[\#050914\]\/90,
+html.light .bg-\[\#050a16\],
+html.light .bg-\[\#050a16\]\/95,
+html.light .bg-\[\#050a16\]\/98,
+html.light .bg-\[\#050a16\]\/90,
+html.light .bg-\[\#050a17\],
+html.light .bg-\[\#050a17\]\/95,
+html.light .bg-\[\#050a17\]\/98,
+html.light .bg-\[\#050a17\]\/90,
+html.light .bg-\[\#050a18\],
+html.light .bg-\[\#050a18\]\/95,
+html.light .bg-\[\#050a18\]\/98,
+html.light .bg-\[\#050a18\]\/90,
+html.light .bg-\[\#050b17\],
+html.light .bg-\[\#050b17\]\/95,
+html.light .bg-\[\#050b17\]\/98,
+html.light .bg-\[\#050b17\]\/90,
+html.light .bg-\[\#050b18\],
+html.light .bg-\[\#050b18\]\/95,
+html.light .bg-\[\#050b18\]\/98,
+html.light .bg-\[\#050b18\]\/90,
+html.light .bg-\[\#050c18\],
+html.light .bg-\[\#050c18\]\/95,
+html.light .bg-\[\#050c18\]\/98,
+html.light .bg-\[\#050c18\]\/90,
+html.light .bg-\[\#060a14\],
+html.light .bg-\[\#060a14\]\/95,
+html.light .bg-\[\#060a14\]\/98,
+html.light .bg-\[\#060a14\]\/90,
+html.light .bg-\[\#060b17\],
+html.light .bg-\[\#060b17\]\/95,
+html.light .bg-\[\#060b17\]\/98,
+html.light .bg-\[\#060b17\]\/90 {
+  background-color: var(--bg-main) !important;
+}
+
+html.light .bg-\[\#060c18\],
+html.light .bg-\[\#060c18\]\/95,
+html.light .bg-\[\#060c18\]\/90,
+html.light .bg-\[\#060c18\]\/80,
+html.light .bg-\[\#060c18\]\/60,
+html.light .bg-\[\#060c1a\],
+html.light .bg-\[\#060c1a\]\/95,
+html.light .bg-\[\#060c1a\]\/90,
+html.light .bg-\[\#060c1a\]\/80,
+html.light .bg-\[\#060c1a\]\/60,
+html.light .bg-\[\#060c1c\],
+html.light .bg-\[\#060c1c\]\/95,
+html.light .bg-\[\#060c1c\]\/90,
+html.light .bg-\[\#060c1c\]\/80,
+html.light .bg-\[\#060c1c\]\/60,
+html.light .bg-\[\#060c1d\],
+html.light .bg-\[\#060c1d\]\/95,
+html.light .bg-\[\#060c1d\]\/90,
+html.light .bg-\[\#060c1d\]\/80,
+html.light .bg-\[\#060c1d\]\/60,
+html.light .bg-\[\#060d1d\],
+html.light .bg-\[\#060d1d\]\/95,
+html.light .bg-\[\#060d1d\]\/90,
+html.light .bg-\[\#060d1d\]\/80,
+html.light .bg-\[\#060d1d\]\/60,
+html.light .bg-\[\#070b14\],
+html.light .bg-\[\#070b14\]\/95,
+html.light .bg-\[\#070b14\]\/90,
+html.light .bg-\[\#070b14\]\/80,
+html.light .bg-\[\#070b14\]\/60,
+html.light .bg-\[\#070b16\],
+html.light .bg-\[\#070b16\]\/95,
+html.light .bg-\[\#070b16\]\/90,
+html.light .bg-\[\#070b16\]\/80,
+html.light .bg-\[\#070b16\]\/60,
+html.light .bg-\[\#070d1a\],
+html.light .bg-\[\#070d1a\]\/95,
+html.light .bg-\[\#070d1a\]\/90,
+html.light .bg-\[\#070d1a\]\/80,
+html.light .bg-\[\#070d1a\]\/60,
+html.light .bg-\[\#070d1d\],
+html.light .bg-\[\#070d1d\]\/95,
+html.light .bg-\[\#070d1d\]\/90,
+html.light .bg-\[\#070d1d\]\/80,
+html.light .bg-\[\#070d1d\]\/60,
+html.light .bg-\[\#070d1e\],
+html.light .bg-\[\#070d1e\]\/95,
+html.light .bg-\[\#070d1e\]\/90,
+html.light .bg-\[\#070d1e\]\/80,
+html.light .bg-\[\#070d1e\]\/60,
+html.light .bg-\[\#070e1c\],
+html.light .bg-\[\#070e1c\]\/95,
+html.light .bg-\[\#070e1c\]\/90,
+html.light .bg-\[\#070e1c\]\/80,
+html.light .bg-\[\#070e1c\]\/60,
+html.light .bg-\[\#070e1e\],
+html.light .bg-\[\#070e1e\]\/95,
+html.light .bg-\[\#070e1e\]\/90,
+html.light .bg-\[\#070e1e\]\/80,
+html.light .bg-\[\#070e1e\]\/60,
+html.light .bg-\[\#070e20\],
+html.light .bg-\[\#070e20\]\/95,
+html.light .bg-\[\#070e20\]\/90,
+html.light .bg-\[\#070e20\]\/80,
+html.light .bg-\[\#070e20\]\/60,
+html.light .bg-\[\#070e22\],
+html.light .bg-\[\#070e22\]\/95,
+html.light .bg-\[\#070e22\]\/90,
+html.light .bg-\[\#070e22\]\/80,
+html.light .bg-\[\#070e22\]\/60,
+html.light .bg-\[\#070f1e\],
+html.light .bg-\[\#070f1e\]\/95,
+html.light .bg-\[\#070f1e\]\/90,
+html.light .bg-\[\#070f1e\]\/80,
+html.light .bg-\[\#070f1e\]\/60,
+html.light .bg-\[\#071324\],
+html.light .bg-\[\#071324\]\/95,
+html.light .bg-\[\#071324\]\/90,
+html.light .bg-\[\#071324\]\/80,
+html.light .bg-\[\#071324\]\/60,
+html.light .bg-\[\#071328\],
+html.light .bg-\[\#071328\]\/95,
+html.light .bg-\[\#071328\]\/90,
+html.light .bg-\[\#071328\]\/80,
+html.light .bg-\[\#071328\]\/60,
+html.light .bg-\[\#080d1a\],
+html.light .bg-\[\#080d1a\]\/95,
+html.light .bg-\[\#080d1a\]\/90,
+html.light .bg-\[\#080d1a\]\/80,
+html.light .bg-\[\#080d1a\]\/60,
+html.light .bg-\[\#080d1c\],
+html.light .bg-\[\#080d1c\]\/95,
+html.light .bg-\[\#080d1c\]\/90,
+html.light .bg-\[\#080d1c\]\/80,
+html.light .bg-\[\#080d1c\]\/60,
+html.light .bg-\[\#080e1b\],
+html.light .bg-\[\#080e1b\]\/95,
+html.light .bg-\[\#080e1b\]\/90,
+html.light .bg-\[\#080e1b\]\/80,
+html.light .bg-\[\#080e1b\]\/60,
+html.light .bg-\[\#080e1c\],
+html.light .bg-\[\#080e1c\]\/95,
+html.light .bg-\[\#080e1c\]\/90,
+html.light .bg-\[\#080e1c\]\/80,
+html.light .bg-\[\#080e1c\]\/60,
+html.light .bg-\[\#080e1e\],
+html.light .bg-\[\#080e1e\]\/95,
+html.light .bg-\[\#080e1e\]\/90,
+html.light .bg-\[\#080e1e\]\/80,
+html.light .bg-\[\#080e1e\]\/60,
+html.light .bg-\[\#081022\],
+html.light .bg-\[\#081022\]\/95,
+html.light .bg-\[\#081022\]\/90,
+html.light .bg-\[\#081022\]\/80,
+html.light .bg-\[\#081022\]\/60,
+html.light .bg-\[\#081124\],
+html.light .bg-\[\#081124\]\/95,
+html.light .bg-\[\#081124\]\/90,
+html.light .bg-\[\#081124\]\/80,
+html.light .bg-\[\#081124\]\/60,
+html.light .bg-\[\#081224\],
+html.light .bg-\[\#081224\]\/95,
+html.light .bg-\[\#081224\]\/90,
+html.light .bg-\[\#081224\]\/80,
+html.light .bg-\[\#081224\]\/60,
+html.light .bg-\[\#081226\],
+html.light .bg-\[\#081226\]\/95,
+html.light .bg-\[\#081226\]\/90,
+html.light .bg-\[\#081226\]\/80,
+html.light .bg-\[\#081226\]\/60,
+html.light .bg-\[\#081324\],
+html.light .bg-\[\#081324\]\/95,
+html.light .bg-\[\#081324\]\/90,
+html.light .bg-\[\#081324\]\/80,
+html.light .bg-\[\#081324\]\/60,
+html.light .bg-\[\#081329\],
+html.light .bg-\[\#081329\]\/95,
+html.light .bg-\[\#081329\]\/90,
+html.light .bg-\[\#081329\]\/80,
+html.light .bg-\[\#081329\]\/60,
+html.light .bg-\[\#08152e\],
+html.light .bg-\[\#08152e\]\/95,
+html.light .bg-\[\#08152e\]\/90,
+html.light .bg-\[\#08152e\]\/80,
+html.light .bg-\[\#08152e\]\/60,
+html.light .bg-\[\#091122\],
+html.light .bg-\[\#091122\]\/95,
+html.light .bg-\[\#091122\]\/90,
+html.light .bg-\[\#091122\]\/80,
+html.light .bg-\[\#091122\]\/60,
+html.light .bg-\[\#091226\],
+html.light .bg-\[\#091226\]\/95,
+html.light .bg-\[\#091226\]\/90,
+html.light .bg-\[\#091226\]\/80,
+html.light .bg-\[\#091226\]\/60,
+html.light .bg-\[\#091325\],
+html.light .bg-\[\#091325\]\/95,
+html.light .bg-\[\#091325\]\/90,
+html.light .bg-\[\#091325\]\/80,
+html.light .bg-\[\#091325\]\/60,
+html.light .bg-\[\#091326\],
+html.light .bg-\[\#091326\]\/95,
+html.light .bg-\[\#091326\]\/90,
+html.light .bg-\[\#091326\]\/80,
+html.light .bg-\[\#091326\]\/60,
+html.light .bg-\[\#091329\],
+html.light .bg-\[\#091329\]\/95,
+html.light .bg-\[\#091329\]\/90,
+html.light .bg-\[\#091329\]\/80,
+html.light .bg-\[\#091329\]\/60,
+html.light .bg-\[\#09142b\],
+html.light .bg-\[\#09142b\]\/95,
+html.light .bg-\[\#09142b\]\/90,
+html.light .bg-\[\#09142b\]\/80,
+html.light .bg-\[\#09142b\]\/60,
+html.light .bg-\[\#09152b\],
+html.light .bg-\[\#09152b\]\/95,
+html.light .bg-\[\#09152b\]\/90,
+html.light .bg-\[\#09152b\]\/80,
+html.light .bg-\[\#09152b\]\/60,
+html.light .bg-\[\#09152e\],
+html.light .bg-\[\#09152e\]\/95,
+html.light .bg-\[\#09152e\]\/90,
+html.light .bg-\[\#09152e\]\/80,
+html.light .bg-\[\#09152e\]\/60,
+html.light .bg-\[\#0a1122\],
+html.light .bg-\[\#0a1122\]\/95,
+html.light .bg-\[\#0a1122\]\/90,
+html.light .bg-\[\#0a1122\]\/80,
+html.light .bg-\[\#0a1122\]\/60,
+html.light .bg-\[\#0a1222\],
+html.light .bg-\[\#0a1222\]\/95,
+html.light .bg-\[\#0a1222\]\/90,
+html.light .bg-\[\#0a1222\]\/80,
+html.light .bg-\[\#0a1222\]\/60,
+html.light .bg-\[\#0a1226\],
+html.light .bg-\[\#0a1226\]\/95,
+html.light .bg-\[\#0a1226\]\/90,
+html.light .bg-\[\#0a1226\]\/80,
+html.light .bg-\[\#0a1226\]\/60,
+html.light .bg-\[\#0a1324\],
+html.light .bg-\[\#0a1324\]\/95,
+html.light .bg-\[\#0a1324\]\/90,
+html.light .bg-\[\#0a1324\]\/80,
+html.light .bg-\[\#0a1324\]\/60,
+html.light .bg-\[\#0a1428\],
+html.light .bg-\[\#0a1428\]\/95,
+html.light .bg-\[\#0a1428\]\/90,
+html.light .bg-\[\#0a1428\]\/80,
+html.light .bg-\[\#0a1428\]\/60,
+html.light .bg-\[\#0a142c\],
+html.light .bg-\[\#0a142c\]\/95,
+html.light .bg-\[\#0a142c\]\/90,
+html.light .bg-\[\#0a142c\]\/80,
+html.light .bg-\[\#0a142c\]\/60,
+html.light .bg-\[\#0a162e\],
+html.light .bg-\[\#0a162e\]\/95,
+html.light .bg-\[\#0a162e\]\/90,
+html.light .bg-\[\#0a162e\]\/80,
+html.light .bg-\[\#0a162e\]\/60,
+html.light .bg-\[\#0a1630\],
+html.light .bg-\[\#0a1630\]\/95,
+html.light .bg-\[\#0a1630\]\/90,
+html.light .bg-\[\#0a1630\]\/80,
+html.light .bg-\[\#0a1630\]\/60,
+html.light .bg-\[\#0b1324\],
+html.light .bg-\[\#0b1324\]\/95,
+html.light .bg-\[\#0b1324\]\/90,
+html.light .bg-\[\#0b1324\]\/80,
+html.light .bg-\[\#0b1324\]\/60,
+html.light .bg-\[\#0b1325\],
+html.light .bg-\[\#0b1325\]\/95,
+html.light .bg-\[\#0b1325\]\/90,
+html.light .bg-\[\#0b1325\]\/80,
+html.light .bg-\[\#0b1325\]\/60,
+html.light .bg-\[\#0b1328\],
+html.light .bg-\[\#0b1328\]\/95,
+html.light .bg-\[\#0b1328\]\/90,
+html.light .bg-\[\#0b1328\]\/80,
+html.light .bg-\[\#0b1328\]\/60,
+html.light .bg-\[\#0b1426\],
+html.light .bg-\[\#0b1426\]\/95,
+html.light .bg-\[\#0b1426\]\/90,
+html.light .bg-\[\#0b1426\]\/80,
+html.light .bg-\[\#0b1426\]\/60,
+html.light .bg-\[\#0b162c\],
+html.light .bg-\[\#0b162c\]\/95,
+html.light .bg-\[\#0b162c\]\/90,
+html.light .bg-\[\#0b162c\]\/80,
+html.light .bg-\[\#0b162c\]\/60,
+html.light .bg-\[\#0b1730\],
+html.light .bg-\[\#0b1730\]\/95,
+html.light .bg-\[\#0b1730\]\/90,
+html.light .bg-\[\#0b1730\]\/80,
+html.light .bg-\[\#0b1730\]\/60,
+html.light .bg-\[\#0b1b36\],
+html.light .bg-\[\#0b1b36\]\/95,
+html.light .bg-\[\#0b1b36\]\/90,
+html.light .bg-\[\#0b1b36\]\/80,
+html.light .bg-\[\#0b1b36\]\/60,
+html.light .bg-\[\#0c162c\],
+html.light .bg-\[\#0c162c\]\/95,
+html.light .bg-\[\#0c162c\]\/90,
+html.light .bg-\[\#0c162c\]\/80,
+html.light .bg-\[\#0c162c\]\/60,
+html.light .bg-\[\#0c162e\],
+html.light .bg-\[\#0c162e\]\/95,
+html.light .bg-\[\#0c162e\]\/90,
+html.light .bg-\[\#0c162e\]\/80,
+html.light .bg-\[\#0c162e\]\/60,
+html.light .bg-\[\#0c1833\],
+html.light .bg-\[\#0c1833\]\/95,
+html.light .bg-\[\#0c1833\]\/90,
+html.light .bg-\[\#0c1833\]\/80,
+html.light .bg-\[\#0c1833\]\/60,
+html.light .bg-\[\#0c1936\],
+html.light .bg-\[\#0c1936\]\/95,
+html.light .bg-\[\#0c1936\]\/90,
+html.light .bg-\[\#0c1936\]\/80,
+html.light .bg-\[\#0c1936\]\/60,
+html.light .bg-\[\#0d172e\],
+html.light .bg-\[\#0d172e\]\/95,
+html.light .bg-\[\#0d172e\]\/90,
+html.light .bg-\[\#0d172e\]\/80,
+html.light .bg-\[\#0d172e\]\/60,
+html.light .bg-\[\#0d182e\],
+html.light .bg-\[\#0d182e\]\/95,
+html.light .bg-\[\#0d182e\]\/90,
+html.light .bg-\[\#0d182e\]\/80,
+html.light .bg-\[\#0d182e\]\/60,
+html.light .bg-\[\#0d1b33\],
+html.light .bg-\[\#0d1b33\]\/95,
+html.light .bg-\[\#0d1b33\]\/90,
+html.light .bg-\[\#0d1b33\]\/80,
+html.light .bg-\[\#0d1b33\]\/60,
+html.light .bg-\[\#0d1c38\],
+html.light .bg-\[\#0d1c38\]\/95,
+html.light .bg-\[\#0d1c38\]\/90,
+html.light .bg-\[\#0d1c38\]\/80,
+html.light .bg-\[\#0d1c38\]\/60,
+html.light .bg-\[\#0d1c3a\],
+html.light .bg-\[\#0d1c3a\]\/95,
+html.light .bg-\[\#0d1c3a\]\/90,
+html.light .bg-\[\#0d1c3a\]\/80,
+html.light .bg-\[\#0d1c3a\]\/60,
+html.light .bg-\[\#0d1e3d\],
+html.light .bg-\[\#0d1e3d\]\/95,
+html.light .bg-\[\#0d1e3d\]\/90,
+html.light .bg-\[\#0d1e3d\]\/80,
+html.light .bg-\[\#0d1e3d\]\/60,
+html.light .bg-\[\#0e172e\],
+html.light .bg-\[\#0e172e\]\/95,
+html.light .bg-\[\#0e172e\]\/90,
+html.light .bg-\[\#0e172e\]\/80,
+html.light .bg-\[\#0e172e\]\/60,
+html.light .bg-\[\#0e1933\],
+html.light .bg-\[\#0e1933\]\/95,
+html.light .bg-\[\#0e1933\]\/90,
+html.light .bg-\[\#0e1933\]\/80,
+html.light .bg-\[\#0e1933\]\/60,
+html.light .bg-\[\#0e1b36\],
+html.light .bg-\[\#0e1b36\]\/95,
+html.light .bg-\[\#0e1b36\]\/90,
+html.light .bg-\[\#0e1b36\]\/80,
+html.light .bg-\[\#0e1b36\]\/60,
+html.light .bg-\[\#0e1b38\],
+html.light .bg-\[\#0e1b38\]\/95,
+html.light .bg-\[\#0e1b38\]\/90,
+html.light .bg-\[\#0e1b38\]\/80,
+html.light .bg-\[\#0e1b38\]\/60,
+html.light .bg-\[\#0e1d3a\],
+html.light .bg-\[\#0e1d3a\]\/95,
+html.light .bg-\[\#0e1d3a\]\/90,
+html.light .bg-\[\#0e1d3a\]\/80,
+html.light .bg-\[\#0e1d3a\]\/60,
+html.light .bg-\[\#0e1d3d\],
+html.light .bg-\[\#0e1d3d\]\/95,
+html.light .bg-\[\#0e1d3d\]\/90,
+html.light .bg-\[\#0e1d3d\]\/80,
+html.light .bg-\[\#0e1d3d\]\/60,
+html.light .bg-\[\#0e2142\],
+html.light .bg-\[\#0e2142\]\/95,
+html.light .bg-\[\#0e2142\]\/90,
+html.light .bg-\[\#0e2142\]\/80,
+html.light .bg-\[\#0e2142\]\/60,
+html.light .bg-\[\#0e2149\],
+html.light .bg-\[\#0e2149\]\/95,
+html.light .bg-\[\#0e2149\]\/90,
+html.light .bg-\[\#0e2149\]\/80,
+html.light .bg-\[\#0e2149\]\/60,
+html.light .bg-\[\#0e214a\],
+html.light .bg-\[\#0e214a\]\/95,
+html.light .bg-\[\#0e214a\]\/90,
+html.light .bg-\[\#0e214a\]\/80,
+html.light .bg-\[\#0e214a\]\/60,
+html.light .bg-\[\#0f172a\],
+html.light .bg-\[\#0f172a\]\/95,
+html.light .bg-\[\#0f172a\]\/90,
+html.light .bg-\[\#0f172a\]\/80,
+html.light .bg-\[\#0f172a\]\/60,
+html.light .bg-\[\#0f2042\],
+html.light .bg-\[\#0f2042\]\/95,
+html.light .bg-\[\#0f2042\]\/90,
+html.light .bg-\[\#0f2042\]\/80,
+html.light .bg-\[\#0f2042\]\/60,
+html.light .bg-\[\#101b33\],
+html.light .bg-\[\#101b33\]\/95,
+html.light .bg-\[\#101b33\]\/90,
+html.light .bg-\[\#101b33\]\/80,
+html.light .bg-\[\#101b33\]\/60,
+html.light .bg-\[\#101d3b\],
+html.light .bg-\[\#101d3b\]\/95,
+html.light .bg-\[\#101d3b\]\/90,
+html.light .bg-\[\#101d3b\]\/80,
+html.light .bg-\[\#101d3b\]\/60,
+html.light .bg-\[\#101e3d\],
+html.light .bg-\[\#101e3d\]\/95,
+html.light .bg-\[\#101e3d\]\/90,
+html.light .bg-\[\#101e3d\]\/80,
+html.light .bg-\[\#101e3d\]\/60,
+html.light .bg-\[\#102242\],
+html.light .bg-\[\#102242\]\/95,
+html.light .bg-\[\#102242\]\/90,
+html.light .bg-\[\#102242\]\/80,
+html.light .bg-\[\#102242\]\/60,
+html.light .bg-\[\#10244c\],
+html.light .bg-\[\#10244c\]\/95,
+html.light .bg-\[\#10244c\]\/90,
+html.light .bg-\[\#10244c\]\/80,
+html.light .bg-\[\#10244c\]\/60,
+html.light .bg-\[\#111c33\],
+html.light .bg-\[\#111c33\]\/95,
+html.light .bg-\[\#111c33\]\/90,
+html.light .bg-\[\#111c33\]\/80,
+html.light .bg-\[\#111c33\]\/60,
+html.light .bg-\[\#111e3b\],
+html.light .bg-\[\#111e3b\]\/95,
+html.light .bg-\[\#111e3b\]\/90,
+html.light .bg-\[\#111e3b\]\/80,
+html.light .bg-\[\#111e3b\]\/60,
+html.light .bg-\[\#111f38\],
+html.light .bg-\[\#111f38\]\/95,
+html.light .bg-\[\#111f38\]\/90,
+html.light .bg-\[\#111f38\]\/80,
+html.light .bg-\[\#111f38\]\/60,
+html.light .bg-\[\#112347\],
+html.light .bg-\[\#112347\]\/95,
+html.light .bg-\[\#112347\]\/90,
+html.light .bg-\[\#112347\]\/80,
+html.light .bg-\[\#112347\]\/60,
+html.light .bg-\[\#122344\],
+html.light .bg-\[\#122344\]\/95,
+html.light .bg-\[\#122344\]\/90,
+html.light .bg-\[\#122344\]\/80,
+html.light .bg-\[\#122344\]\/60,
+html.light .bg-\[\#122349\],
+html.light .bg-\[\#122349\]\/95,
+html.light .bg-\[\#122349\]\/90,
+html.light .bg-\[\#122349\]\/80,
+html.light .bg-\[\#122349\]\/60,
+html.light .bg-\[\#12234a\],
+html.light .bg-\[\#12234a\]\/95,
+html.light .bg-\[\#12234a\]\/90,
+html.light .bg-\[\#12234a\]\/80,
+html.light .bg-\[\#12234a\]\/60,
+html.light .bg-\[\#122752\],
+html.light .bg-\[\#122752\]\/95,
+html.light .bg-\[\#122752\]\/90,
+html.light .bg-\[\#122752\]\/80,
+html.light .bg-\[\#122752\]\/60,
+html.light .bg-\[\#122852\],
+html.light .bg-\[\#122852\]\/95,
+html.light .bg-\[\#122852\]\/90,
+html.light .bg-\[\#122852\]\/80,
+html.light .bg-\[\#122852\]\/60,
+html.light .bg-\[\#132338\],
+html.light .bg-\[\#132338\]\/95,
+html.light .bg-\[\#132338\]\/90,
+html.light .bg-\[\#132338\]\/80,
+html.light .bg-\[\#132338\]\/60,
+html.light .bg-\[\#13274e\],
+html.light .bg-\[\#13274e\]\/95,
+html.light .bg-\[\#13274e\]\/90,
+html.light .bg-\[\#13274e\]\/80,
+html.light .bg-\[\#13274e\]\/60,
+html.light .bg-\[\#13284d\],
+html.light .bg-\[\#13284d\]\/95,
+html.light .bg-\[\#13284d\]\/90,
+html.light .bg-\[\#13284d\]\/80,
+html.light .bg-\[\#13284d\]\/60,
+html.light .bg-\[\#132854\],
+html.light .bg-\[\#132854\]\/95,
+html.light .bg-\[\#132854\]\/90,
+html.light .bg-\[\#132854\]\/80,
+html.light .bg-\[\#132854\]\/60,
+html.light .bg-\[\#142340\],
+html.light .bg-\[\#142340\]\/95,
+html.light .bg-\[\#142340\]\/90,
+html.light .bg-\[\#142340\]\/80,
+html.light .bg-\[\#142340\]\/60,
+html.light .bg-\[\#142347\],
+html.light .bg-\[\#142347\]\/95,
+html.light .bg-\[\#142347\]\/90,
+html.light .bg-\[\#142347\]\/80,
+html.light .bg-\[\#142347\]\/60,
+html.light .bg-\[\#14234b\],
+html.light .bg-\[\#14234b\]\/95,
+html.light .bg-\[\#14234b\]\/90,
+html.light .bg-\[\#14234b\]\/80,
+html.light .bg-\[\#14234b\]\/60,
+html.light .bg-\[\#14264c\],
+html.light .bg-\[\#14264c\]\/95,
+html.light .bg-\[\#14264c\]\/90,
+html.light .bg-\[\#14264c\]\/80,
+html.light .bg-\[\#14264c\]\/60,
+html.light .bg-\[\#14284d\],
+html.light .bg-\[\#14284d\]\/95,
+html.light .bg-\[\#14284d\]\/90,
+html.light .bg-\[\#14284d\]\/80,
+html.light .bg-\[\#14284d\]\/60,
+html.light .bg-\[\#152a55\],
+html.light .bg-\[\#152a55\]\/95,
+html.light .bg-\[\#152a55\]\/90,
+html.light .bg-\[\#152a55\]\/80,
+html.light .bg-\[\#152a55\]\/60,
+html.light .bg-\[\#153160\],
+html.light .bg-\[\#153160\]\/95,
+html.light .bg-\[\#153160\]\/90,
+html.light .bg-\[\#153160\]\/80,
+html.light .bg-\[\#153160\]\/60,
+html.light .bg-\[\#162b55\],
+html.light .bg-\[\#162b55\]\/95,
+html.light .bg-\[\#162b55\]\/90,
+html.light .bg-\[\#162b55\]\/80,
+html.light .bg-\[\#162b55\]\/60,
+html.light .bg-\[\#162f61\],
+html.light .bg-\[\#162f61\]\/95,
+html.light .bg-\[\#162f61\]\/90,
+html.light .bg-\[\#162f61\]\/80,
+html.light .bg-\[\#162f61\]\/60,
+html.light .bg-\[\#17212b\],
+html.light .bg-\[\#17212b\]\/95,
+html.light .bg-\[\#17212b\]\/90,
+html.light .bg-\[\#17212b\]\/80,
+html.light .bg-\[\#17212b\]\/60,
+html.light .bg-\[\#182533\],
+html.light .bg-\[\#182533\]\/95,
+html.light .bg-\[\#182533\]\/90,
+html.light .bg-\[\#182533\]\/80,
+html.light .bg-\[\#182533\]\/60 {
+  background-color: var(--surface-card) !important;
+  box-shadow: var(--shadow-neumorph-card) !important;
+}
+
+html.light .bg-\[\#1e0d16\],
+html.light .bg-\[\#3a0d1e\] {
+  background-color: #FFF1F2 !important;
+  border-color: #FECDD3 !important;
+}
+
+html.light .border-\[\#060c1c\],
+html.light .border-\[\#060c1c\]\/80,
+html.light .border-\[\#060c1c\]\/60,
+html.light .border-\[\#060c1c\]\/50,
+html.light .border-\[\#060c1c\]\/40,
+html.light .border-\[\#060c1c\]\/30,
+html.light .border-\[\#070e1e\],
+html.light .border-\[\#070e1e\]\/80,
+html.light .border-\[\#070e1e\]\/60,
+html.light .border-\[\#070e1e\]\/50,
+html.light .border-\[\#070e1e\]\/40,
+html.light .border-\[\#070e1e\]\/30,
+html.light .border-\[\#102347\],
+html.light .border-\[\#102347\]\/80,
+html.light .border-\[\#102347\]\/60,
+html.light .border-\[\#102347\]\/50,
+html.light .border-\[\#102347\]\/40,
+html.light .border-\[\#102347\]\/30,
+html.light .border-\[\#12213d\],
+html.light .border-\[\#12213d\]\/80,
+html.light .border-\[\#12213d\]\/60,
+html.light .border-\[\#12213d\]\/50,
+html.light .border-\[\#12213d\]\/40,
+html.light .border-\[\#12213d\]\/30,
+html.light .border-\[\#122244\],
+html.light .border-\[\#122244\]\/80,
+html.light .border-\[\#122244\]\/60,
+html.light .border-\[\#122244\]\/50,
+html.light .border-\[\#122244\]\/40,
+html.light .border-\[\#122244\]\/30,
+html.light .border-\[\#122340\],
+html.light .border-\[\#122340\]\/80,
+html.light .border-\[\#122340\]\/60,
+html.light .border-\[\#122340\]\/50,
+html.light .border-\[\#122340\]\/40,
+html.light .border-\[\#122340\]\/30,
+html.light .border-\[\#122442\],
+html.light .border-\[\#122442\]\/80,
+html.light .border-\[\#122442\]\/60,
+html.light .border-\[\#122442\]\/50,
+html.light .border-\[\#122442\]\/40,
+html.light .border-\[\#122442\]\/30,
+html.light .border-\[\#132344\],
+html.light .border-\[\#132344\]\/80,
+html.light .border-\[\#132344\]\/60,
+html.light .border-\[\#132344\]\/50,
+html.light .border-\[\#132344\]\/40,
+html.light .border-\[\#132344\]\/30,
+html.light .border-\[\#132544\],
+html.light .border-\[\#132544\]\/80,
+html.light .border-\[\#132544\]\/60,
+html.light .border-\[\#132544\]\/50,
+html.light .border-\[\#132544\]\/40,
+html.light .border-\[\#132544\]\/30,
+html.light .border-\[\#13284a\],
+html.light .border-\[\#13284a\]\/80,
+html.light .border-\[\#13284a\]\/60,
+html.light .border-\[\#13284a\]\/50,
+html.light .border-\[\#13284a\]\/40,
+html.light .border-\[\#13284a\]\/30,
+html.light .border-\[\#142340\],
+html.light .border-\[\#142340\]\/80,
+html.light .border-\[\#142340\]\/60,
+html.light .border-\[\#142340\]\/50,
+html.light .border-\[\#142340\]\/40,
+html.light .border-\[\#142340\]\/30,
+html.light .border-\[\#142646\],
+html.light .border-\[\#142646\]\/80,
+html.light .border-\[\#142646\]\/60,
+html.light .border-\[\#142646\]\/50,
+html.light .border-\[\#142646\]\/40,
+html.light .border-\[\#142646\]\/30,
+html.light .border-\[\#142647\],
+html.light .border-\[\#142647\]\/80,
+html.light .border-\[\#142647\]\/60,
+html.light .border-\[\#142647\]\/50,
+html.light .border-\[\#142647\]\/40,
+html.light .border-\[\#142647\]\/30,
+html.light .border-\[\#15233d\],
+html.light .border-\[\#15233d\]\/80,
+html.light .border-\[\#15233d\]\/60,
+html.light .border-\[\#15233d\]\/50,
+html.light .border-\[\#15233d\]\/40,
+html.light .border-\[\#15233d\]\/30,
+html.light .border-\[\#152a4e\],
+html.light .border-\[\#152a4e\]\/80,
+html.light .border-\[\#152a4e\]\/60,
+html.light .border-\[\#152a4e\]\/50,
+html.light .border-\[\#152a4e\]\/40,
+html.light .border-\[\#152a4e\]\/30,
+html.light .border-\[\#152a52\],
+html.light .border-\[\#152a52\]\/80,
+html.light .border-\[\#152a52\]\/60,
+html.light .border-\[\#152a52\]\/50,
+html.light .border-\[\#152a52\]\/40,
+html.light .border-\[\#152a52\]\/30,
+html.light .border-\[\#162744\],
+html.light .border-\[\#162744\]\/80,
+html.light .border-\[\#162744\]\/60,
+html.light .border-\[\#162744\]\/50,
+html.light .border-\[\#162744\]\/40,
+html.light .border-\[\#162744\]\/30,
+html.light .border-\[\#16274a\],
+html.light .border-\[\#16274a\]\/80,
+html.light .border-\[\#16274a\]\/60,
+html.light .border-\[\#16274a\]\/50,
+html.light .border-\[\#16274a\]\/40,
+html.light .border-\[\#16274a\]\/30,
+html.light .border-\[\#16294a\],
+html.light .border-\[\#16294a\]\/80,
+html.light .border-\[\#16294a\]\/60,
+html.light .border-\[\#16294a\]\/50,
+html.light .border-\[\#16294a\]\/40,
+html.light .border-\[\#16294a\]\/30,
+html.light .border-\[\#16294d\],
+html.light .border-\[\#16294d\]\/80,
+html.light .border-\[\#16294d\]\/60,
+html.light .border-\[\#16294d\]\/50,
+html.light .border-\[\#16294d\]\/40,
+html.light .border-\[\#16294d\]\/30,
+html.light .border-\[\#162b50\],
+html.light .border-\[\#162b50\]\/80,
+html.light .border-\[\#162b50\]\/60,
+html.light .border-\[\#162b50\]\/50,
+html.light .border-\[\#162b50\]\/40,
+html.light .border-\[\#162b50\]\/30,
+html.light .border-\[\#18294a\],
+html.light .border-\[\#18294a\]\/80,
+html.light .border-\[\#18294a\]\/60,
+html.light .border-\[\#18294a\]\/50,
+html.light .border-\[\#18294a\]\/40,
+html.light .border-\[\#18294a\]\/30,
+html.light .border-\[\#18315a\],
+html.light .border-\[\#18315a\]\/80,
+html.light .border-\[\#18315a\]\/60,
+html.light .border-\[\#18315a\]\/50,
+html.light .border-\[\#18315a\]\/40,
+html.light .border-\[\#18315a\]\/30,
+html.light .border-\[\#19335f\],
+html.light .border-\[\#19335f\]\/80,
+html.light .border-\[\#19335f\]\/60,
+html.light .border-\[\#19335f\]\/50,
+html.light .border-\[\#19335f\]\/40,
+html.light .border-\[\#19335f\]\/30,
+html.light .border-\[\#1a2c4e\],
+html.light .border-\[\#1a2c4e\]\/80,
+html.light .border-\[\#1a2c4e\]\/60,
+html.light .border-\[\#1a2c4e\]\/50,
+html.light .border-\[\#1a2c4e\]\/40,
+html.light .border-\[\#1a2c4e\]\/30,
+html.light .border-\[\#1a2d50\],
+html.light .border-\[\#1a2d50\]\/80,
+html.light .border-\[\#1a2d50\]\/60,
+html.light .border-\[\#1a2d50\]\/50,
+html.light .border-\[\#1a2d50\]\/40,
+html.light .border-\[\#1a2d50\]\/30,
+html.light .border-\[\#1a2e56\],
+html.light .border-\[\#1a2e56\]\/80,
+html.light .border-\[\#1a2e56\]\/60,
+html.light .border-\[\#1a2e56\]\/50,
+html.light .border-\[\#1a2e56\]\/40,
+html.light .border-\[\#1a2e56\]\/30,
+html.light .border-\[\#1a3158\],
+html.light .border-\[\#1a3158\]\/80,
+html.light .border-\[\#1a3158\]\/60,
+html.light .border-\[\#1a3158\]\/50,
+html.light .border-\[\#1a3158\]\/40,
+html.light .border-\[\#1a3158\]\/30,
+html.light .border-\[\#1a3360\],
+html.light .border-\[\#1a3360\]\/80,
+html.light .border-\[\#1a3360\]\/60,
+html.light .border-\[\#1a3360\]\/50,
+html.light .border-\[\#1a3360\]\/40,
+html.light .border-\[\#1a3360\]\/30,
+html.light .border-\[\#1a345e\],
+html.light .border-\[\#1a345e\]\/80,
+html.light .border-\[\#1a345e\]\/60,
+html.light .border-\[\#1a345e\]\/50,
+html.light .border-\[\#1a345e\]\/40,
+html.light .border-\[\#1a345e\]\/30,
+html.light .border-\[\#1b3158\],
+html.light .border-\[\#1b3158\]\/80,
+html.light .border-\[\#1b3158\]\/60,
+html.light .border-\[\#1b3158\]\/50,
+html.light .border-\[\#1b3158\]\/40,
+html.light .border-\[\#1b3158\]\/30,
+html.light .border-\[\#1b345f\],
+html.light .border-\[\#1b345f\]\/80,
+html.light .border-\[\#1b345f\]\/60,
+html.light .border-\[\#1b345f\]\/50,
+html.light .border-\[\#1b345f\]\/40,
+html.light .border-\[\#1b345f\]\/30,
+html.light .border-\[\#1c3258\],
+html.light .border-\[\#1c3258\]\/80,
+html.light .border-\[\#1c3258\]\/60,
+html.light .border-\[\#1c3258\]\/50,
+html.light .border-\[\#1c3258\]\/40,
+html.light .border-\[\#1c3258\]\/30,
+html.light .border-\[\#1c3560\],
+html.light .border-\[\#1c3560\]\/80,
+html.light .border-\[\#1c3560\]\/60,
+html.light .border-\[\#1c3560\]\/50,
+html.light .border-\[\#1c3560\]\/40,
+html.light .border-\[\#1c3560\]\/30,
+html.light .border-\[\#1c3563\],
+html.light .border-\[\#1c3563\]\/80,
+html.light .border-\[\#1c3563\]\/60,
+html.light .border-\[\#1c3563\]\/50,
+html.light .border-\[\#1c3563\]\/40,
+html.light .border-\[\#1c3563\]\/30,
+html.light .border-\[\#1c3666\],
+html.light .border-\[\#1c3666\]\/80,
+html.light .border-\[\#1c3666\]\/60,
+html.light .border-\[\#1c3666\]\/50,
+html.light .border-\[\#1c3666\]\/40,
+html.light .border-\[\#1c3666\]\/30,
+html.light .border-\[\#1c3866\],
+html.light .border-\[\#1c3866\]\/80,
+html.light .border-\[\#1c3866\]\/60,
+html.light .border-\[\#1c3866\]\/50,
+html.light .border-\[\#1c3866\]\/40,
+html.light .border-\[\#1c3866\]\/30,
+html.light .border-\[\#1d3866\],
+html.light .border-\[\#1d3866\]\/80,
+html.light .border-\[\#1d3866\]\/60,
+html.light .border-\[\#1d3866\]\/50,
+html.light .border-\[\#1d3866\]\/40,
+html.light .border-\[\#1d3866\]\/30,
+html.light .border-\[\#1e345b\],
+html.light .border-\[\#1e345b\]\/80,
+html.light .border-\[\#1e345b\]\/60,
+html.light .border-\[\#1e345b\]\/50,
+html.light .border-\[\#1e345b\]\/40,
+html.light .border-\[\#1e345b\]\/30,
+html.light .border-\[\#1e3a6e\],
+html.light .border-\[\#1e3a6e\]\/80,
+html.light .border-\[\#1e3a6e\]\/60,
+html.light .border-\[\#1e3a6e\]\/50,
+html.light .border-\[\#1e3a6e\]\/40,
+html.light .border-\[\#1e3a6e\]\/30,
+html.light .border-\[\#1f3358\],
+html.light .border-\[\#1f3358\]\/80,
+html.light .border-\[\#1f3358\]\/60,
+html.light .border-\[\#1f3358\]\/50,
+html.light .border-\[\#1f3358\]\/40,
+html.light .border-\[\#1f3358\]\/30,
+html.light .border-\[\#1f3764\],
+html.light .border-\[\#1f3764\]\/80,
+html.light .border-\[\#1f3764\]\/60,
+html.light .border-\[\#1f3764\]\/50,
+html.light .border-\[\#1f3764\]\/40,
+html.light .border-\[\#1f3764\]\/30,
+html.light .border-\[\#203a66\],
+html.light .border-\[\#203a66\]\/80,
+html.light .border-\[\#203a66\]\/60,
+html.light .border-\[\#203a66\]\/50,
+html.light .border-\[\#203a66\]\/40,
+html.light .border-\[\#203a66\]\/30,
+html.light .border-\[\#2b5278\],
+html.light .border-\[\#2b5278\]\/80,
+html.light .border-\[\#2b5278\]\/60,
+html.light .border-\[\#2b5278\]\/50,
+html.light .border-\[\#2b5278\]\/40,
+html.light .border-\[\#2b5278\]\/30 {
+  border-color: #CBD5E1 !important;
+}
+
+html.light .text-white {
+  color: #0F172A !important;
+}
+
+html.light .text-slate-100,
+html.light .text-slate-200,
+html.light .text-slate-300 {
+  color: #1E293B !important;
+}
+
+html.light .text-slate-400,
+html.light .text-slate-500 {
+  color: #475569 !important;
+}
+
+/* Protected Colored Buttons & Badges: white text guaranteed in Light Mode */
+html.light [class*="bg-blue-"].text-white,
+html.light [class*="bg-blue-"] .text-white,
+html.light [class*="bg-emerald-"].text-white,
+html.light [class*="bg-emerald-"] .text-white,
+html.light [class*="bg-rose-"].text-white,
+html.light [class*="bg-rose-"] .text-white,
+html.light [class*="bg-red-"].text-white,
+html.light [class*="bg-red-"] .text-white,
+html.light [class*="bg-indigo-"].text-white,
+html.light [class*="bg-indigo-"] .text-white,
+html.light [class*="bg-purple-"].text-white,
+html.light [class*="bg-purple-"] .text-white,
+html.light [class*="bg-cyan-6"].text-white,
+html.light [class*="bg-cyan-6"] .text-white,
+html.light [class*="from-"].text-white,
+html.light [class*="from-"] .text-white,
+html.light .bg-\[\#0052cc\].text-white,
+html.light .bg-\[\#0052cc\] .text-white,
+html.light .bg-\[\#0066ff\].text-white,
+html.light .bg-\[\#0066ff\] .text-white,
+html.light .bg-\[\#10b981\].text-white,
+html.light .bg-\[\#10b981\] .text-white,
+html.light .bg-\[\#ef4444\].text-white,
+html.light .bg-\[\#ef4444\] .text-white,
+html.light .bg-\[\#2b5278\].text-white,
+html.light .bg-\[\#2b5278\] .text-white,
+html.light button.bg-blue-600,
+html.light button.bg-blue-600 *,
+html.light button.bg-blue-500,
+html.light button.bg-blue-500 *,
+html.light button.bg-emerald-600,
+html.light button.bg-emerald-600 *,
+html.light button.bg-emerald-500,
+html.light button.bg-emerald-500 *,
+html.light button.bg-rose-600,
+html.light button.bg-rose-600 *,
+html.light button.bg-rose-500,
+html.light button.bg-rose-500 *,
+html.light button.bg-red-600,
+html.light button.bg-red-600 *,
+html.light button.bg-red-500,
+html.light button.bg-red-500 *,
+html.light button.bg-indigo-600,
+html.light button.bg-indigo-600 *,
+html.light button.bg-purple-600,
+html.light button.bg-purple-600 *,
+html.light button.bg-\[\#0052cc\],
+html.light button.bg-\[\#0052cc\] *,
+html.light button.bg-\[\#0066ff\],
+html.light button.bg-\[\#0066ff\] *,
+html.light button.bg-\[\#10b981\],
+html.light button.bg-\[\#10b981\] *,
+html.light button.bg-\[\#ef4444\],
+html.light button.bg-\[\#ef4444\] *,
+html.light button.bg-\[\#2b5278\],
+html.light button.bg-\[\#2b5278\] *,
+html.light button[class*="from-"],
+html.light button[class*="from-"] * {
+  color: #FFFFFF !important;
+}
+
+/* WCAG AA High Contrast Financial Indicators in Light Mode */
+html.light .text-emerald-400,
+html.light .text-emerald-300 {
+  color: #047857 !important; /* Emerald 700 (5.8:1 contrast on white) */
+}
+html.light .text-rose-400,
+html.light .text-rose-300,
+html.light .text-red-400,
+html.light .text-red-300 {
+  color: #BE123C !important; /* Rose 700 (5.5:1 contrast on white) */
+}
+html.light .text-cyan-400,
+html.light .text-cyan-300 {
+  color: #0369A1 !important; /* Sky 700 (5.1:1 contrast on white) */
+}
+html.light .text-amber-400,
+html.light .text-amber-300 {
+  color: #B45309 !important; /* Amber 700 (4.8:1 contrast on white) */
+}
+
+/* Form controls high contrast in light mode */
+html.light select,
+html.light input,
+html.light textarea {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+  border-color: #CBD5E1 !important;
+}
+html.light select option {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+}
+
+/* Modal backdrop in light mode */
+html.light .bg-black\/85,
+html.light .bg-black\/80,
+html.light .bg-black\/75,
+html.light .bg-black\/70 {
+  background-color: rgba(15, 23, 42, 0.75) !important;
 }

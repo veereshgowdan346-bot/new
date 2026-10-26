@@ -208,11 +208,11 @@ export default function BacktestView() {
         headers: { 'Content-Type': 'application/json' }
       });
       if (res && res.status === 'success') {
-        setDigestSuccessMsg('Daily Digest dispatched successfully to WhatsApp (+91 98450 12345) and Telegram (@chintu_jarvis_veer_bot).');
+        setDigestSuccessMsg('Daily Digest dispatched successfully to Telegram (@chintu_jarvis_veer_bot).');
         soundEngine.playBuyChime();
         toastEmitter.emitToast({
           title: 'Daily Digest Dispatched',
-          message: 'EOD P&L and Statutory Tax Breakdown delivered to WhatsApp & Telegram.',
+          message: 'EOD P&L and Statutory Tax Breakdown delivered to Telegram.',
           type: 'success'
         });
       }
@@ -251,7 +251,7 @@ export default function BacktestView() {
             onClick={handleDispatchDailyDigest}
             disabled={isDispatchingDigest}
             className="px-3.5 py-2 rounded-xl text-xs font-mono font-bold bg-[#0d1b33] hover:bg-[#13284d] text-cyan-300 border border-cyan-500/40 transition-all flex items-center gap-2 cursor-pointer shadow-sm"
-            title="Dispatch End-of-Day P&L and Tax Report to WhatsApp & Telegram"
+            title="Dispatch End-of-Day P&L and Tax Report to Telegram"
           >
             <Send className="w-3.5 h-3.5 text-cyan-400" />
             <span>{isDispatchingDigest ? 'Dispatching...' : 'Dispatch EOD Digest'}</span>

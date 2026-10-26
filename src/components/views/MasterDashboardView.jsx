@@ -10,6 +10,9 @@ import {
   TrendingUp,
   TrendingDown,
   ShieldCheck,
+  ShieldAlert,
+  PieChart,
+  Columns,
   Cpu,
   Activity,
   Layers,
@@ -37,34 +40,105 @@ import MarketHeatmap from '../MarketHeatmap';
 
 export default function MasterDashboardView({
   bots = [],
-  allBotsRunning = true,
+  positions = [],
+  tickers = [],
+  allBotsRunning = false,
   onStartAllBots,
   onStopAllBots,
   onRestartBots,
   recentTrades = [],
   onSelectBot,
   onNavigateTab,
-  executionMode = 'PAPER'
+  executionMode = 'PAPER',
+  isBrokerConnected = false
 }) {
   const [selectedTradeFilter, setSelectedTradeFilter] = useState('ALL'); // 'ALL' | 'PROFITS' | 'LOSSES' | 'ACTIVE'
   const [selectedMarketFilter, setSelectedMarketFilter] = useState('All');
   const [selectedTypeFilter, setSelectedTypeFilter] = useState('All');
   const [selectedStrategyFilter, setSelectedStrategyFilter] = useState('All');
-  const [selectedDate, setSelectedDate] = useState('Oct 21, 2026');
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }));
   const [hoveredBot, setHoveredBot] = useState(null);
   const [showSentimentWidget, setShowSentimentWidget] = useState(true);
   const [showHeatmap, setShowHeatmap] = useState(false);
-  const [currentSentiment, setCurrentSentiment] = useState({ score: 68, classification: 'Greed' });
+  const [currentSentiment, setCurrentSentiment] = useState({ score: 50, classification: 'Neutral' });
+  const [bottomTab, setBottomTab] = useState('TRADES'); // 'TRADES' | 'GROWTH' | 'MARKETS'
+  const [isSplitView, setIsSplitView] = useState(false);
+
+  // 1. Authoritative metrics computed strictly from real runtime inputs (Declared FIRST to avoid TDZ)
+  const totalTradesCount = recentTrades.length;
+  const winningTradesCount = recentTrades.filter(t => (Number(t.netPnl ?? t.pnl) || 0) > 0).length;
+  const losingTradesCount = recentTrades.filter(t => (Number(t.netPnl ?? t.pnl) || 0) <= 0).length;
+  const activeTradesCount = positions.length;
+  const activeMarketsCount = positions.length > 0 ? new Set(positions.map(p => p.symbol)).size : 0;
+  const stocksTradedCount = recentTrades.length > 0 ? new Set(recentTrades.map(t => t.symbol)).size : 0;
+
+  const winRatePct = totalTradesCount > 0
+    ? ((winningTradesCount / totalTradesCount) * 100).toFixed(1)
+    : '0.0';
+
+  const realizedPnl = recentTrades.reduce((sum, t) => sum + (Number(t.netPnl ?? t.pnl) || 0), 0);
+  const unrealizedPnl = positions.reduce((sum, p) => sum + (Number(p.pnl) || 0), 0);
+  const todayProfit = Number((realizedPnl + unrealizedPnl).toFixed(2));
+  const profitPct = totalTradesCount > 0 ? ((todayProfit / 100000) * 100).toFixed(2) : '0.00';
+
+  const currentCapital = 100000 + todayProfit;
+  const capitalGrowthText = totalTradesCount > 0
+    ? `₹1,00,000 → ₹${Math.round(currentCapital).toLocaleString('en-IN')}`
+    : `₹1,00,000 → ₹1,00,000`;
+  const capitalGrowthPct = totalTradesCount > 0
+    ? `${todayProfit >= 0 ? '+' : ''}${((todayProfit / 100000) * 100).toFixed(2)}%`
+    : '+0.00%';
+
+  // 2. Verified Institutional Risk Attribution Engine Metrics (Evaluated strictly AFTER todayProfit)
+  const currentExposure = useMemo(() => {
+    return (positions || []).reduce((sum, p) => {
+      const price = Number(p.currentPrice || p.price || p.entryPrice) || 0;
+      const qty = Math.abs(Number(p.qty) || 0);
+      return sum + (price * qty);
+    }, 0);
+  }, [positions]);
+
+  const capitalAtRisk = useMemo(() => {
+    return (positions || []).reduce((sum, p) => {
+      const entry = Number(p.entryPrice || p.price) || 0;
+      const sl = Number(p.stopLoss) || (entry * 0.98); // 2% risk rule
+      const qty = Math.abs(Number(p.qty) || 0);
+      return sum + (Math.abs(entry - sl) * qty);
+    }, 0);
+  }, [positions]);
+
+  const MAX_DAILY_LOSS_LIMIT = 25000; // RMS watchdog limit ₹25,000
+  const remainingLossAllowance = useMemo(() => {
+    const currentLoss = Math.max(0, -todayProfit);
+    return Math.max(0, MAX_DAILY_LOSS_LIMIT - currentLoss);
+  }, [todayProfit]);
+
+  const riskBudgetUtilizationPct = useMemo(() => {
+    const maxRiskBudget = 20000;
+    if (capitalAtRisk <= 0) return '0.0';
+    return Math.min(100, (capitalAtRisk / maxRiskBudget) * 100).toFixed(1);
+  }, [capitalAtRisk]);
+
+  const largestRiskContributors = useMemo(() => {
+    if (!positions || positions.length === 0) return [];
+    return [...positions]
+      .sort((a, b) => {
+        const expA = (Number(a.currentPrice || a.price || a.entryPrice) || 0) * Math.abs(Number(a.qty) || 0);
+        const expB = (Number(b.currentPrice || b.price || b.entryPrice) || 0) * Math.abs(Number(b.qty) || 0);
+        return expB - expA;
+      })
+      .slice(0, 3);
+  }, [positions]);
 
   // Engine Control Status Items
-  const [engineStatus, setEngineStatus] = useState({
-    marketScanning: 'Live',
-    signalAnalysis: 'Live',
-    strategyVoting: 'Live',
-    tradeExecution: 'Live',
+  const engineStatus = useMemo(() => ({
+    marketScanning: allBotsRunning ? 'Active' : 'Standby',
+    signalAnalysis: allBotsRunning ? 'Active' : 'Standby',
+    strategyVoting: allBotsRunning ? 'Active' : 'Standby',
+    tradeExecution: allBotsRunning ? 'Paper' : 'Standby',
     riskManagement: 'Active',
-    portfolioOptimization: 'Active'
-  });
+    portfolioOptimization: allBotsRunning ? 'Active' : 'Standby'
+  }), [allBotsRunning]);
 
   // Calculate dynamic trades list based on filters
   const filteredTrades = useMemo(() => {
@@ -144,8 +218,28 @@ export default function MasterDashboardView({
   const donutStrokeWidth = 16;
   const circumference = 2 * Math.PI * donutRadius;
 
+  const dynamicAllocation = useMemo(() => {
+    if (!positions || positions.length === 0) {
+      return [{ name: 'Cash Buffer (Unallocated)', percent: 100, color: '#64748b' }];
+    }
+    const grouped = {};
+    let totalVal = 0;
+    positions.forEach(p => {
+      const sym = p.symbol || 'Other';
+      const val = (Number(p.entryPrice || 100) * Number(p.qty || 1)) + Math.abs(Number(p.pnl) || 0);
+      grouped[sym] = (grouped[sym] || 0) + val;
+      totalVal += val;
+    });
+    const colors = ['#00f0ff', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#10b981'];
+    return Object.entries(grouped).map(([name, val], idx) => ({
+      name,
+      percent: Math.round((val / (totalVal || 1)) * 100),
+      color: colors[idx % colors.length]
+    }));
+  }, [positions]);
+
   let currentOffset = 0;
-  const donutSlices = marketAllocation.map((item) => {
+  const donutSlices = dynamicAllocation.map((item) => {
     const strokeDasharray = `${(item.percent / 100) * circumference} ${circumference}`;
     const strokeDashoffset = -currentOffset;
     currentOffset += (item.percent / 100) * circumference;
@@ -156,8 +250,423 @@ export default function MasterDashboardView({
     };
   });
 
+    // Helper: High Density Trades Table (Full width or split)
+  const renderTradesTable = () => (
+    <div className="overflow-x-auto no-scrollbar">
+      <table className="w-full text-left border-collapse text-xs">
+        <thead>
+          <tr className="border-b border-[#16294a] text-slate-400 text-[10.5px] font-bold uppercase tracking-wider">
+            <th className="py-2.5 px-2.5">#</th>
+            <th className="py-2.5 px-3">Time</th>
+            <th className="py-2.5 px-3">Symbol</th>
+            <th className="py-2.5 px-2.5">Market</th>
+            <th className="py-2.5 px-2.5">Type</th>
+            <th className="py-2.5 px-2.5 text-right">Qty</th>
+            <th className="py-2.5 px-3 text-right">Entry Price</th>
+            <th className="py-2.5 px-3 text-right">Exit Price</th>
+            <th className="py-2.5 px-3 text-right">P&amp;L (₹)</th>
+            <th className="py-2.5 px-2.5 text-right">P&amp;L %</th>
+            <th className="py-2.5 px-3">Strategy</th>
+            <th className="py-2.5 px-2.5 text-center">Status</th>
+            <th className="py-2.5 px-2.5 text-right">Duration</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[#16294a]/40 font-mono text-[11px]">
+          {filteredTrades.length === 0 ? (
+            <tr>
+              <td colSpan={13} className="py-12 text-center text-slate-500 font-mono text-xs">
+                No simulated trade executions recorded today. Start an authenticated paper trading session to evaluate live setups.
+              </td>
+            </tr>
+          ) : (
+            filteredTrades.map((trade, idx) => {
+              const isProfit = trade.pnl > 0;
+              const isLoss = trade.pnl < 0;
+              return (
+                <tr
+                  key={trade.id || idx}
+                  className="hover:bg-[#0c1833]/60 transition-colors group"
+                >
+                  <td className="py-2.5 px-2.5 text-slate-500 font-bold">{trade.id || idx + 1}</td>
+                  <td className="py-2.5 px-3 text-slate-300 whitespace-nowrap">{trade.time}</td>
+                  <td className="py-2.5 px-3 font-bold font-sans text-white whitespace-nowrap">
+                    {trade.symbol}
+                  </td>
+                  <td className="py-2.5 px-2.5 text-slate-400 font-medium font-sans">{trade.market}</td>
+                  <td className="py-2.5 px-2.5">
+                    <span
+                      className={`font-black uppercase px-2 py-0.5 rounded text-[9.5px] font-mono ${
+                        trade.type === 'BUY'
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                          : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+                      }`}
+                    >
+                      {trade.type}
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-2.5 text-right text-slate-200">{trade.qty}</td>
+                  <td className="py-2.5 px-3 text-right text-slate-300">
+                    {Number(trade.entryPrice || 0).toLocaleString('en-IN', { minimumFractionDigits: 1 })}
+                  </td>
+                  <td className="py-2.5 px-3 text-right text-slate-300">
+                    {Number(trade.exitPrice || 0).toLocaleString('en-IN', { minimumFractionDigits: 1 })}
+                  </td>
+                  <td
+                    className={`py-2.5 px-3 text-right font-bold ${
+                      isProfit ? 'text-emerald-400' : isLoss ? 'text-rose-400' : 'text-slate-300'
+                    }`}
+                  >
+                    {isProfit ? '+' : ''}
+                    {Number(trade.pnl || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </td>
+                  <td
+                    className={`py-2.5 px-2.5 text-right font-bold ${
+                      isProfit ? 'text-emerald-400' : isLoss ? 'text-rose-400' : 'text-slate-300'
+                    }`}
+                  >
+                    {isProfit ? '+' : ''}
+                    {Number(trade.pnlPercent || 0).toFixed(2)}%
+                  </td>
+                  <td className="py-2.5 px-3 text-slate-300 font-sans whitespace-nowrap">
+                    {trade.strategy}
+                  </td>
+                  <td className="py-2.5 px-2.5 text-center">
+                    <span className="px-2 py-0.5 rounded text-[9.5px] font-sans font-medium bg-[#112347] text-slate-300">
+                      {trade.status}
+                    </span>
+                  </td>
+                  <td className="py-2.5 px-2.5 text-right text-slate-400 font-sans">{trade.duration}</td>
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  // Helper: Capital Growth Chart Card
+  const renderCapitalGrowthCard = () => (
+    <div className="bg-[#060c18] border border-[#16294a]/80 rounded-xl p-4 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 tracking-wide">
+          <TrendingUp className="w-4 h-4 text-emerald-400" />
+          <span>Capital Growth &amp; Equity Curve</span>
+          <span className="text-[10px] text-slate-400 font-normal">(From ₹1,00,000 Base Capital)</span>
+        </h4>
+        <span className={`px-2.5 py-0.5 rounded-md text-xs font-mono font-bold ${
+          todayProfit > 0
+            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+            : todayProfit < 0
+            ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
+            : 'bg-slate-800 text-slate-300 border border-slate-700'
+        }`}>
+          ₹ {Math.round(currentCapital).toLocaleString('en-IN')} <span className="text-[10.5px] ml-1">{capitalGrowthPct}</span>
+        </span>
+      </div>
+
+      {/* SVG Equity Graph */}
+      <div className="relative pt-2 pb-1">
+        <div className="flex">
+          {/* Y-Axis Labels */}
+          <div className="flex flex-col justify-between text-[9px] font-mono text-slate-400 pr-2 h-44 text-right select-none">
+            <span>₹ 1.5L</span>
+            <span>₹ 1.25L</span>
+            <span>₹ 1.0L</span>
+            <span>₹ 75K</span>
+            <span>₹ 50K</span>
+          </div>
+
+          {/* SVG Graph Area */}
+          <div className="grow relative h-44">
+            <svg viewBox="0 0 600 150" preserveAspectRatio="none" className="w-full h-full overflow-visible">
+              <defs>
+                <linearGradient id="growthAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
+                  <stop offset="100%" stopColor="#00f0ff" stopOpacity="0.0" />
+                </linearGradient>
+              </defs>
+
+              {/* Horizontal gridlines */}
+              <line x1="0" y1="15" x2="600" y2="15" stroke="#16294a" strokeWidth="0.8" strokeDasharray="3 3" />
+              <line x1="0" y1="50" x2="600" y2="50" stroke="#16294a" strokeWidth="0.8" strokeDasharray="3 3" />
+              <line x1="0" y1="85" x2="600" y2="85" stroke="#16294a" strokeWidth="0.8" strokeDasharray="3 3" />
+              <line x1="0" y1="120" x2="600" y2="120" stroke="#16294a" strokeWidth="0.8" strokeDasharray="3 3" />
+
+              {totalTradesCount === 0 ? (
+                /* Flat Baseline at Initial Capital (₹1.0L = y:85) */
+                <>
+                  <line x1="0" y1="85" x2="600" y2="85" stroke="#00f0ff" strokeWidth="2" strokeDasharray="4 4" />
+                  <circle cx="600" cy="85" r="4.5" fill="#00f0ff" stroke="#ffffff" strokeWidth="1.5" />
+                </>
+              ) : (
+                <>
+                  {/* Shaded Area Fill */}
+                  <polygon
+                    points="0,135 0,105 120,95 260,78 420,55 600,30 600,150 0,150"
+                    fill="url(#growthAreaGrad)"
+                  />
+                  {/* Smooth Growth Line */}
+                  <path
+                    d="M 0 105 Q 120 95, 260 78 T 420 55 T 600 30"
+                    fill="none"
+                    stroke="#10b981"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                  />
+                  <circle cx="600" cy="30" r="5" fill="#10b981" stroke="#ffffff" strokeWidth="2" />
+                </>
+              )}
+            </svg>
+          </div>
+        </div>
+
+        {/* X-Axis Dates */}
+        <div className="flex justify-between text-[9px] font-mono text-slate-400 pl-12 pt-2 select-none">
+          <span>Session Start</span>
+          <span>10:00 IST</span>
+          <span>11:30 IST</span>
+          <span>13:00 IST</span>
+          <span>14:30 IST</span>
+          <span>Current</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Helper: Market Wise Performance Card
+  const renderMarketWiseCard = () => (
+    <div className="bg-[#060c18] border border-[#16294a]/80 rounded-xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h4 className="text-xs font-bold text-slate-200 tracking-wide flex items-center gap-1.5">
+          <BarChart2 className="w-4 h-4 text-cyan-400" />
+          <span>Market Wise Performance Breakdown</span>
+        </h4>
+        <span className="text-[10px] font-mono text-slate-400">
+          Segment Attributions
+        </span>
+      </div>
+
+      {/* Performance Table */}
+      <div className="space-y-2.5">
+        {/* Header */}
+        <div className="grid grid-cols-5 text-[9.5px] font-bold text-slate-400 uppercase tracking-wider pb-1.5 border-b border-[#16294a]">
+          <span className="col-span-1">Market</span>
+          <span className="text-center">Trades</span>
+          <span className="text-center">Win Rate</span>
+          <span className="text-right">Profit (₹)</span>
+          <span className="text-right">Profit %</span>
+        </div>
+
+        {/* Dynamic Grouped Market Rows */}
+        {recentTrades.length === 0 ? (
+          <div className="py-8 text-center text-slate-500 font-mono text-xs">
+            No trades recorded for this session. Grouped segment performance will populate as paper trades execute.
+          </div>
+        ) : (
+          (() => {
+            const groupedMap = new Map();
+            recentTrades.forEach((t) => {
+              const mkt = t.market || t.symbol || 'General';
+              if (!groupedMap.has(mkt)) {
+                groupedMap.set(mkt, { market: mkt, trades: 0, wins: 0, profit: 0 });
+              }
+              const entry = groupedMap.get(mkt);
+              entry.trades += 1;
+              const net = Number(t.netPnl ?? t.pnl) || 0;
+              if (net > 0) entry.wins += 1;
+              entry.profit += net;
+            });
+            const colors = ['#00f0ff', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899'];
+            let cIdx = 0;
+            return Array.from(groupedMap.values()).map((item) => {
+              const wr = item.trades > 0 ? Math.round((item.wins / item.trades) * 100) : 0;
+              const pPct = Number(((item.profit / 100000) * 100).toFixed(2));
+              const color = colors[cIdx++ % colors.length];
+              return (
+                <div key={item.market} className="grid grid-cols-5 items-center text-xs text-slate-200 font-mono py-1.5 border-b border-[#16294a]/30">
+                  <span className="col-span-1 font-sans font-bold text-slate-100 text-[11px] truncate">
+                    {item.market}
+                  </span>
+                  <span className="text-center text-slate-400">{item.trades}</span>
+                  <div className="flex flex-col items-center">
+                    <span className="text-[10.5px] font-bold">{wr}%</span>
+                    <div className="w-16 h-1.5 bg-[#102242] rounded-full mt-0.5 overflow-hidden">
+                      <div
+                        style={{ width: `${wr}%`, backgroundColor: color }}
+                        className="h-full rounded-full"
+                      />
+                    </div>
+                  </div>
+                  <span className={`text-right font-bold text-[11px] ${item.profit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {item.profit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                  <span className={`text-right font-bold text-[11px] ${pPct >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {pPct >= 0 ? '+' : ''}{pPct.toFixed(2)}%
+                  </span>
+                </div>
+              );
+            });
+          })()
+        )}
+      </div>
+    </div>
+  );
+
+  
   return (
     <div className="space-y-4 select-none font-sans text-slate-100 animate-fadeIn">
+      {/* =========================================================================
+          EXECUTIVE OPERATIONAL TELEMETRY DECK (PHASE 3 FIRST-OPEN EXPERIENCE)
+          Instant clarity on: Mode, Broker Gateway, Market Feed, P&L, Bots, Kill Switch
+         ========================================================================= */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Tile 1: Mode & Session */}
+        <div className="neumorph-card p-3 flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Environment</span>
+            </span>
+            <span className={`text-[9.5px] px-2 py-0.5 rounded-full font-mono font-bold border ${
+              executionMode === 'LIVE'
+                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse'
+                : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+            }`}>
+              {executionMode === 'LIVE' ? 'LIVE BROKER' : 'PAPER TRADING'}
+            </span>
+          </div>
+          <div className="my-1">
+            <div className="text-sm font-bold text-white leading-tight">
+              {allBotsRunning ? 'Simulation Running' : 'Engine Standby'}
+            </div>
+            <div className="text-[10px] text-slate-400 font-sans mt-0.5">
+              {executionMode === 'PAPER' ? 'Zero Financial Capital at Risk' : 'Broker DMA Enabled'}
+            </div>
+          </div>
+          <div className="mt-2 pt-2 border-t border-[#1e3a6e]/40 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={allBotsRunning ? onStopAllBots : onStartAllBots}
+              className={`text-[10.5px] font-bold px-3 py-1 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                allBotsRunning
+                  ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40'
+                  : 'bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 shadow-sm hover:shadow-cyan-500/20'
+              }`}
+            >
+              {allBotsRunning ? <Square className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
+              <span>{allBotsRunning ? 'Pause Engine' : 'Start Paper Trading'}</span>
+            </button>
+            <span className="text-[9px] font-mono text-slate-400">14 Bots Ready</span>
+          </div>
+        </div>
+
+        {/* Tile 2: Broker Gateway & Market Data */}
+        <div className="neumorph-card p-3 flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 flex items-center gap-1.5">
+              <Radio className="w-3.5 h-3.5 text-amber-400" />
+              <span>Broker Gateway</span>
+            </span>
+            <span className={`text-[9.5px] px-2 py-0.5 rounded-full font-mono font-bold border ${
+              isBrokerConnected
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                : 'bg-slate-700/30 text-slate-400 border-slate-600/40'
+            }`}>
+              {isBrokerConnected ? 'CONNECTED' : 'DISCONNECTED'}
+            </span>
+          </div>
+          <div className="my-1">
+            <div className="text-sm font-bold text-white leading-tight">
+              Angel One SmartAPI
+            </div>
+            <div className="text-[10px] text-slate-400 font-sans mt-0.5">
+              {isBrokerConnected ? 'SmartStream v2 Binary Ticks Active' : 'Standby • Zero Synthetic Market Prices'}
+            </div>
+          </div>
+          <div className="mt-2 pt-2 border-t border-[#1e3a6e]/40 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => onNavigateTab && onNavigateTab('connections')}
+              className="text-[10.5px] font-semibold text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer flex items-center gap-1"
+            >
+              <span>Connections & Vault</span>
+              <span>→</span>
+            </button>
+            <span className="text-[9px] font-mono text-slate-400">AES-256</span>
+          </div>
+        </div>
+
+        {/* Tile 3: Portfolio & Exposure */}
+        <div className="neumorph-card p-3 flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 flex items-center gap-1.5">
+              <CircleDollarSign className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Portfolio P&L</span>
+            </span>
+            <span className="text-[9.5px] px-2 py-0.5 rounded-full font-mono font-bold bg-slate-800 text-slate-300 border border-slate-700">
+              ₹1.0L Base
+            </span>
+          </div>
+          <div className="my-1">
+            <div className={`text-base font-black font-mono leading-tight tabular-nums ${
+              todayProfit > 0 ? 'text-emerald-400' : todayProfit < 0 ? 'text-rose-400' : 'text-slate-300'
+            }`}>
+              ₹ {todayProfit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <span className="text-[11px] font-bold ml-1 opacity-80">
+                {todayProfit >= 0 ? '+' : ''}{profitPct}%
+              </span>
+            </div>
+            <div className="text-[10px] text-slate-400 font-sans mt-0.5">
+              {positions.length} Open Positions • {totalTradesCount} Closed Trades
+            </div>
+          </div>
+          <div className="mt-2 pt-2 border-t border-[#1e3a6e]/40 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => onNavigateTab && onNavigateTab('orders-positions')}
+              className="text-[10.5px] font-semibold text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer flex items-center gap-1"
+            >
+              <span>Orders & Positions</span>
+              <span>→</span>
+            </button>
+            <span className="text-[9px] font-mono text-slate-400">₹0 Risk Slippage</span>
+          </div>
+        </div>
+
+        {/* Tile 4: Brain & Emergency Halt */}
+        <div className="neumorph-card p-3 flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 flex items-center gap-1.5">
+              <Cpu className="w-3.5 h-3.5 text-violet-400" />
+              <span>AI Core & Safety</span>
+            </span>
+            <span className="text-[9.5px] px-2 py-0.5 rounded-full font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/40">
+              RMS ARMED
+            </span>
+          </div>
+          <div className="my-1">
+            <div className="text-sm font-bold text-white leading-tight">
+              14 Strategy Bots Mesh
+            </div>
+            <div className="text-[10px] text-slate-400 font-sans mt-0.5">
+              9/14 Quorum • Institutional Safety Interlock
+            </div>
+          </div>
+          <div className="mt-2 pt-2 border-t border-[#1e3a6e]/40 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => onNavigateTab && onNavigateTab('risk-management')}
+              className="text-[10.5px] font-semibold text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer flex items-center gap-1"
+            >
+              <span>RMS Guardrails</span>
+              <span>→</span>
+            </button>
+            <span className="text-[9px] font-mono text-emerald-400 font-bold">1-Click Halt Ready</span>
+          </div>
+        </div>
+      </div>
+
       {/* =========================================================================
           SECTION 1: TOP 3-COLUMN HERO ROW
           Left: AI Engine Control + Market Allocation (Active Trades)
@@ -301,7 +810,8 @@ export default function MasterDashboardView({
             {/* The 14 Strategy Bot Nodes surrounding the Center Core */}
             {botPositions.map((bot) => {
               const isHovered = hoveredBot?.id === bot.id;
-              return (
+            
+return (
                 <div
                   key={bot.id}
                   onClick={() => onSelectBot && onSelectBot(bot)}
@@ -379,12 +889,19 @@ export default function MasterDashboardView({
           <div>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-slate-100 tracking-wide">
-                Live Trading Status
+                Trading Session Status
               </h3>
-              <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[11px] font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Live</span>
-              </div>
+              {allBotsRunning ? (
+                <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 text-[11px] font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                  <span>Paper Trading Active</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/40 text-amber-300 text-[11px] font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                  <span>STANDBY — NO LIVE TRADES</span>
+                </div>
+              )}
             </div>
 
             {/* 4 Quick Stat Boxes (2x2 Grid) */}
@@ -396,7 +913,7 @@ export default function MasterDashboardView({
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 font-medium">Active Markets</div>
-                  <div className="text-base font-bold font-mono text-white leading-tight">32</div>
+                  <div className="text-base font-bold font-mono text-white leading-tight">{activeMarketsCount}</div>
                 </div>
               </div>
 
@@ -407,7 +924,7 @@ export default function MasterDashboardView({
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 font-medium">Active Trades</div>
-                  <div className="text-base font-bold font-mono text-white leading-tight">143</div>
+                  <div className="text-base font-bold font-mono text-white leading-tight">{activeTradesCount}</div>
                 </div>
               </div>
 
@@ -418,7 +935,7 @@ export default function MasterDashboardView({
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 font-medium">Total Trades (Today)</div>
-                  <div className="text-base font-bold font-mono text-white leading-tight">267</div>
+                  <div className="text-base font-bold font-mono text-white leading-tight">{totalTradesCount}</div>
                 </div>
               </div>
 
@@ -429,7 +946,7 @@ export default function MasterDashboardView({
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 font-medium">Win Rate</div>
-                  <div className="text-base font-bold font-mono text-white leading-tight">72.6%</div>
+                  <div className="text-base font-bold font-mono text-white leading-tight">{winRatePct}%</div>
                 </div>
               </div>
             </div>
@@ -442,19 +959,20 @@ export default function MasterDashboardView({
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Today's Profit</div>
-                  <div className="text-lg font-black font-mono text-emerald-400 leading-tight">
-                    ₹ 24,583.50 <span className="text-xs font-bold text-emerald-400/90 ml-0.5">+2.46%</span>
+                  <div className={`text-lg font-black font-mono leading-tight ${todayProfit > 0 ? 'text-emerald-400' : todayProfit < 0 ? 'text-rose-400' : 'text-slate-300'}`}>
+                    ₹ {todayProfit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                    <span className="text-xs font-bold ml-0.5 opacity-90">{todayProfit >= 0 ? '+' : ''}{profitPct}%</span>
                   </div>
                 </div>
               </div>
 
-              {/* Emerald Upward Sparkline */}
+              {/* Sparkline Indicator */}
               <svg width="70" height="28" className="overflow-visible">
                 <path
-                  d="M 2 22 Q 20 18, 35 12 T 68 4"
+                  d={todayProfit >= 0 ? "M 2 20 Q 20 18, 35 14 T 68 8" : "M 2 8 Q 20 12, 35 16 T 68 22"}
                   fill="none"
-                  stroke="#10b981"
-                  strokeWidth="2.5"
+                  stroke={todayProfit > 0 ? "#10b981" : todayProfit < 0 ? "#f43f5e" : "#64748b"}
+                  strokeWidth="2"
                   strokeLinecap="round"
                 />
               </svg>
@@ -466,7 +984,10 @@ export default function MasterDashboardView({
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-xs font-bold text-slate-200 tracking-wide flex items-center gap-1.5">
                 <Globe className="w-3.5 h-3.5 text-cyan-400" />
-                Top Markets (Live)
+                <span>Top Markets</span>
+                <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono font-bold ${isBrokerConnected ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700/40 text-slate-400'}`}>
+                  {isBrokerConnected ? 'LIVE' : 'STANDBY'}
+                </span>
               </h4>
               <button
                 type="button"
@@ -571,19 +1092,19 @@ export default function MasterDashboardView({
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
               <div className="flex items-center justify-between p-2 rounded-lg bg-[#060c18] border border-[#16294a]/60">
                 <span className="text-[11px] text-slate-300">Market Scanning</span>
-                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-emerald-500/20 text-emerald-400">Live</span>
+                <span className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold ${allBotsRunning ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-700/30 text-slate-400'}`}>{engineStatus.marketScanning}</span>
               </div>
               <div className="flex items-center justify-between p-2 rounded-lg bg-[#060c18] border border-[#16294a]/60">
                 <span className="text-[11px] text-slate-300">Signal Analysis</span>
-                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-emerald-500/20 text-emerald-400">Live</span>
+                <span className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold ${allBotsRunning ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-700/30 text-slate-400'}`}>{engineStatus.signalAnalysis}</span>
               </div>
               <div className="flex items-center justify-between p-2 rounded-lg bg-[#060c18] border border-[#16294a]/60">
                 <span className="text-[11px] text-slate-300">Strategy Voting</span>
-                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-emerald-500/20 text-emerald-400">Live</span>
+                <span className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold ${allBotsRunning ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-700/30 text-slate-400'}`}>{engineStatus.strategyVoting}</span>
               </div>
               <div className="flex items-center justify-between p-2 rounded-lg bg-[#060c18] border border-[#16294a]/60">
                 <span className="text-[11px] text-slate-300">Trade Execution</span>
-                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-emerald-500/20 text-emerald-400">Live</span>
+                <span className={`px-1.5 py-0.2 rounded text-[9.5px] font-bold ${allBotsRunning ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700/30 text-slate-400'}`}>{engineStatus.tradeExecution}</span>
               </div>
               <div className="flex items-center justify-between p-2 rounded-lg bg-[#060c18] border border-[#16294a]/60">
                 <span className="text-[11px] text-slate-300">Risk Management</span>
@@ -616,8 +1137,8 @@ export default function MasterDashboardView({
                 ))}
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-xs font-black text-white font-mono leading-none">143</span>
-                <span className="text-[8px] text-slate-400 font-medium tracking-tight mt-0.5">Trades</span>
+                <span className="text-xs font-black text-white font-mono leading-none">{activeTradesCount}</span>
+                <span className="text-[8px] text-slate-400 font-medium tracking-tight mt-0.5">Active</span>
               </div>
             </div>
 
@@ -719,10 +1240,10 @@ export default function MasterDashboardView({
           </div>
           <div className="overflow-hidden">
             <div className="text-[9.5px] text-slate-400 font-medium truncate">Today's Profit</div>
-            <div className="text-xs font-black font-mono text-emerald-400 truncate">
-              ₹ 24,583.50
+            <div className={`text-xs font-black font-mono truncate ${todayProfit > 0 ? 'text-emerald-400' : todayProfit < 0 ? 'text-rose-400' : 'text-slate-300'}`}>
+              ₹ {todayProfit.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <div className="text-[9px] font-mono font-bold text-emerald-400/90">+2.46%</div>
+            <div className="text-[9px] font-mono font-bold text-slate-400">{todayProfit >= 0 ? '+' : ''}{profitPct}%</div>
           </div>
         </div>
 
@@ -733,7 +1254,7 @@ export default function MasterDashboardView({
           </div>
           <div>
             <div className="text-[9.5px] text-slate-400 font-medium">Total Trades</div>
-            <div className="text-sm font-black font-mono text-white">267</div>
+            <div className="text-sm font-black font-mono text-white">{totalTradesCount}</div>
           </div>
         </div>
 
@@ -744,7 +1265,7 @@ export default function MasterDashboardView({
           </div>
           <div>
             <div className="text-[9.5px] text-slate-400 font-medium">Winning Trades</div>
-            <div className="text-xs font-black font-mono text-emerald-400">194 (72.6%)</div>
+            <div className="text-xs font-black font-mono text-emerald-400">{winningTradesCount} ({winRatePct}%)</div>
           </div>
         </div>
 
@@ -755,7 +1276,7 @@ export default function MasterDashboardView({
           </div>
           <div>
             <div className="text-[9.5px] text-slate-400 font-medium">Losing Trades</div>
-            <div className="text-xs font-black font-mono text-rose-400">73 (27.4%)</div>
+            <div className="text-xs font-black font-mono text-rose-400">{losingTradesCount} ({totalTradesCount > 0 ? (100 - Number(winRatePct)).toFixed(1) : '0.0'}%)</div>
           </div>
         </div>
 
@@ -766,7 +1287,7 @@ export default function MasterDashboardView({
           </div>
           <div>
             <div className="text-[9.5px] text-slate-400 font-medium">Active Trades</div>
-            <div className="text-sm font-black font-mono text-white">143</div>
+            <div className="text-sm font-black font-mono text-white">{activeTradesCount}</div>
           </div>
         </div>
 
@@ -777,7 +1298,7 @@ export default function MasterDashboardView({
           </div>
           <div>
             <div className="text-[9.5px] text-slate-400 font-medium">Active Markets</div>
-            <div className="text-sm font-black font-mono text-white">32</div>
+            <div className="text-sm font-black font-mono text-white">{activeMarketsCount}</div>
           </div>
         </div>
 
@@ -788,7 +1309,7 @@ export default function MasterDashboardView({
           </div>
           <div>
             <div className="text-[9.5px] text-slate-400 font-medium">Stocks Traded</div>
-            <div className="text-sm font-black font-mono text-white">56</div>
+            <div className="text-sm font-black font-mono text-white">{stocksTradedCount}</div>
           </div>
         </div>
 
@@ -800,341 +1321,367 @@ export default function MasterDashboardView({
           <div className="overflow-hidden">
             <div className="text-[9.5px] text-slate-400 font-medium truncate">Capital Growth</div>
             <div className="text-[10px] font-black font-mono text-slate-200 truncate">
-              ₹1,00,000 → ₹1,24,583
+              {capitalGrowthText}
             </div>
-            <div className="text-[9px] font-mono font-bold text-emerald-400">+24.58%</div>
+            <div className="text-[9px] font-mono font-bold text-slate-400">{capitalGrowthPct}</div>
           </div>
         </div>
       </div>
 
       {/* =========================================================================
-          SECTION 3: BOTTOM SECTION (2-COLUMN SPLIT)
-          Left: Live Trade Executions & History (~70% width)
-          Right: Capital Growth + Market Wise Performance (~30% width)
+          SECTION 2.5: COMPACT INSTITUTIONAL RISK ATTRIBUTION & RMS GUARDRAILS DOCK
          ========================================================================= */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
-        {/* LEFT CONTAINER: LIVE TRADE EXECUTIONS & HISTORY (8 cols on desktop) */}
-        <div className="lg:col-span-8 bg-[#080e1b]/95 border border-[#16294a] rounded-2xl p-4 shadow-[0_4px_25px_rgba(0,0,0,0.6)] backdrop-blur-md">
-          {/* Header & Filter Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-3.5">
-            <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2 tracking-wide">
-              <FileText className="w-4 h-4 text-cyan-400" />
-              Live Trade Executions & History
-            </h3>
-
-            {/* Filter Controls Row */}
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Filter Tabs */}
-              <div className="flex items-center bg-[#091326] p-0.5 rounded-lg border border-[#16294a]">
-                <button
-                  type="button"
-                  onClick={() => setSelectedTradeFilter('ALL')}
-                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                    selectedTradeFilter === 'ALL'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  All (267)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTradeFilter('PROFITS')}
-                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                    selectedTradeFilter === 'PROFITS'
-                      ? 'bg-emerald-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-emerald-400'
-                  }`}
-                >
-                  Profits (194)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTradeFilter('LOSSES')}
-                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                    selectedTradeFilter === 'LOSSES'
-                      ? 'bg-rose-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-rose-400'
-                  }`}
-                >
-                  Losses (73)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedTradeFilter('ACTIVE')}
-                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
-                    selectedTradeFilter === 'ACTIVE'
-                      ? 'bg-cyan-600 text-white shadow-sm'
-                      : 'text-slate-400 hover:text-cyan-300'
-                  }`}
-                >
-                  Active (143)
-                </button>
-              </div>
-
-              {/* Dropdowns */}
-              <select
-                value={selectedMarketFilter}
-                onChange={(e) => setSelectedMarketFilter(e.target.value)}
-                className="bg-[#091326] border border-[#16294a] rounded-lg px-2.5 py-1 text-xs text-slate-300 font-medium cursor-pointer focus:outline-none focus:border-cyan-400"
-              >
-                <option value="All">All Markets</option>
-                <option value="NSE">NSE</option>
-                <option value="BSE">BSE</option>
-                <option value="MCX">MCX</option>
-              </select>
-
-              <select
-                value={selectedTypeFilter}
-                onChange={(e) => setSelectedTypeFilter(e.target.value)}
-                className="bg-[#091326] border border-[#16294a] rounded-lg px-2.5 py-1 text-xs text-slate-300 font-medium cursor-pointer focus:outline-none focus:border-cyan-400"
-              >
-                <option value="All">All Types</option>
-                <option value="BUY">BUY</option>
-                <option value="SELL">SELL</option>
-              </select>
-
-              <select
-                value={selectedStrategyFilter}
-                onChange={(e) => setSelectedStrategyFilter(e.target.value)}
-                className="bg-[#091326] border border-[#16294a] rounded-lg px-2.5 py-1 text-xs text-slate-300 font-medium cursor-pointer focus:outline-none focus:border-cyan-400 max-w-[110px] truncate"
-              >
-                <option value="All">All Strategies</option>
-                <option value="Momentum">Momentum</option>
-                <option value="Scalping">Scalping</option>
-                <option value="Mean Reversion">Mean Reversion</option>
-                <option value="News Sentiment">News Sentiment</option>
-                <option value="Swing Trading">Swing Trading</option>
-                <option value="Grid Trading">Grid Trading</option>
-                <option value="AI Prediction">AI Prediction</option>
-                <option value="Trend Following">Trend Following</option>
-                <option value="Arbitrage">Arbitrage</option>
-                <option value="Multi Market">Multi Market</option>
-              </select>
-
-              {/* Date Button */}
-              <div className="flex items-center gap-1.5 bg-[#091326] border border-[#16294a] rounded-lg px-2.5 py-1 text-xs text-slate-300 font-medium">
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                <span>{selectedDate}</span>
-              </div>
-
-              {/* Export Button */}
-              <button
-                type="button"
-                onClick={handleExportCSV}
-                className="flex items-center gap-1.5 bg-[#091326] hover:bg-[#102242] border border-[#16294a] hover:border-cyan-500/50 rounded-lg px-2.5 py-1 text-xs text-slate-200 font-semibold transition-all cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Export</span>
-              </button>
+      <div className="bg-[#080e1b]/95 border border-[#16294a] rounded-2xl p-4 shadow-[0_4px_25px_rgba(0,0,0,0.6)] backdrop-blur-md space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-[#16294a]/80">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-cyan-500/15 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
+              <ShieldAlert className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-xs font-mono font-black text-white uppercase tracking-wider flex items-center gap-2">
+                <span>RMS Risk Attribution &amp; Capital Guardrails</span>
+                <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 font-mono font-bold">
+                  ARMED • 1.50% HURDLE
+                </span>
+              </h3>
             </div>
           </div>
 
-          {/* High Density Table */}
-          <div className="overflow-x-auto no-scrollbar">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-[#16294a] text-slate-400 text-[10.5px] font-bold uppercase tracking-wider">
-                  <th className="py-2 px-2">#</th>
-                  <th className="py-2 px-2.5">Time</th>
-                  <th className="py-2 px-2.5">Symbol</th>
-                  <th className="py-2 px-2">Market</th>
-                  <th className="py-2 px-2">Type</th>
-                  <th className="py-2 px-2 text-right">Qty</th>
-                  <th className="py-2 px-2.5 text-right">Entry Price</th>
-                  <th className="py-2 px-2.5 text-right">Exit Price</th>
-                  <th className="py-2 px-2.5 text-right">P&L (₹)</th>
-                  <th className="py-2 px-2 text-right">P&L %</th>
-                  <th className="py-2 px-2.5">Strategy</th>
-                  <th className="py-2 px-2 text-center">Status</th>
-                  <th className="py-2 px-2 text-right">Duration</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#16294a]/40 font-mono text-[11px]">
-                {filteredTrades.map((trade, idx) => {
-                  const isProfit = trade.pnl > 0;
-                  const isLoss = trade.pnl < 0;
-                  return (
-                    <tr
-                      key={trade.id || idx}
-                      className="hover:bg-[#0c1833]/60 transition-colors group"
-                    >
-                      <td className="py-2 px-2 text-slate-500 font-bold">{trade.id || idx + 1}</td>
-                      <td className="py-2 px-2.5 text-slate-300 whitespace-nowrap">{trade.time}</td>
-                      <td className="py-2 px-2.5 font-bold font-sans text-white whitespace-nowrap">
-                        {trade.symbol}
-                      </td>
-                      <td className="py-2 px-2 text-slate-400 font-medium font-sans">{trade.market}</td>
-                      <td className="py-2 px-2">
-                        <span
-                          className={`font-black uppercase px-1.5 py-0.5 rounded text-[9.5px] font-mono ${
-                            trade.type === 'BUY'
-                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                              : 'bg-rose-500/20 text-rose-400 border border-rose-500/40'
-                          }`}
-                        >
-                          {trade.type}
-                        </span>
-                      </td>
-                      <td className="py-2 px-2 text-right text-slate-200">{trade.qty}</td>
-                      <td className="py-2 px-2.5 text-right text-slate-300">
-                        {trade.entryPrice.toLocaleString('en-IN', { minimumFractionDigits: 1 })}
-                      </td>
-                      <td className="py-2 px-2.5 text-right text-slate-300">
-                        {trade.exitPrice.toLocaleString('en-IN', { minimumFractionDigits: 1 })}
-                      </td>
-                      <td
-                        className={`py-2 px-2.5 text-right font-bold ${
-                          isProfit ? 'text-emerald-400' : isLoss ? 'text-rose-400' : 'text-slate-300'
-                        }`}
-                      >
-                        {isProfit ? '+' : ''}
-                        {trade.pnl.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td
-                        className={`py-2 px-2 text-right font-bold ${
-                          isProfit ? 'text-emerald-400' : isLoss ? 'text-rose-400' : 'text-slate-300'
-                        }`}
-                      >
-                        {isProfit ? '+' : ''}
-                        {trade.pnlPercent.toFixed(2)}%
-                      </td>
-                      <td className="py-2 px-2.5 text-slate-300 font-sans whitespace-nowrap">
-                        {trade.strategy}
-                      </td>
-                      <td className="py-2 px-2 text-center">
-                        <span className="px-2 py-0.5 rounded text-[9.5px] font-sans font-medium bg-[#112347] text-slate-300">
-                          {trade.status}
-                        </span>
-                      </td>
-                      <td className="py-2 px-2 text-right text-slate-400 font-sans">{trade.duration}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="flex items-center gap-2 text-[10.5px] font-mono text-slate-400">
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Watchdog 2.5s Cycle Active</span>
+            </span>
+            <span>•</span>
+            <span className="text-cyan-300">Auto-Square-Off Ready</span>
           </div>
         </div>
 
-        {/* RIGHT CONTAINER: CAPITAL GROWTH + MARKET WISE PERFORMANCE (4 cols on desktop) */}
-        <div className="lg:col-span-4 space-y-3.5">
-          {/* Card 1: Capital Growth (From Initial Amount) */}
-          <div className="bg-[#080e1b]/95 border border-[#16294a] rounded-2xl p-4 shadow-[0_4px_25px_rgba(0,0,0,0.6)] backdrop-blur-md">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 tracking-wide">
-                <TrendingUp className="w-4 h-4 text-emerald-400" />
-                Capital Growth <span className="text-[10px] text-slate-400 font-normal">(From Initial Amount)</span>
-              </h4>
-              <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
-                ₹ 1,24,583 <span className="text-[10px] ml-0.5">+24.58%</span>
-              </span>
+        {/* 5-Metric Risk Attribution Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          {/* Card 1: Current Market Exposure */}
+          <div className="bg-[#091226] border border-[#16294a] rounded-xl p-2.5 flex flex-col justify-between">
+            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">
+              Current Market Exposure
+            </span>
+            <div className="my-1">
+              <div className="text-sm font-black font-mono text-white">
+                ₹ {currentExposure.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div className="text-[9.5px] font-mono text-slate-400 mt-0.5">
+                {positions.length > 0 ? `${positions.length} Active Position(s)` : 'Flat Book (100% Cash)'}
+              </div>
             </div>
-
-            {/* Area/Line Chart */}
-            <div className="relative pt-1 pb-1">
-              <div className="flex">
-                {/* Y-Axis Labels */}
-                <div className="flex flex-col justify-between text-[9px] font-mono text-slate-400 pr-2 h-36 text-right select-none">
-                  <span>₹ 1.5L</span>
-                  <span>₹ 1.0L</span>
-                  <span>₹ 75K</span>
-                  <span>₹ 50K</span>
-                  <span>₹ 25K</span>
-                </div>
-
-                {/* SVG Graph Area */}
-                <div className="grow relative h-36">
-                  <svg viewBox="0 0 300 130" className="w-full h-full overflow-visible">
-                    <defs>
-                      <linearGradient id="growthAreaGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
-                        <stop offset="100%" stopColor="#00f0ff" stopOpacity="0.0" />
-                      </linearGradient>
-                    </defs>
-
-                    {/* Horizontal gridlines */}
-                    <line x1="0" y1="10" x2="300" y2="10" stroke="#16294a" strokeWidth="0.8" strokeDasharray="3 3" />
-                    <line x1="0" y1="40" x2="300" y2="40" stroke="#16294a" strokeWidth="0.8" strokeDasharray="3 3" />
-                    <line x1="0" y1="70" x2="300" y2="70" stroke="#16294a" strokeWidth="0.8" strokeDasharray="3 3" />
-                    <line x1="0" y1="100" x2="300" y2="100" stroke="#16294a" strokeWidth="0.8" strokeDasharray="3 3" />
-
-                    {/* Shaded Area Fill */}
-                    <polygon
-                      points="0,110 0,90 60,82 130,65 210,48 300,24 300,120 0,120"
-                      fill="url(#growthAreaGrad)"
-                    />
-
-                    {/* Smooth Growth Line */}
-                    <path
-                      d="M 0 90 Q 60 82, 130 65 T 210 48 T 300 24"
-                      fill="none"
-                      stroke="#10b981"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                    />
-
-                    {/* Terminal Data Point with Glow */}
-                    <circle cx="300" cy="24" r="4.5" fill="#10b981" stroke="#ffffff" strokeWidth="1.5" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* X-Axis Dates */}
-              <div className="flex justify-between text-[9px] font-mono text-slate-400 pl-10 pt-1.5 select-none">
-                <span>Oct 1</span>
-                <span>Oct 5</span>
-                <span>Oct 10</span>
-                <span>Oct 15</span>
-                <span>Oct 21</span>
-              </div>
+            <div className="text-[9px] font-mono text-cyan-400">
+              Max Cap: ₹1,00,000 Base
             </div>
           </div>
 
-          {/* Card 2: Market Wise Performance */}
-          <div className="bg-[#080e1b]/95 border border-[#16294a] rounded-2xl p-4 shadow-[0_4px_25px_rgba(0,0,0,0.6)] backdrop-blur-md">
-            <h4 className="text-xs font-bold text-slate-200 tracking-wide mb-3 flex items-center gap-1.5">
-              <BarChart2 className="w-4 h-4 text-cyan-400" />
-              Market Wise Performance
-            </h4>
-
-            {/* Performance Table */}
-            <div className="space-y-2.5">
-              {/* Header */}
-              <div className="grid grid-cols-5 text-[9.5px] font-bold text-slate-400 uppercase tracking-wider pb-1 border-b border-[#16294a]">
-                <span className="col-span-1">Market</span>
-                <span className="text-center">Trades</span>
-                <span className="text-center">Win Rate</span>
-                <span className="text-right">Profit (₹)</span>
-                <span className="text-right">Profit %</span>
+          {/* Card 2: Capital At Risk */}
+          <div className="bg-[#091226] border border-[#16294a] rounded-xl p-2.5 flex flex-col justify-between">
+            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">
+              Capital At Risk (2% Rule)
+            </span>
+            <div className="my-1">
+              <div className={`text-sm font-black font-mono ${capitalAtRisk > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                ₹ {capitalAtRisk.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
+              <div className="text-[9.5px] font-mono text-slate-400 mt-0.5">
+                Hard Stop-Loss Sizing Cap
+              </div>
+            </div>
+            <div className="text-[9px] font-mono text-emerald-400">
+              {riskBudgetUtilizationPct}% Budget Utilized
+            </div>
+          </div>
 
-              {/* Rows */}
-              {marketWisePerformance.map((item) => (
-                <div key={item.market} className="grid grid-cols-5 items-center text-xs text-slate-200 font-mono py-1">
-                  <span className="col-span-1 font-sans font-bold text-slate-100 text-[11px] truncate">
-                    {item.market}
-                  </span>
-                  <span className="text-center text-slate-400">{item.trades}</span>
-                  <div className="flex flex-col items-center">
-                    <span className="text-[10.5px] font-bold">{item.winRate}%</span>
-                    <div className="w-12 h-1 bg-[#102242] rounded-full mt-0.5 overflow-hidden">
-                      <div
-                        style={{ width: `${item.winRate}%`, backgroundColor: item.color }}
-                        className="h-full rounded-full"
-                      />
+          {/* Card 3: Risk Budget Utilization */}
+          <div className="bg-[#091226] border border-[#16294a] rounded-xl p-2.5 flex flex-col justify-between">
+            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">
+              Risk Budget Utilization
+            </span>
+            <div className="my-1">
+              <div className="text-sm font-black font-mono text-cyan-300">
+                {riskBudgetUtilizationPct}%
+              </div>
+              <div className="w-full h-1.5 bg-[#102242] rounded-full mt-1 overflow-hidden">
+                <div
+                  style={{ width: `${Math.min(100, Number(riskBudgetUtilizationPct))}%` }}
+                  className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full"
+                />
+              </div>
+            </div>
+            <div className="text-[9px] font-mono text-slate-400">
+              Max ₹20,000 Portfolio Allocation
+            </div>
+          </div>
+
+          {/* Card 4: Daily Loss Limit & Allowance */}
+          <div className="bg-[#091226] border border-[#16294a] rounded-xl p-2.5 flex flex-col justify-between">
+            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">
+              Daily Loss Limit
+            </span>
+            <div className="my-1">
+              <div className="text-sm font-black font-mono text-slate-200">
+                ₹ {MAX_DAILY_LOSS_LIMIT.toLocaleString('en-IN')}
+              </div>
+              <div className="text-[9.5px] font-mono text-emerald-400 mt-0.5">
+                Remaining: ₹ {remainingLossAllowance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </div>
+            </div>
+            <div className="text-[9px] font-mono text-slate-400">
+              Auto Square-Off at Breached
+            </div>
+          </div>
+
+          {/* Card 5: Largest Risk Contributors */}
+          <div className="bg-[#091226] border border-[#16294a] rounded-xl p-2.5 flex flex-col justify-between col-span-2 sm:col-span-1">
+            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">
+              Largest Risk Contributors
+            </span>
+            <div className="my-1 overflow-hidden">
+              {largestRiskContributors.length > 0 ? (
+                <div className="space-y-0.5 text-[10px] font-mono truncate">
+                  {largestRiskContributors.map((p, idx) => (
+                    <div key={idx} className="flex items-center justify-between truncate">
+                      <span className="text-white font-bold truncate max-w-[65px]">{p.symbol}</span>
+                      <span className={Number(p.pnl) >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                        {Number(p.pnl) >= 0 ? '+' : ''}₹{Number(p.pnl || 0).toFixed(0)}
+                      </span>
                     </div>
-                  </div>
-                  <span className="text-right font-bold text-emerald-400 text-[11px]">
-                    {item.profit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </span>
-                  <span className="text-right font-bold text-emerald-400 text-[11px]">
-                    +{item.profitPercent.toFixed(2)}%
-                  </span>
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <div className="text-[10px] font-mono text-emerald-400 flex items-center gap-1 py-1">
+                  <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                  <span>100% Capital Preserved</span>
+                </div>
+              )}
+            </div>
+            <div className="text-[9px] font-mono text-slate-400">
+              {positions.length} Open Exposure Node(s)
             </div>
           </div>
         </div>
+      </div>
+
+      {/* =========================================================================
+          SECTION 3: REORGANIZED UNIFIED DASHBOARD CONTAINER
+          Integrated Tabs: Live Executions (13 cols full width) | Capital Growth | Market Wise Performance
+          Optional side-by-side split view available on wide screens
+         ========================================================================= */}
+      <div className="bg-[#080e1b]/95 border border-[#16294a] rounded-2xl p-4 sm:p-5 shadow-[0_4px_25px_rgba(0,0,0,0.6)] backdrop-blur-md space-y-4">
+        {/* Navigation & Tab Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#16294a]">
+          {/* Left: Tab Switcher */}
+          <div className="flex items-center bg-[#060c18] p-1 rounded-xl border border-[#16294a]/80">
+            <button
+              type="button"
+              onClick={() => { setBottomTab('TRADES'); setIsSplitView(false); }}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                bottomTab === 'TRADES' && !isSplitView
+                  ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Live Executions &amp; History</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono font-bold ${
+                bottomTab === 'TRADES' && !isSplitView ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
+              }`}>
+                {filteredTrades.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setBottomTab('GROWTH'); setIsSplitView(false); }}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                bottomTab === 'GROWTH' && !isSplitView
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <TrendingUp className="w-3.5 h-3.5" />
+              <span>Capital Growth &amp; Equity Curve</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setBottomTab('MARKETS'); setIsSplitView(false); }}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                bottomTab === 'MARKETS' && !isSplitView
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <BarChart2 className="w-3.5 h-3.5" />
+              <span>Market Wise Performance</span>
+            </button>
+          </div>
+
+          {/* Right: Controls & View Mode Toggle */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Split View Toggle for wide displays */}
+            <button
+              type="button"
+              onClick={() => setIsSplitView(!isSplitView)}
+              className={`hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-mono font-semibold border transition-all cursor-pointer ${
+                isSplitView
+                  ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400 shadow-[0_0_10px_rgba(0,240,255,0.25)]'
+                  : 'bg-[#091326] text-slate-400 hover:text-slate-200 border-[#16294a]'
+              }`}
+              title="Toggle Multi-Container Side-by-Side Split View"
+            >
+              <Columns className="w-3.5 h-3.5" />
+              <span>{isSplitView ? 'Split View Active' : 'Split View'}</span>
+            </button>
+
+            {(bottomTab === 'TRADES' || isSplitView) && (
+              <>
+                {/* Filter Tabs */}
+                <div className="flex items-center bg-[#091326] p-0.5 rounded-lg border border-[#16294a]">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTradeFilter('ALL')}
+                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                      selectedTradeFilter === 'ALL'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    All ({totalTradesCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTradeFilter('PROFITS')}
+                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                      selectedTradeFilter === 'PROFITS'
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-emerald-400'
+                    }`}
+                  >
+                    Profits ({winningTradesCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTradeFilter('LOSSES')}
+                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                      selectedTradeFilter === 'LOSSES'
+                        ? 'bg-rose-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-rose-400'
+                    }`}
+                  >
+                    Losses ({losingTradesCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTradeFilter('ACTIVE')}
+                    className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                      selectedTradeFilter === 'ACTIVE'
+                        ? 'bg-cyan-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-cyan-300'
+                    }`}
+                  >
+                    Active ({activeTradesCount})
+                  </button>
+                </div>
+
+                {/* Dropdowns */}
+                <select
+                  value={selectedMarketFilter}
+                  onChange={(e) => setSelectedMarketFilter(e.target.value)}
+                  className="bg-[#091326] border border-[#16294a] rounded-lg px-2 py-1 text-xs text-slate-300 font-medium cursor-pointer focus:outline-none focus:border-cyan-400"
+                >
+                  <option value="All">All Markets</option>
+                  <option value="NSE">NSE</option>
+                  <option value="BSE">BSE</option>
+                  <option value="MCX">MCX</option>
+                </select>
+
+                <select
+                  value={selectedTypeFilter}
+                  onChange={(e) => setSelectedTypeFilter(e.target.value)}
+                  className="bg-[#091326] border border-[#16294a] rounded-lg px-2 py-1 text-xs text-slate-300 font-medium cursor-pointer focus:outline-none focus:border-cyan-400"
+                >
+                  <option value="All">All Types</option>
+                  <option value="BUY">BUY</option>
+                  <option value="SELL">SELL</option>
+                </select>
+
+                <select
+                  value={selectedStrategyFilter}
+                  onChange={(e) => setSelectedStrategyFilter(e.target.value)}
+                  className="bg-[#091326] border border-[#16294a] rounded-lg px-2 py-1 text-xs text-slate-300 font-medium cursor-pointer focus:outline-none focus:border-cyan-400 max-w-[110px] truncate"
+                >
+                  <option value="All">All Strategies</option>
+                  <option value="Momentum">Momentum</option>
+                  <option value="Scalping">Scalping</option>
+                  <option value="Mean Reversion">Mean Reversion</option>
+                  <option value="News Sentiment">News Sentiment</option>
+                  <option value="Swing Trading">Swing Trading</option>
+                  <option value="Grid Trading">Grid Trading</option>
+                  <option value="AI Prediction">AI Prediction</option>
+                  <option value="Trend Following">Trend Following</option>
+                  <option value="Arbitrage">Arbitrage</option>
+                  <option value="Multi Market">Multi Market</option>
+                </select>
+
+                {/* Export Button */}
+                <button
+                  type="button"
+                  onClick={handleExportCSV}
+                  className="flex items-center gap-1.5 bg-[#091326] hover:bg-[#102242] border border-[#16294a] hover:border-cyan-500/50 rounded-lg px-2.5 py-1 text-xs text-slate-200 font-semibold transition-all cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Export</span>
+                </button>
+              </>
+            )}
+
+            {bottomTab === 'GROWTH' && !isSplitView && (
+              <div className="flex items-center gap-2">
+                <span className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold ${
+                  todayProfit > 0
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                    : todayProfit < 0
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                    : 'bg-slate-800 text-slate-300 border border-slate-700'
+                }`}>
+                  Capital: ₹ {Math.round(currentCapital).toLocaleString('en-IN')} ({capitalGrowthPct})
+                </span>
+              </div>
+            )}
+
+            {bottomTab === 'MARKETS' && !isSplitView && (
+              <div className="flex items-center gap-2 text-xs font-mono text-cyan-300 bg-[#091326] border border-[#16294a] px-2.5 py-1 rounded-lg">
+                <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Multi-Market Indian Asset Allocation</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Tab Content Display */}
+        {isSplitView ? (
+          /* Split View Container for Wide Screens */
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+            <div className="lg:col-span-8 overflow-hidden">
+              {renderTradesTable()}
+            </div>
+            <div className="lg:col-span-4 space-y-4">
+              {renderCapitalGrowthCard()}
+              {renderMarketWiseCard()}
+            </div>
+          </div>
+        ) : (
+          /* Tabbed Container (Default: 100% Width Clean View) */
+          <div>
+            {bottomTab === 'TRADES' && renderTradesTable()}
+            {bottomTab === 'GROWTH' && renderCapitalGrowthCard()}
+            {bottomTab === 'MARKETS' && renderMarketWiseCard()}
+          </div>
+        )}
       </div>
     </div>
   );

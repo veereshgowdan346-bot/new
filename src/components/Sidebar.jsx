@@ -20,7 +20,8 @@ import {
   Settings,
   LogOut,
   LogIn,
-  Flame
+  Flame,
+  Link2
 } from 'lucide-react';
 import NewsSentimentSidebarModule from './NewsSentimentSidebarModule';
 
@@ -32,6 +33,7 @@ export const navItems = [
   { id: 'bot-skills', label: 'Bot Skills Hub', icon: Zap },
   { id: 'strategy-library', label: 'Strategy Library', icon: BookOpen },
   { id: 'broker-accounts', label: 'Broker Accounts', icon: Landmark },
+  { id: 'connections', label: 'Connections & Vault', icon: Link2 },
   { id: 'decision-network', label: 'Decision Network', icon: Network },
   { id: 'live-trading', label: 'Live Trading', icon: Activity },
   { id: 'market-watch', label: 'Market Watch', icon: LineChart },
@@ -77,14 +79,27 @@ export default function Sidebar({
   onOpenProfile,
   userProfile = {}
 }) {
-  const handleItemClick = (itemId) => {
+  const handleItemClick = (e, itemId) => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     if (itemId === 'login-logout') {
       if (onOpenProfile) {
         onOpenProfile();
       }
       return;
     }
+    if (activeTab === itemId) return; // Prevent redundant re-renders and scroll jumps
     setActiveTab(itemId);
+
+    // Scroll to top of main workspace with reduced-motion respect
+    if (typeof window !== 'undefined') {
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      window.scrollTo({
+        top: 0,
+        behavior: prefersReducedMotion ? 'auto' : 'smooth'
+      });
+    }
   };
 
   return (
@@ -101,8 +116,11 @@ export default function Sidebar({
             return (
               <button
                 key={item.id}
-                onClick={() => handleItemClick(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all group cursor-pointer text-left ${
+                type="button"
+                onClick={(e) => handleItemClick(e, item.id)}
+                aria-current={isActive ? 'page' : undefined}
+                title={item.label}
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all group cursor-pointer text-left focus:outline-none focus:ring-1 focus:ring-cyan-500/50 ${
                   isActive
                     ? 'bg-[#0052cc] text-white font-bold shadow-[0_0_12px_rgba(0,82,204,0.4)]'
                     : 'text-slate-300 hover:text-white hover:bg-[#0c1833]/80'
@@ -137,8 +155,11 @@ export default function Sidebar({
           return (
             <button
               key={item.id}
-              onClick={() => handleItemClick(item.id)}
-              className={`flex flex-col items-center justify-center p-1.5 rounded-lg text-[9.5px] font-medium transition-all shrink-0 min-w-[50px] cursor-pointer ${
+              type="button"
+              onClick={(e) => handleItemClick(e, item.id)}
+              aria-current={isActive ? 'page' : undefined}
+              title={item.label}
+              className={`flex flex-col items-center justify-center p-1.5 rounded-lg text-[9.5px] font-medium transition-all shrink-0 min-w-[50px] cursor-pointer focus:outline-none ${
                 isActive
                   ? 'text-cyan-300 font-bold bg-[#0052cc]/30 border border-cyan-400/40'
                   : 'text-slate-400 hover:text-white'

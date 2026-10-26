@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bot, Bell, Settings, Search, User, ShieldCheck, Keyboard } from 'lucide-react';
+import { Bot, Bell, Settings, Search, User, ShieldCheck, Keyboard, Sun, Moon } from 'lucide-react';
 import EmergencyKillSwitch from './EmergencyKillSwitch';
 import RealtimePnlTracker from './RealtimePnlTracker';
 
@@ -13,10 +13,13 @@ export default function TopNavbar({
   unreadAlertsCount = 0,
   executionMode = 'PAPER',
   onToggleExecutionMode,
+  theme = 'dark',
+  onToggleTheme,
   isBrokerConnected = false,
   activeBrokerName = '',
   positions = [],
   bots = [],
+  recentTrades = [],
   onSquareOffAll,
   onResetEmergencyStop,
   brokerConnections = [],
@@ -35,9 +38,9 @@ export default function TopNavbar({
   };
 
   return (
-    <header className="w-full h-14 bg-[#05070b]/95 backdrop-blur-md border-b border-[#16294a]/80 px-4 flex items-center justify-between gap-3 sticky top-0 z-40 select-none">
+    <header className="w-full h-14 bg-[#05070b]/95 backdrop-blur-md border-b border-[#16294a]/80 px-2 sm:px-4 flex items-center justify-between gap-1.5 sm:gap-3 sticky top-0 z-40 select-none titlebar-drag-region">
       {/* 1. Left Brand: Logo + "Chintu AI" + "AI TRADING SYSTEM" */}
-      <div className="flex items-center gap-2.5 shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
         <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500/20 via-blue-600/30 to-purple-600/20 border border-cyan-400/60 flex items-center justify-center shadow-[0_0_12px_rgba(0,240,255,0.4)]">
           <Bot className="w-4 h-4 text-cyan-400" />
         </div>
@@ -45,14 +48,14 @@ export default function TopNavbar({
           <span className="text-sm font-black tracking-wider text-white">
             Chintu AI
           </span>
-          <span className="text-[8.5px] font-bold tracking-widest text-cyan-400 uppercase">
+          <span className="hidden sm:inline text-[8.5px] font-bold tracking-widest text-cyan-400 uppercase">
             AI TRADING SYSTEM
           </span>
         </div>
       </div>
 
       {/* 2. Search Input */}
-      <div className="hidden md:flex items-center shrink-0">
+      <div className="hidden lg:flex items-center shrink-0">
         <form onSubmit={handleSearchSubmit} className="relative">
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
@@ -60,13 +63,13 @@ export default function TopNavbar({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search market, stock, index, strategy..."
-            className="bg-[#091122]/90 border border-slate-700/60 hover:border-cyan-500/50 focus:border-cyan-400 text-xs text-slate-200 placeholder:text-slate-500 pl-8 pr-3 py-1.5 rounded-full w-56 lg:w-64 focus:outline-none transition-all shadow-inner"
+            className="bg-[#091122]/90 border border-slate-700/60 hover:border-cyan-500/50 focus:border-cyan-400 text-xs text-slate-200 placeholder:text-slate-500 pl-8 pr-3 py-1.5 rounded-full w-44 xl:w-64 focus:outline-none transition-all shadow-inner"
           />
         </form>
       </div>
 
       {/* 3. Live Multi-Asset Ticker across the top bar */}
-      <div className="flex items-center gap-2.5 overflow-x-auto py-1 no-scrollbar grow justify-center">
+      <div className="hidden xl:flex items-center gap-2.5 overflow-x-auto py-1 no-scrollbar grow justify-center min-w-0">
         {tickers.map((ticker) => {
           const isUp = ticker.isPositive !== false && ticker.changePercent >= 0;
           return (
@@ -103,19 +106,22 @@ export default function TopNavbar({
       </div>
 
       {/* 4. Right Controls: Live P&L Streamer, Mode Toggle, Emergency Kill Switch, Notifications & Profile Avatar */}
-      <div className="flex items-center gap-2.5 shrink-0">
-        {/* Real-time Streaming P&L Widget */}
-        <RealtimePnlTracker
-          positions={positions}
-          bots={bots}
-          executionMode={executionMode}
-        />
+      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0 z-50" style={{ WebkitAppRegion: 'no-drag' }}>
+        {/* Real-time Streaming P&L Widget (Responsive: hidden on narrow screens to preserve Kill Switch visibility) */}
+        <div className="hidden sm:flex shrink-0">
+          <RealtimePnlTracker
+            positions={positions}
+            bots={bots}
+            recentTrades={recentTrades}
+            executionMode={executionMode}
+          />
+        </div>
 
         {/* Engine Mode Toggle */}
         <button
           type="button"
           onClick={() => onToggleExecutionMode && onToggleExecutionMode()}
-          className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10.5px] font-mono font-bold tracking-wider transition-all cursor-pointer ${
+          className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10.5px] font-mono font-bold tracking-wider transition-all cursor-pointer ${
             executionMode === 'LIVE'
               ? 'bg-rose-500/20 text-rose-300 border border-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.3)] animate-pulse'
               : 'bg-cyan-500/15 text-cyan-300 border border-cyan-400/40 shadow-[0_0_10px_rgba(0,240,255,0.2)]'
@@ -142,11 +148,26 @@ export default function TopNavbar({
         <button
           type="button"
           onClick={onOpenShortcuts}
-          className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#091122] border border-[#16294a] hover:border-cyan-500/50 text-slate-300 hover:text-cyan-300 transition-colors text-[11px] font-mono cursor-pointer"
+          className="hidden xl:flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[#091122] border border-[#16294a] hover:border-cyan-500/50 text-slate-300 hover:text-cyan-300 transition-colors text-[11px] font-mono cursor-pointer"
           title="Global Keyboard Shortcuts Manager (Press ?)"
         >
           <Keyboard className="w-3.5 h-3.5 text-cyan-400" />
           <kbd className="text-[9px] px-1 py-0.5 rounded bg-slate-800 text-cyan-300 border border-slate-700 font-bold">?</kbd>
+        </button>
+
+        {/* Theme Toggle (Dark / Light) */}
+        <button
+          type="button"
+          onClick={onToggleTheme}
+          className="p-1.5 rounded-lg bg-[#091122] border border-[#16294a] text-slate-300 hover:text-cyan-400 hover:border-cyan-500/50 transition-all cursor-pointer shadow-sm active:scale-95"
+          title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Terminal Theme'}
+          aria-label="Toggle visual theme"
+        >
+          {theme === 'dark' ? (
+            <Sun className="w-3.5 h-3.5 text-amber-400" />
+          ) : (
+            <Moon className="w-3.5 h-3.5 text-cyan-400" />
+          )}
         </button>
 
         {/* Notifications Bell */}
@@ -166,13 +187,13 @@ export default function TopNavbar({
         {/* User Profile Button */}
         <button
           onClick={onOpenProfile}
-          className="flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-full bg-[#091122] border border-[#16294a] hover:border-cyan-500/60 transition-all cursor-pointer group shadow-sm"
+          className="flex items-center gap-1.5 p-1 sm:pl-1 sm:pr-2.5 py-1 rounded-full bg-[#091122] border border-[#16294a] hover:border-cyan-500/60 transition-all cursor-pointer group shadow-sm shrink-0"
           title={userProfile?.isAuthenticated ? `Authenticated as ${userProfile.name}` : 'Login / Manage Profile'}
         >
           <div className="w-6 h-6 rounded-full bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center text-cyan-300 font-bold text-xs">
             {userProfile?.name ? userProfile.name.charAt(0).toUpperCase() : 'C'}
           </div>
-          <span className="text-xs font-semibold text-slate-200 group-hover:text-cyan-300 transition-colors">
+          <span className="hidden lg:inline text-xs font-semibold text-slate-200 group-hover:text-cyan-300 transition-colors">
             {userProfile?.name || 'Chintu AI'}
           </span>
         </button>

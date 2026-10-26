@@ -17,7 +17,6 @@ import {
   Terminal
 } from 'lucide-react';
 import { toastEmitter } from '../../utils/toastEmitter';
-import WhatsAppTelegramRemoteModule from '../WhatsAppTelegramRemoteModule';
 
 export default function SettingsView({
   simulationEnabled = true,
@@ -35,12 +34,6 @@ export default function SettingsView({
   const [telegramChatId, setTelegramChatId] = useState('-100238491829');
   const [telegramAlertsEnabled, setTelegramAlertsEnabled] = useState(true);
   const [telegramRemoteControl, setTelegramRemoteControl] = useState(true);
-
-  // WhatsApp Conduit State
-  const [whatsappPhoneId, setWhatsappPhoneId] = useState('3891048291048');
-  const [whatsappRecipient, setWhatsappRecipient] = useState('+919876543210');
-  const [whatsappApiKey, setWhatsappApiKey] = useState('EAAG...verfied_token');
-  const [whatsappAlertsEnabled, setWhatsappAlertsEnabled] = useState(true);
 
   // Broker Credentials
   const [angelApiKey, setAngelApiKey] = useState('SMARTAPI_LIVE_PROD_01');
@@ -74,18 +67,6 @@ export default function SettingsView({
     }, 700);
   };
 
-  const handleTestWhatsApp = () => {
-    setTestStatus('Sending WhatsApp template alert...');
-    setTimeout(() => {
-      setTestStatus('');
-      toastEmitter.emitToast({
-        title: 'WhatsApp Alert Delivered',
-        message: `Template trade notification delivered to ${whatsappRecipient}.`,
-        type: 'success'
-      });
-    }, 700);
-  };
-
   return (
     <div className="space-y-4 animate-fadeIn select-none">
       {/* Header */}
@@ -96,7 +77,7 @@ export default function SettingsView({
             System Configuration & Remote Conduits
           </h2>
           <p className="text-xs text-slate-400 font-mono mt-0.5">
-            Manage broker API conduits, Telegram & WhatsApp remote command bots, and engine parameters
+            Manage broker API conduits, Telegram remote command bots, and engine parameters
           </p>
         </div>
 
@@ -133,7 +114,7 @@ export default function SettingsView({
           }`}
         >
           <Send className="w-3.5 h-3.5" />
-          <span>Telegram & WhatsApp Remote</span>
+          <span>Telegram Remote Gateway</span>
         </button>
 
         <button
@@ -161,7 +142,7 @@ export default function SettingsView({
         </button>
       </div>
 
-      {/* TAB 1: REMOTE TELEGRAM & WHATSAPP */}
+      {/* TAB 1: REMOTE TELEGRAM GATEWAY */}
       {activeTab === 'remote' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Telegram Conduit */}
@@ -232,69 +213,6 @@ export default function SettingsView({
                   <span>Send Test Ping</span>
                 </button>
                 <span className="text-[10px] text-slate-400 font-sans">Supported: MarkdownV2 formatted trades</span>
-              </div>
-            </div>
-          </div>
-
-          {/* WhatsApp Cloud API Conduit */}
-          <div className="lg:col-span-6 bg-[#0b1325]/90 border border-[#1e3a6e]/60 rounded-xl p-4 space-y-4 shadow-lg">
-            <div className="flex items-center justify-between border-b border-[#1e3a6e]/40 pb-2.5">
-              <h3 className="text-xs font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-2">
-                <Smartphone className="w-4 h-4 text-emerald-400" />
-                WhatsApp Cloud API Business Conduit
-              </h3>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono">
-                Meta Verified
-              </span>
-            </div>
-
-            <div className="space-y-3 font-mono text-xs">
-              <div>
-                <label className="text-slate-400 text-[10px] uppercase font-sans">
-                  WhatsApp Business Phone Number ID
-                </label>
-                <input
-                  type="text"
-                  value={whatsappPhoneId}
-                  onChange={(e) => setWhatsappPhoneId(e.target.value)}
-                  className="w-full mt-1 bg-[#060c1c] border border-[#1e3a6e] text-white p-2 rounded-lg focus:border-cyan-400 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-slate-400 text-[10px] uppercase font-sans">
-                  Recipient Mobile Number (with Country Code)
-                </label>
-                <input
-                  type="text"
-                  value={whatsappRecipient}
-                  onChange={(e) => setWhatsappRecipient(e.target.value)}
-                  className="w-full mt-1 bg-[#060c1c] border border-[#1e3a6e] text-white p-2 rounded-lg focus:border-cyan-400 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="text-slate-400 text-[10px] uppercase font-sans">
-                  Meta Graph API User Access Token
-                </label>
-                <input
-                  type="password"
-                  value={whatsappApiKey}
-                  onChange={(e) => setWhatsappApiKey(e.target.value)}
-                  className="w-full mt-1 bg-[#060c1c] border border-[#1e3a6e] text-white p-2 rounded-lg focus:border-cyan-400 focus:outline-none"
-                />
-              </div>
-
-              <div className="pt-2 flex justify-between items-center">
-                <button
-                  type="button"
-                  onClick={handleTestWhatsApp}
-                  className="px-3 py-1.5 rounded-lg bg-[#0e2a22] hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  <span>Send Test WhatsApp Alert</span>
-                </button>
-                <span className="text-[10px] text-slate-400 font-sans">Instant 9/14 Quorum trade summaries</span>
               </div>
             </div>
           </div>

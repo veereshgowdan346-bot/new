@@ -65,8 +65,8 @@ export default function BotDetailsModal({
   const isPositive = bot.pnlToday >= 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn select-none">
-      <div className="relative w-full max-w-2xl bg-[#091329] border border-cyan-500/40 rounded-2xl shadow-[0_0_30px_rgba(0,240,255,0.25)] overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn select-none">
+      <div className="relative w-full max-w-2xl my-auto bg-[#091329] border border-cyan-500/40 rounded-2xl shadow-[0_0_30px_rgba(0,240,255,0.25)] overflow-hidden flex flex-col max-h-[calc(100vh-2rem)]">
         {/* Toast Notification */}
         {toastMsg && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-cyan-500 text-slate-950 px-4 py-1.5 rounded-full text-xs font-bold shadow-lg animate-bounce">

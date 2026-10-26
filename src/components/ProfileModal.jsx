@@ -70,8 +70,8 @@ export default function ProfileModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn select-none">
-      <div className="relative w-full max-w-lg mx-auto my-auto bg-[#091329] border border-cyan-500/40 rounded-2xl shadow-[0_0_40px_rgba(0,240,255,0.25)] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn select-none">
+      <div className="relative w-full max-w-lg mx-auto my-auto bg-[#091329] border border-cyan-500/40 rounded-2xl shadow-[0_0_40px_rgba(0,240,255,0.25)] overflow-hidden flex flex-col max-h-[calc(100vh-2rem)]">
         {/* Modal Header Bar */}
         <div className="relative p-5 bg-gradient-to-r from-[#070e1e] via-[#0e1d3d] to-[#070e1e] border-b border-[#1e3a6e]/60 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -98,7 +98,7 @@ export default function ProfileModal({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+        <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
           {/* Master Profile Card */}
           <div className="bg-[#060c1c] border border-cyan-500/40 rounded-2xl p-5 shadow-lg relative overflow-hidden">
             {/* Background Cyan Glow Accent */}

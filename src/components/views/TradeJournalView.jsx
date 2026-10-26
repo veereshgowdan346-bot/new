@@ -237,18 +237,14 @@ export default function TradeJournalView({ recentTrades = [], positions = [] }) 
       const saved = localStorage.getItem(JOURNAL_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           return parsed;
         }
       }
     } catch (err) {
-      console.warn('[TradeJournal] Error reading localStorage, generating seeds:', err);
+      console.warn('[TradeJournal] Error reading localStorage:', err);
     }
-    const seeds = generateSeedJournal();
-    try {
-      localStorage.setItem(JOURNAL_STORAGE_KEY, JSON.stringify(seeds));
-    } catch (e) {}
-    return seeds;
+    return [];
   });
 
   // Filters & Search

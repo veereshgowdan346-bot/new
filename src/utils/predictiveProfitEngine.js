@@ -245,7 +245,7 @@ export function generatePredictiveProfitReport({
 }
 
 /**
- * Formats a scannable, executive Markdown report for Jarvis chat, WhatsApp, or Telegram.
+ * Formats a scannable, executive Markdown report for Jarvis chat or Telegram.
  */
 export function formatPredictiveReportMarkdown(report) {
   const isApproved = report.isNetProfitApproved;

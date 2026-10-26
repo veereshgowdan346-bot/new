@@ -36,20 +36,16 @@ export default function MarketSentimentWidget({
   const [source, setSource] = useState('global'); // 'global' | 'composite'
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
-  // Fallback data in case the external API is unreachable or rate-limited
+  const [isFallback, setIsFallback] = useState(false);
+
+  // Standby baseline data when external API is unreachable or market data is offline
   const fallbackData = useMemo(() => ({
-    value: '68',
-    value_classification: 'Greed',
+    value: '50',
+    value_classification: 'Neutral',
     timestamp: String(Math.floor(Date.now() / 1000)),
-    time_until_update: '14400',
+    time_until_update: '0',
     history: [
-      { value: '68', value_classification: 'Greed', date: 'Today' },
-      { value: '64', value_classification: 'Greed', date: 'Yesterday' },
-      { value: '59', value_classification: 'Greed', date: '2d ago' },
-      { value: '52', value_classification: 'Neutral', date: '3d ago' },
-      { value: '48', value_classification: 'Neutral', date: '4d ago' },
-      { value: '44', value_classification: 'Fear', date: '5d ago' },
-      { value: '38', value_classification: 'Fear', date: '6d ago' },
+      { value: '50', value_classification: 'Neutral', date: 'Standby' }
     ]
   }), []);
 
@@ -82,6 +78,7 @@ export default function MarketSentimentWidget({
         setSentimentData(current);
         setHistory(json.data);
         setLastFetched(new Date());
+        setIsFallback(false);
 
         if (onSentimentChange) {
           onSentimentChange({
@@ -99,6 +96,7 @@ export default function MarketSentimentWidget({
       setSentimentData(fallbackData);
       setHistory(fallbackData.history);
       setLastFetched(new Date());
+      setIsFallback(true);
       setError(null); // Don't show scary error banner, seamlessly operate with resilient data
     } finally {
       setLoading(false);
@@ -116,8 +114,8 @@ export default function MarketSentimentWidget({
   }, [fetchSentiment]);
 
   // Parse numerical score
-  const score = sentimentData ? parseInt(sentimentData.value, 10) : 68;
-  const classification = sentimentData ? sentimentData.value_classification : 'Greed';
+  const score = sentimentData ? parseInt(sentimentData.value, 10) : 50;
+  const classification = sentimentData ? sentimentData.value_classification : 'Neutral';
 
   // Determine sentiment color & theme
   const getSentimentTheme = (val) => {

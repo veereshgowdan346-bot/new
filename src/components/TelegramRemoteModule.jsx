@@ -1,33 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Send,
-  Smartphone,
-  QrCode,
   CheckCircle2,
   AlertTriangle,
-  RotateCcw,
-  Zap,
   Terminal,
   Activity,
-  Layers,
-  ShieldAlert,
-  Play,
   Copy,
   Check,
-  Camera,
   RefreshCw,
   ExternalLink,
   MessageSquare,
   Image,
   Mic,
-  MicOff,
   UploadCloud,
   Sparkles,
   TrendingUp,
   BarChart2,
   FileText,
   Brain,
-  ShieldCheck
+  ShieldCheck,
+  HelpCircle
 } from 'lucide-react';
 import { apiFetch } from '../utils/api';
 import { soundEngine } from '../utils/audioChime';
@@ -35,12 +27,12 @@ import { toastEmitter } from '../utils/toastEmitter';
 import { voiceAssistant } from '../utils/voiceAssistant';
 
 /**
- * WhatsAppTelegramRemoteModule
- * Production-grade remote command and digital QR scanner interface for WhatsApp Baileys & Telegram Bot API
+ * TelegramRemoteModule
+ * Production-grade remote command interface for Official Telegram Bot API
  * with bidirectional multi-modal advisory (text, voice notes, and stock chart vision).
  */
-export default function WhatsAppTelegramRemoteModule() {
-  const [activeChannel, setActiveChannel] = useState('whatsapp'); // 'whatsapp' | 'telegram' | 'multimodal'
+export default function TelegramRemoteModule() {
+  const [activeChannel, setActiveChannel] = useState('telegram'); // 'telegram' | 'multimodal'
 
   // Multi-Modal Advisory State
   const [chartImagePreview, setChartImagePreview] = useState(null);
@@ -48,44 +40,13 @@ export default function WhatsAppTelegramRemoteModule() {
   const [isAnalyzingChart, setIsAnalyzingChart] = useState(false);
   const [chartAnalysisResult, setChartAnalysisResult] = useState(null);
   const [voiceInputText, setVoiceInputText] = useState('Buy 50 shares of RELIANCE with Kelly sizing and net profit hurdle');
-  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
   const [voiceResult, setVoiceResult] = useState(null);
   const fileInputRef = useRef(null);
 
-  // WhatsApp Interactive Chat Simulator State
-  const [waChatInput, setWaChatInput] = useState('');
-  const [waChatMessages, setWaChatMessages] = useState([
-    {
-      id: 1,
-      sender: 'jarvis',
-      time: '09:15',
-      text: '🤖 *CHINTU JARVIS OMNI-CHANNEL GATEWAY*\nActive on WhatsApp (+91 98450 12345) & Telegram (@chintu_jarvis_veer_bot).\nSend me any text, voice note transcript, or chart screenshot for instant quantitative advisory and 1.5% net ROI validation.'
-    }
-  ]);
-  const [isSendingWaChat, setIsSendingWaChat] = useState(false);
-
-  // WhatsApp State
-  const [qrCodeData, setQrCodeData] = useState(null);
-  const [pairingCode, setPairingCode] = useState('CHNTU-8842');
-  const [isQrLoading, setIsQrLoading] = useState(false);
-  const [qrTimeLeft, setQrTimeLeft] = useState(45);
-  const [isWhatsAppConnected, setIsWhatsAppConnected] = useState(true);
-  const [scannerMode, setScannerMode] = useState('display_qr'); // 'display_qr' | 'camera_scanner'
-  const [copiedCode, setCopiedCode] = useState(false);
-  const [waSendingTest, setWaSendingTest] = useState(false);
-  const [waTestSuccess, setWaTestSuccess] = useState(null);
-  const [waSettings, setWaSettings] = useState({
-    phone: '+91 98450 12345',
-    alertExecutions: true,
-    alertQuorumVeto: true,
-    alertCircuitBreaker: true,
-    requireProfitHurdle: true
-  });
-
   // Telegram State
   const [telegramConfig, setTelegramConfig] = useState({
-    bot_token: '8856634279:AAEJmjMIYDTNAiR8IuFjULzprGBrHN3eebg',
+    bot_token: '885***ebg',
     chat_id: '6912523089',
     bot_username: 'chintu_jarvis_veer_bot',
     enabled: true
@@ -112,84 +73,51 @@ export default function WhatsAppTelegramRemoteModule() {
     }
   ]);
   const [isExecutingTgCmd, setIsExecutingTgCmd] = useState(false);
+  const [isTestingTelegram, setIsTestingTelegram] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
 
-  // Fetch WhatsApp QR and status on mount
-  const fetchWhatsAppQR = async () => {
+  // Telegram Test Notification
+  const handleTestTelegram = async () => {
+    setIsTestingTelegram(true);
+    setTestResult(null);
     try {
-      setIsQrLoading(true);
-      const res = await apiFetch('/api/whatsapp/qr');
-      if (res.ok) {
-        const data = await res.json();
-        setQrCodeData(data.qr_string || '2@CHINTU_BAILEYS_MULTI_DEVICE_AUTH_SECURE');
-        if (data.pairing_code) setPairingCode(data.pairing_code);
-        if (data.is_connected !== undefined) setIsWhatsAppConnected(data.is_connected);
-        setQrTimeLeft(45);
-      }
-    } catch (e) {
-      console.debug('Failed to fetch WhatsApp QR:', e);
-    } finally {
-      setIsQrLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchWhatsAppQR();
-    const interval = setInterval(() => {
-      setQrTimeLeft((prev) => {
-        if (prev <= 1) {
-          fetchWhatsAppQR();
-          return 45;
-        }
-        return prev - 1;
+      const res = await apiFetch('/api/telegram/send-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bot_token: telegramConfig.bot_token,
+          chat_id: telegramConfig.chat_id
+        })
       });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // WhatsApp Pairing simulation
-  const handleConfirmPairing = async () => {
-    try {
-      const res = await apiFetch('/api/whatsapp/pair-verify', { method: 'POST' });
-      if (res.ok) {
-        setIsWhatsAppConnected(true);
+      const data = await res.json();
+      if (res.ok && data.status === 'success') {
         soundEngine.playBuyChime();
+        setTestResult({
+          type: 'success',
+          message: data.message || `Test message delivered! (Message ID: ${data.messageId || 'OK'})`
+        });
         toastEmitter.emitToast({
-          title: 'WhatsApp Linked Successfully',
-          message: 'Baileys Multi-Device session active with +91 98450 12345.',
+          title: 'Telegram Alert Sent',
+          message: 'Real-time test message delivered to your Telegram chat.',
           type: 'success'
         });
+      } else {
+        soundEngine.playSellChime();
+        setTestResult({
+          type: 'error',
+          message: data.error || data.message || 'Failed to dispatch Telegram message.',
+          tip: data.tip || 'Ensure bot token is valid and you have pressed /start in your Telegram bot.'
+        });
       }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const handleDisconnectWhatsApp = async () => {
-    try {
-      await apiFetch('/api/whatsapp/disconnect', { method: 'POST' });
-      setIsWhatsAppConnected(false);
-      soundEngine.playSellChime();
-      fetchWhatsAppQR();
-    } catch (e) {}
-  };
-
-  const handleSendTestWhatsAppAlert = async () => {
-    setWaSendingTest(true);
-    setWaTestSuccess(null);
-    try {
-      const res = await apiFetch('/api/whatsapp/test-ping', { method: 'POST' });
-      const data = await res.json();
-      soundEngine.playBuyChime();
-      setWaTestSuccess(data.message || 'Template trade notification sent to linked WhatsApp device.');
-      toastEmitter.emitToast({
-        title: 'WhatsApp Alert Dispatched',
-        message: '9/14 Quorum Buy Order alert with statutory net profit sent.',
-        type: 'success'
+    } catch (err) {
+      setTestResult({
+        type: 'error',
+        message: err.message,
+        tip: 'Check server connection and api.telegram.org connectivity.'
       });
-    } catch (e) {
-      setWaTestSuccess('Error dispatching test alert.');
     } finally {
-      setWaSendingTest(false);
+      setIsTestingTelegram(false);
     }
   };
 
@@ -201,7 +129,6 @@ export default function WhatsAppTelegramRemoteModule() {
     setIsExecutingTgCmd(true);
     const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-    // Append user command to log
     setTgTerminalLogs((prev) => [
       ...prev,
       { id: Date.now(), type: 'user', time: timeNow, text: rawCmd }
@@ -263,7 +190,7 @@ export default function WhatsAppTelegramRemoteModule() {
         body: JSON.stringify({
           imageData: imgData,
           caption: chartCaption,
-          sender: 'WhatsApp Commander'
+          sender: 'Telegram Commander'
         })
       });
       if (res.ok) {
@@ -348,24 +275,17 @@ export default function WhatsAppTelegramRemoteModule() {
     if (!textToRun) return;
     setIsProcessingVoice(true);
     setVoiceResult(null);
+
     try {
       const res = await apiFetch('/api/ai/voice-command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transcript: textToRun,
-          sender: 'Voice Assistant User'
-        })
+        body: JSON.stringify({ transcript: textToRun })
       });
       if (res.ok) {
         const data = await res.json();
         soundEngine.playBuyChime();
         setVoiceResult(data);
-        toastEmitter.emitToast({
-          title: 'Voice Command Executed',
-          message: data.spokenReply || data.message,
-          type: 'success'
-        });
         if (data.spokenReply) {
           voiceAssistant.speak(data.spokenReply, { lang: 'en-US' });
         }
@@ -377,73 +297,11 @@ export default function WhatsAppTelegramRemoteModule() {
     }
   };
 
-  // Interactive WhatsApp Message Simulator
-  const handleSendInteractiveWaMessage = async () => {
-    if (!waChatInput.trim()) return;
-    const userMsg = waChatInput.trim();
-    setWaChatInput('');
-    setIsSendingWaChat(true);
-
-    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setWaChatMessages((prev) => [
-      ...prev,
-      { id: Date.now(), sender: 'user', time: now, text: userMsg }
-    ]);
-
-    try {
-      const res = await apiFetch('/api/whatsapp/message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: userMsg,
-          from: waSettings.phone
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        soundEngine.playBuyChime();
-        setWaChatMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now() + 1,
-            sender: 'jarvis',
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            text: data.reply || 'Message received by Jarvis.',
-            report: data.report
-          }
-        ]);
-      }
-    } catch (err) {
-      setWaChatMessages((prev) => [
-        ...prev,
-        { id: Date.now() + 1, sender: 'error', time: now, text: `Error: ${err.message}` }
-      ]);
-    } finally {
-      setIsSendingWaChat(false);
-    }
-  };
-
   return (
     <div className="space-y-4 font-sans">
       {/* Top Channel Selector Tabs */}
       <div className="flex items-center justify-between flex-wrap gap-3 pb-2 border-b border-[#16274a]">
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setActiveChannel('whatsapp')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-2 ${
-              activeChannel === 'whatsapp'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
-                : 'bg-[#081022] text-slate-400 hover:text-white border border-[#16274a]'
-            }`}
-          >
-            <Smartphone className="w-4 h-4 text-emerald-400" />
-            <span>WhatsApp Baileys Web API</span>
-            {isWhatsAppConnected && (
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            )}
-          </button>
-
           <button
             type="button"
             onClick={() => setActiveChannel('telegram')}
@@ -480,380 +338,7 @@ export default function WhatsAppTelegramRemoteModule() {
         </div>
       </div>
 
-      {/* CHANNEL 1: WHATSAPP BAILEYS QR SCANNER & API */}
-      {activeChannel === 'whatsapp' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 animate-in fade-in duration-200">
-          {/* Left Column: Digital QR Scanner & Pairing Canvas */}
-          <div className="lg:col-span-5 bg-[#070e1c] border border-[#16294d] rounded-2xl p-4 space-y-3.5 shadow-xl">
-            <div className="flex items-center justify-between pb-2 border-b border-[#142340]">
-              <div className="flex items-center gap-2">
-                <QrCode className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-xs font-mono font-bold text-white uppercase tracking-wider">
-                  Baileys Digital QR Pair
-                </h3>
-              </div>
-
-              <div className="flex items-center gap-1.5 text-[10px] font-mono">
-                {isWhatsAppConnected ? (
-                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                    LINKED
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
-                    PAIRING ({qrTimeLeft}s)
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Toggle: Display QR vs Scanner Viewfinder */}
-            <div className="flex rounded-lg bg-[#050a14] p-1 border border-[#121f3a] text-[10px] font-mono">
-              <button
-                type="button"
-                onClick={() => setScannerMode('display_qr')}
-                className={`flex-1 py-1 rounded transition-all cursor-pointer ${
-                  scannerMode === 'display_qr'
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                Display Pairing QR Code
-              </button>
-              <button
-                type="button"
-                onClick={() => setScannerMode('camera_scanner')}
-                className={`flex-1 py-1 rounded transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                  scannerMode === 'camera_scanner'
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                <Camera className="w-3 h-3" />
-                <span>Camera Scanner Viewfinder</span>
-              </button>
-            </div>
-
-            {/* QR Visual Display Canvas */}
-            <div className="relative flex flex-col items-center justify-center p-5 rounded-2xl bg-[#040812] border border-[#122244] overflow-hidden min-h-[260px]">
-              {/* Futuristic Matrix background pattern */}
-              <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:16px_16px]" />
-
-              {scannerMode === 'display_qr' ? (
-                <div className="relative flex flex-col items-center space-y-3 z-10">
-                  {/* Holographic Glowing QR Code Box */}
-                  <div className="relative p-3 rounded-2xl bg-[#09152b] border-2 border-emerald-500/60 shadow-[0_0_35px_rgba(16,185,129,0.35)]">
-                    {/* Corner Reticles */}
-                    <div className="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-emerald-400" />
-                    <div className="absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 border-emerald-400" />
-                    <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-2 border-l-2 border-emerald-400" />
-                    <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 border-emerald-400" />
-
-                    {/* Animated Neon Cyan/Emerald Scanline */}
-                    <div className="absolute inset-x-2 top-0 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-[bounce_3s_infinite] opacity-75 pointer-events-none" />
-
-                    {/* High-Contrast SVG QR Pattern */}
-                    <svg
-                      viewBox="0 0 160 160"
-                      className="w-40 h-40 fill-current text-white bg-white/5 rounded-lg p-1.5"
-                    >
-                      {/* Top-left Finder Pattern */}
-                      <rect x="10" y="10" width="40" height="40" fill="#10b981" rx="4" />
-                      <rect x="18" y="18" width="24" height="24" fill="#09152b" rx="2" />
-                      <rect x="24" y="24" width="12" height="12" fill="#10b981" rx="1" />
-
-                      {/* Top-right Finder Pattern */}
-                      <rect x="110" y="10" width="40" height="40" fill="#10b981" rx="4" />
-                      <rect x="118" y="18" width="24" height="24" fill="#09152b" rx="2" />
-                      <rect x="124" y="24" width="12" height="12" fill="#10b981" rx="1" />
-
-                      {/* Bottom-left Finder Pattern */}
-                      <rect x="10" y="110" width="40" height="40" fill="#10b981" rx="4" />
-                      <rect x="18" y="118" width="24" height="24" fill="#09152b" rx="2" />
-                      <rect x="24" y="124" width="12" height="12" fill="#10b981" rx="1" />
-
-                      {/* Data Dots */}
-                      <rect x="60" y="15" width="8" height="8" fill="#38bdf8" />
-                      <rect x="75" y="15" width="8" height="8" fill="#e2e8f0" />
-                      <rect x="90" y="15" width="8" height="8" fill="#38bdf8" />
-
-                      <rect x="60" y="30" width="8" height="8" fill="#e2e8f0" />
-                      <rect x="75" y="30" width="8" height="8" fill="#10b981" />
-                      <rect x="90" y="30" width="8" height="8" fill="#e2e8f0" />
-
-                      <rect x="60" y="45" width="8" height="8" fill="#10b981" />
-                      <rect x="75" y="45" width="8" height="8" fill="#38bdf8" />
-                      <rect x="90" y="45" width="8" height="8" fill="#10b981" />
-
-                      <rect x="15" y="60" width="8" height="8" fill="#e2e8f0" />
-                      <rect x="30" y="60" width="8" height="8" fill="#10b981" />
-                      <rect x="45" y="60" width="8" height="8" fill="#38bdf8" />
-                      <rect x="60" y="60" width="8" height="8" fill="#e2e8f0" />
-                      <rect x="75" y="60" width="8" height="8" fill="#10b981" />
-                      <rect x="90" y="60" width="8" height="8" fill="#e2e8f0" />
-                      <rect x="105" y="60" width="8" height="8" fill="#38bdf8" />
-                      <rect x="120" y="60" width="8" height="8" fill="#10b981" />
-                      <rect x="135" y="60" width="8" height="8" fill="#e2e8f0" />
-
-                      <rect x="15" y="75" width="8" height="8" fill="#10b981" />
-                      <rect x="30" y="75" width="8" height="8" fill="#38bdf8" />
-                      <rect x="45" y="75" width="8" height="8" fill="#e2e8f0" />
-                      <rect x="60" y="75" width="8" height="8" fill="#10b981" />
-                      <rect x="75" y="75" width="8" height="8" fill="#38bdf8" />
-                      <rect x="90" y="75" width="8" height="8" fill="#10b981" />
-                      <rect x="105" y="75" width="8" height="8" fill="#e2e8f0" />
-                      <rect x="120" y="75" width="8" height="8" fill="#38bdf8" />
-                      <rect x="135" y="75" width="8" height="8" fill="#10b981" />
-
-                      <rect x="15" y="90" width="8" height="8" fill="#38bdf8" />
-                      <rect x="30" y="90" width="8" height="8" fill="#10b981" />
-                      <rect x="45" y="90" width="8" height="8" fill="#e2e8f0" />
-                      <rect x="60" y="90" width="8" height="8" fill="#38bdf8" />
-                      <rect x="75" y="90" width="8" height="8" fill="#10b981" />
-                      <rect x="90" y="90" width="8" height="8" fill="#e2e8f0" />
-                      <rect x="105" y="90" width="8" height="8" fill="#10b981" />
-                      <rect x="120" y="90" width="8" height="8" fill="#e2e8f0" />
-                      <rect x="135" y="90" width="8" height="8" fill="#38bdf8" />
-
-                      <rect x="60" y="105" width="8" height="8" fill="#e2e8f0" />
-                      <rect x="75" y="105" width="8" height="8" fill="#10b981" />
-                      <rect x="90" y="105" width="8" height="8" fill="#38bdf8" />
-                      <rect x="105" y="105" width="8" height="8" fill="#10b981" />
-                      <rect x="120" y="105" width="8" height="8" fill="#e2e8f0" />
-                      <rect x="135" y="105" width="8" height="8" fill="#10b981" />
-
-                      <rect x="60" y="120" width="8" height="8" fill="#38bdf8" />
-                      <rect x="75" y="120" width="8" height="8" fill="#e2e8f0" />
-                      <rect x="90" y="120" width="8" height="8" fill="#10b981" />
-                      <rect x="105" y="120" width="8" height="8" fill="#38bdf8" />
-                      <rect x="120" y="120" width="8" height="8" fill="#10b981" />
-                      <rect x="135" y="120" width="8" height="8" fill="#e2e8f0" />
-
-                      <rect x="60" y="135" width="8" height="8" fill="#10b981" />
-                      <rect x="75" y="135" width="8" height="8" fill="#38bdf8" />
-                      <rect x="90" y="135" width="8" height="8" fill="#e2e8f0" />
-                      <rect x="105" y="135" width="8" height="8" fill="#10b981" />
-                      <rect x="120" y="135" width="8" height="8" fill="#e2e8f0" />
-                      <rect x="135" y="135" width="8" height="8" fill="#38bdf8" />
-                    </svg>
-                  </div>
-
-                  <p className="text-[10px] font-mono text-slate-400 text-center max-w-xs">
-                    Scan with WhatsApp &gt; Linked Devices &gt; Link a Device to connect Baileys Multi-Device Core.
-                  </p>
-                </div>
-              ) : (
-                /* Camera Scanner Viewfinder Mode */
-                <div className="relative flex flex-col items-center justify-center p-6 space-y-3 z-10 w-full">
-                  <div className="relative w-44 h-44 rounded-2xl border-2 border-dashed border-emerald-400/80 flex flex-col items-center justify-center bg-black/40 overflow-hidden">
-                    <div className="absolute inset-0 bg-emerald-500/5 animate-pulse" />
-                    <Camera className="w-8 h-8 text-emerald-400 animate-bounce" />
-                    <span className="text-[10px] font-mono text-emerald-300 font-bold mt-2">
-                      VIEWFINDER ACTIVE
-                    </span>
-                    <span className="text-[9px] font-mono text-slate-400 text-center px-2">
-                      Align QR Code within boundaries
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleConfirmPairing}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono font-bold hover:bg-emerald-500/30 cursor-pointer transition-all"
-                  >
-                    Simulate Camera QR Detection
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Pairing Code Alternative */}
-            <div className="p-2.5 rounded-xl bg-[#09152b] border border-[#16274a] flex items-center justify-between">
-              <div>
-                <span className="text-[9px] font-mono text-slate-400 uppercase">
-                  Pair with 8-Digit Code
-                </span>
-                <div className="text-sm font-mono font-black text-emerald-300 tracking-wider">
-                  {pairingCode}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(pairingCode);
-                  setCopiedCode(true);
-                  setTimeout(() => setCopiedCode(false), 2000);
-                }}
-                className="p-2 rounded-lg bg-[#0e1d38] hover:bg-[#152a52] text-slate-300 hover:text-white transition-colors cursor-pointer"
-                title="Copy Pairing Code"
-              >
-                {copiedCode ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-              </button>
-            </div>
-
-            {/* Session Action Buttons */}
-            <div className="flex gap-2 pt-1">
-              {isWhatsAppConnected ? (
-                <button
-                  type="button"
-                  onClick={handleDisconnectWhatsApp}
-                  className="flex-1 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/40 text-xs font-mono font-bold cursor-pointer transition-all"
-                >
-                  Unlink WhatsApp Session
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleConfirmPairing}
-                  className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-mono font-bold cursor-pointer transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)]"
-                >
-                  Confirm Linked Device
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={fetchWhatsAppQR}
-                disabled={isQrLoading}
-                className="p-2 rounded-xl bg-[#0e1e3b] hover:bg-[#162d57] text-slate-300 hover:text-white border border-[#1b3463] cursor-pointer transition-all"
-                title="Refresh QR Code"
-              >
-                <RefreshCw className={`w-4 h-4 ${isQrLoading ? 'animate-spin' : ''}`} />
-              </button>
-            </div>
-          </div>
-
-          {/* Right Column: WhatsApp Alert Dispatcher & Configuration */}
-          <div className="lg:col-span-7 bg-[#070e1c] border border-[#16294d] rounded-2xl p-4 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between pb-2 border-b border-[#142340]">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-emerald-400" />
-                <h3 className="text-xs font-mono font-bold text-white uppercase tracking-wider">
-                  Live Trade Broadcasts &amp; Bot Chat
-                </h3>
-              </div>
-              <span className="text-[10px] font-mono text-slate-400">
-                Baileys v5.0.0
-              </span>
-            </div>
-
-            {/* Recipient Phone Settings */}
-            <div className="p-3 rounded-xl bg-[#09152b] border border-[#16274a] space-y-2">
-              <label className="text-[10px] font-mono text-slate-400 uppercase">
-                Active Recipient Phone Number
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={waSettings.phone}
-                  onChange={(e) => setWaSettings({ ...waSettings, phone: e.target.value })}
-                  className="flex-1 bg-[#040812] border border-[#16274a] rounded-lg px-3 py-1.5 text-xs font-mono text-emerald-300 focus:outline-none focus:border-emerald-400"
-                  placeholder="+91 98450 12345"
-                />
-                <button
-                  type="button"
-                  onClick={handleSendTestWhatsAppAlert}
-                  disabled={waSendingTest}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-mono font-bold cursor-pointer transition-all flex items-center gap-1.5"
-                >
-                  {waSendingTest ? (
-                    <Activity className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Send className="w-3.5 h-3.5" />
-                  )}
-                  <span>Send Test Alert</span>
-                </button>
-              </div>
-
-              {waTestSuccess && (
-                <div className="p-2 rounded-lg bg-emerald-950/60 border border-emerald-800/80 text-[10px] font-mono text-emerald-300 flex items-center gap-1.5 animate-in fade-in">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span>{waTestSuccess}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Live Automated Notification Channels */}
-            <div className="space-y-2">
-              <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider">
-                Automated Push Channels
-              </span>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
-                <label className="p-2.5 rounded-xl bg-[#09152b] border border-[#16274a] flex items-center justify-between cursor-pointer hover:border-emerald-500/40 transition-colors">
-                  <div className="space-y-0.5">
-                    <div className="text-white font-bold text-[11px]">Trade Execution Broadcasts</div>
-                    <div className="text-[9px] text-slate-400">Includes STT, GST &amp; Net Profit</div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={waSettings.alertExecutions}
-                    onChange={(e) => setWaSettings({ ...waSettings, alertExecutions: e.target.checked })}
-                    className="accent-emerald-500 w-4 h-4 cursor-pointer"
-                  />
-                </label>
-
-                <label className="p-2.5 rounded-xl bg-[#09152b] border border-[#16274a] flex items-center justify-between cursor-pointer hover:border-emerald-500/40 transition-colors">
-                  <div className="space-y-0.5">
-                    <div className="text-white font-bold text-[11px]">9/14 Quorum Veto Warnings</div>
-                    <div className="text-[9px] text-slate-400">Alerts on 7-8 bot consensus rejects</div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={waSettings.alertQuorumVeto}
-                    onChange={(e) => setWaSettings({ ...waSettings, alertQuorumVeto: e.target.checked })}
-                    className="accent-emerald-500 w-4 h-4 cursor-pointer"
-                  />
-                </label>
-
-                <label className="p-2.5 rounded-xl bg-[#09152b] border border-[#16274a] flex items-center justify-between cursor-pointer hover:border-emerald-500/40 transition-colors">
-                  <div className="space-y-0.5">
-                    <div className="text-white font-bold text-[11px]">RMS Circuit Breaker Alerts</div>
-                    <div className="text-[9px] text-slate-400">Emergency Stop &amp; Kill switch trips</div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={waSettings.alertCircuitBreaker}
-                    onChange={(e) => setWaSettings({ ...waSettings, alertCircuitBreaker: e.target.checked })}
-                    className="accent-emerald-500 w-4 h-4 cursor-pointer"
-                  />
-                </label>
-
-                <label className="p-2.5 rounded-xl bg-[#09152b] border border-[#16274a] flex items-center justify-between cursor-pointer hover:border-emerald-500/40 transition-colors">
-                  <div className="space-y-0.5">
-                    <div className="text-white font-bold text-[11px]">1.5% Net ROI Filter Aborts</div>
-                    <div className="text-[9px] text-slate-400">Rejections below institutional hurdle</div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={waSettings.requireProfitHurdle}
-                    onChange={(e) => setWaSettings({ ...waSettings, requireProfitHurdle: e.target.checked })}
-                    className="accent-emerald-500 w-4 h-4 cursor-pointer"
-                  />
-                </label>
-              </div>
-            </div>
-
-            {/* Template Preview Card */}
-            <div className="p-3 rounded-xl bg-[#040812] border border-[#142340] space-y-1.5 font-mono">
-              <div className="flex items-center justify-between text-[10px] text-slate-400">
-                <span className="text-emerald-400 font-bold uppercase">Sample WhatsApp Trade Message</span>
-                <span>Delivered via Baileys</span>
-              </div>
-              <div className="p-2.5 rounded-lg bg-[#071328] border border-[#122344] text-[11px] text-slate-200 leading-relaxed space-y-1">
-                <div className="font-bold text-emerald-300">🟢 CHINTU AI: BUY ORDER EXECUTED</div>
-                <div>• Asset: NIFTY 50 (F&amp;O) x50 @ ₹25,146.30</div>
-                <div>• Quorum: 12/14 Approved (85.7% Consensus)</div>
-                <div>• Net Profit Hurdle: +1.84% &gt; 1.5% Minimum Passed</div>
-                <div>• Statutory Taxes (STT/GST): ₹42.80 Deducted</div>
-                <div className="text-[10px] text-cyan-400 font-bold">✓ Net Profit Mathematically Guaranteed</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CHANNEL 2: TELEGRAM BOT TOKEN & REMOTE COMMAND CONSOLE */}
+      {/* CHANNEL 1: TELEGRAM BOT TOKEN & REMOTE COMMAND CONSOLE */}
       {activeChannel === 'telegram' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 animate-in fade-in duration-200">
           {/* Left Column: Official Bot Token & Webhook Setup */}
@@ -908,6 +393,72 @@ export default function WhatsAppTelegramRemoteModule() {
                 </div>
               </div>
 
+              {/* Action Buttons: Test Connection & Guide Toggle */}
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleTestTelegram}
+                  disabled={isTestingTelegram}
+                  className="flex-1 py-2 px-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 shadow-[0_0_15px_rgba(0,240,255,0.25)]"
+                >
+                  {isTestingTelegram ? (
+                    <Activity className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Send className="w-3.5 h-3.5" />
+                  )}
+                  <span>Test Connection</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowSetupGuide(!showSetupGuide)}
+                  className="px-3 py-2 rounded-xl bg-[#09152b] hover:bg-[#122344] text-slate-300 border border-[#16274a] text-xs flex items-center gap-1 transition-all cursor-pointer"
+                >
+                  <HelpCircle className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Guide</span>
+                </button>
+              </div>
+
+              {/* Test Notification Feedback */}
+              {testResult && (
+                <div
+                  className={`p-3 rounded-xl text-xs space-y-1 font-mono animate-in fade-in ${
+                    testResult.type === 'success'
+                      ? 'bg-emerald-950/40 border border-emerald-500/40 text-emerald-300'
+                      : 'bg-rose-950/40 border border-rose-500/40 text-rose-300'
+                  }`}
+                >
+                  <div className="font-bold flex items-center gap-1.5">
+                    {testResult.type === 'success' ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-rose-400" />
+                    )}
+                    <span>{testResult.message}</span>
+                  </div>
+                  {testResult.tip && (
+                    <div className="text-[11px] text-slate-400">{testResult.tip}</div>
+                  )}
+                </div>
+              )}
+
+              {/* BotFather Setup Guide */}
+              {showSetupGuide && (
+                <div className="p-3 rounded-xl bg-[#050b18] border border-cyan-500/40 space-y-2 text-[11px] font-mono text-slate-300 animate-in fade-in">
+                  <div className="font-bold text-cyan-300 uppercase tracking-wide">
+                    How to Setup Your Telegram Bot:
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1 text-slate-400">
+                    <li>Open Telegram and search for <strong className="text-white">@BotFather</strong></li>
+                    <li>Send <code className="text-cyan-300 font-bold">/newbot</code> and choose a name & username</li>
+                    <li>Copy the HTTP API Token provided into the <strong className="text-white">Bot Token</strong> field above</li>
+                    <li>Open your new bot in Telegram and click <strong className="text-white">Start</strong></li>
+                    <li>Find your Chat ID via <strong className="text-white">@userinfobot</strong> and paste above</li>
+                    <li>Click <strong className="text-white">Test Connection</strong> to verify real-time dispatch</li>
+                  </ol>
+                </div>
+              )}
+
               {/* Supported Remote Commands Cheatsheet */}
               <div className="p-3 rounded-xl bg-[#09152b] border border-[#16274a] space-y-1.5">
                 <span className="text-[10px] text-slate-400 uppercase font-bold">
@@ -919,6 +470,10 @@ export default function WhatsAppTelegramRemoteModule() {
                     <span className="text-slate-400">14-bot health &amp; positions</span>
                   </div>
                   <div className="flex justify-between">
+                    <code className="text-cyan-300 font-bold">/positions</code>
+                    <span className="text-slate-400">Active positions with LTP</span>
+                  </div>
+                  <div className="flex justify-between">
                     <code className="text-cyan-300 font-bold">/buy [symbol] [qty]</code>
                     <span className="text-slate-400">9/14 quorum + 1.5% net ROI</span>
                   </div>
@@ -927,8 +482,12 @@ export default function WhatsAppTelegramRemoteModule() {
                     <span className="text-slate-400">All positions square-off</span>
                   </div>
                   <div className="flex justify-between">
-                    <code className="text-cyan-300 font-bold">/stop</code>
+                    <code className="text-rose-400 font-bold">/stop</code>
                     <span className="text-rose-400 font-bold">RMS Emergency Kill Switch</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <code className="text-emerald-400 font-bold">/resume</code>
+                    <span className="text-emerald-400">Re-arm bots &amp; continue</span>
                   </div>
                   <div className="flex justify-between">
                     <code className="text-cyan-300 font-bold">/pnl</code>
@@ -966,6 +525,13 @@ export default function WhatsAppTelegramRemoteModule() {
                   className="px-2.5 py-1 rounded-lg bg-[#09152b] hover:bg-cyan-500/20 text-cyan-300 border border-[#16274a] text-[10px] font-mono font-bold cursor-pointer transition-all"
                 >
                   /status
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExecuteTelegramCommand('/positions')}
+                  className="px-2.5 py-1 rounded-lg bg-[#09152b] hover:bg-cyan-500/20 text-cyan-300 border border-[#16274a] text-[10px] font-mono font-bold cursor-pointer transition-all"
+                >
+                  /positions
                 </button>
                 <button
                   type="button"
@@ -1008,6 +574,13 @@ export default function WhatsAppTelegramRemoteModule() {
                   className="px-2.5 py-1 rounded-lg bg-[#09152b] hover:bg-emerald-500/20 text-emerald-300 border border-[#16274a] text-[10px] font-mono font-bold cursor-pointer transition-all"
                 >
                   /heal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExecuteTelegramCommand('/resume')}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/80 text-[10px] font-mono font-bold cursor-pointer transition-all"
+                >
+                  /resume
                 </button>
                 <button
                   type="button"
@@ -1057,7 +630,7 @@ export default function WhatsAppTelegramRemoteModule() {
                 type="text"
                 value={tgCommandInput}
                 onChange={(e) => setTgCommandInput(e.target.value)}
-                placeholder="Type Telegram command (e.g. /status, /predict RELIANCE, /heal)..."
+                placeholder="Type Telegram command (e.g. /status, /positions, /predict RELIANCE, /heal)..."
                 className="flex-1 bg-[#040812] border border-[#16274a] rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-cyan-400"
               />
               <button
@@ -1077,7 +650,7 @@ export default function WhatsAppTelegramRemoteModule() {
         </div>
       )}
 
-      {/* CHANNEL 3: MULTI-MODAL JARVIS HUB (VOICE & STOCK CHART VISION) */}
+      {/* CHANNEL 2: MULTI-MODAL JARVIS HUB (VOICE & STOCK CHART VISION) */}
       {activeChannel === 'multimodal' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 animate-in fade-in duration-200">
           {/* Left Column: Stock Chart Screenshot Vision Scanner */}
@@ -1267,9 +840,8 @@ export default function WhatsAppTelegramRemoteModule() {
             </div>
           </div>
 
-          {/* Right Column: Voice Note & WhatsApp Interactive Channel */}
+          {/* Right Column: Voice Note Multimodal Parsing */}
           <div className="lg:col-span-6 space-y-4">
-            {/* Top Card: Voice Note Multi-Modal Parsing */}
             <div className="bg-[#070e1c] border border-cyan-500/30 rounded-2xl p-4 space-y-3.5 shadow-xl">
               <div className="flex items-center justify-between pb-2 border-b border-[#142340]">
                 <div className="flex items-center gap-2">
@@ -1360,75 +932,31 @@ export default function WhatsAppTelegramRemoteModule() {
               )}
             </div>
 
-            {/* Bottom Card: WhatsApp Interactive Live Chat Simulator */}
-            <div className="bg-[#070e1c] border border-emerald-500/30 rounded-2xl p-4 space-y-3 shadow-xl flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between pb-2 border-b border-[#142340]">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-emerald-400" />
-                    <h3 className="text-xs font-mono font-bold text-white uppercase tracking-wider">
-                      Interactive WhatsApp Live Chat
-                    </h3>
-                  </div>
-                  <span className="text-[10px] font-mono text-emerald-400">
-                    +91 98450 12345
-                  </span>
+            {/* Bottom Card: Live Telegram Remote Simulator */}
+            <div className="bg-[#070e1c] border border-cyan-500/30 rounded-2xl p-4 space-y-3 shadow-xl">
+              <div className="flex items-center justify-between pb-2 border-b border-[#142340]">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-cyan-400" />
+                  <h3 className="text-xs font-mono font-bold text-white uppercase tracking-wider">
+                    Telegram Quick Command Relay
+                  </h3>
                 </div>
-
-                {/* WhatsApp Messages View */}
-                <div className="p-3 rounded-xl bg-[#040812] border border-[#122244] font-mono text-xs h-[180px] overflow-y-auto space-y-2 select-text mt-2">
-                  {waChatMessages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex flex-col ${
-                        msg.sender === 'user' ? 'items-end' : 'items-start'
-                      }`}
-                    >
-                      <span className="text-[9px] text-slate-500 mb-0.5">
-                        {msg.sender === 'user' ? 'You' : 'Jarvis'} • {msg.time}
-                      </span>
-                      <div
-                        className={`p-2.5 rounded-xl max-w-[85%] text-[11px] leading-relaxed whitespace-pre-wrap ${
-                          msg.sender === 'user'
-                            ? 'bg-emerald-600/30 text-emerald-100 border border-emerald-500/40 rounded-tr-none'
-                            : 'bg-[#0a162d] text-slate-200 border border-[#172c57] rounded-tl-none'
-                        }`}
-                      >
-                        {msg.text}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <span className="text-[10px] font-mono text-cyan-400">
+                  @{telegramConfig.bot_username}
+                </span>
               </div>
-
-              {/* Chat Input */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSendInteractiveWaMessage();
-                }}
-                className="flex gap-2 pt-1"
-              >
-                <input
-                  type="text"
-                  value={waChatInput}
-                  onChange={(e) => setWaChatInput(e.target.value)}
-                  placeholder="Ask Jarvis on WhatsApp (e.g. What is today's PnL?)..."
-                  className="flex-1 bg-[#040812] border border-[#16274a] rounded-xl px-3 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-emerald-400"
-                />
+              <p className="text-xs text-slate-300 leading-relaxed font-mono">
+                Send any command to your linked Telegram bot (e.g. <code className="text-cyan-300">/status</code>, <code className="text-cyan-300">/pnl</code>, <code className="text-cyan-300">/positions</code>, <code className="text-rose-400">/stop</code>). Responses are verified by the Master Brain with 9/14 Quorum consensus.
+              </p>
+              <div className="flex justify-end">
                 <button
-                  type="submit"
-                  disabled={isSendingWaChat || !waChatInput.trim()}
-                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-mono font-bold cursor-pointer transition-all flex items-center gap-1.5 disabled:opacity-50"
+                  type="button"
+                  onClick={() => setActiveChannel('telegram')}
+                  className="px-3 py-1.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-200 border border-cyan-500/50 text-xs font-mono font-bold cursor-pointer transition-all"
                 >
-                  {isSendingWaChat ? (
-                    <Activity className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Send className="w-3.5 h-3.5" />
-                  )}
-                  <span>Send</span>
+                  Open Full Telegram Terminal →
                 </button>
-              </form>
+              </div>
             </div>
           </div>
         </div>
@@ -1436,3 +964,4 @@ export default function WhatsAppTelegramRemoteModule() {
     </div>
   );
 }
+

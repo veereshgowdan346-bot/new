@@ -5,8 +5,8 @@ export default function NotificationsModal({ isOpen, onClose, notifications = []
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn select-none">
-      <div className="relative w-full max-w-md bg-[#091329] border border-cyan-500/40 rounded-2xl shadow-[0_0_35px_rgba(0,240,255,0.25)] overflow-hidden flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn select-none">
+      <div className="relative w-full max-w-md my-auto bg-[#091329] border border-cyan-500/40 rounded-2xl shadow-[0_0_35px_rgba(0,240,255,0.25)] overflow-hidden flex flex-col max-h-[calc(100vh-2rem)]">
         {/* Header */}
         <div className="p-4 bg-gradient-to-r from-[#070e1e] via-[#0e1d3d] to-[#070e1e] border-b border-[#1e3a6e]/50 flex items-center justify-between">
           <div className="flex items-center gap-2.5">

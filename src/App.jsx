@@ -12,6 +12,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 
 // Dedicated views (Statically imported for 0ms instantaneous tab switching and zero chunk loading glitches)
 import BrokerAccountsView from './components/views/BrokerAccountsView';
+import ConnectionsView from './components/views/ConnectionsView';
 import BotsMonitorView from './components/views/BotsMonitorView';
 import DecisionNetworkView from './components/views/DecisionNetworkView';
 import LiveTradingView from './components/views/LiveTradingView';
@@ -39,7 +40,6 @@ import { toastEmitter } from './utils/toastEmitter';
 import { calculateTradeCharges, validateNetProfitGuardrail } from './utils/taxCalculator';
 import ToastNotificationSystem from './components/ToastNotificationSystem';
 import KeyboardShortcutManager from './components/KeyboardShortcutManager';
-import EmergencyStopFAB from './components/EmergencyStopFAB';
 
 import {
   initialTickers,
@@ -128,7 +128,13 @@ class ViewErrorBoundary extends React.Component {
 
 export default function App() {
   // Navigation State
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const searchTab = new URLSearchParams(window.location.search).get('tab');
+      if (searchTab) return searchTab;
+    } catch {}
+    return 'dashboard';
+  });
 
   // User Profile State (Veeresh permanently authenticated by default)
   const [userProfile, setUserProfile] = useState(() => {
@@ -193,9 +199,9 @@ export default function App() {
   // Live Positions State (Empty initially - No fake positions)
   const [positions, setPositions] = useState([]);
 
-  // Global Engine Controls (LIVE PAPER TRADING ACTIVE with 14 bots online)
-  const [allBotsRunning, setAllBotsRunning] = useState(true);
-  const [simulationEnabled, setSimulationEnabled] = useState(true);
+  // Global Engine Controls (STANDBY until user explicitly engages paper session)
+  const [allBotsRunning, setAllBotsRunning] = useState(false);
+  const [simulationEnabled, setSimulationEnabled] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [wsConnected, setWsConnected] = useState(false);
   const [selectedBotForSkillsId, setSelectedBotForSkillsId] = useState(1);
@@ -269,6 +275,16 @@ export default function App() {
         }
       })
       .catch((e) => console.debug('[Profile Mount Sync]:', e));
+
+    // Authoritative Trade History Mount Sync
+    apiFetch('/api/memory/trades')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && Array.isArray(data.trades)) {
+          setRecentTrades(data.trades);
+        }
+      })
+      .catch((e) => console.debug('[Trades Mount Sync]:', e));
   }, []);
 
   // Authoritative Backend Position Synchronization
@@ -713,91 +729,8 @@ export default function App() {
     };
   }, []);
 
-  // Real-Time Autonomous Decision Network Trade Execution Loop
-  useEffect(() => {
-    if (!allBotsRunning) return;
-
-    const interval = setInterval(() => {
-      // Pick a random running bot
-      const runningBots = bots.filter((b) => b.status === 'RUNNING');
-      if (runningBots.length === 0) return;
-      const bot = runningBots[Math.floor(Math.random() * runningBots.length)];
-
-      const actions = ['BUY', 'BUY', 'SELL'];
-      const action = actions[Math.floor(Math.random() * actions.length)];
-      const approvals = Math.floor(Math.random() * 3) + 11; // 11 to 13 out of 14
-      const qty = bot.asset.includes('NIFTY') ? 50 : bot.asset.includes('BANK') ? 30 : 100;
-      const currentPrice = Number(bot.price) || 25000;
-      const targetEstimate = action === 'BUY' ? currentPrice * 1.0085 : currentPrice * 0.9915;
-
-      // 1. Enforce Mandatory Pre-Trade Taxation & Brokerage Guardrail
-      const guardrail = validateNetProfitGuardrail({
-        entryPrice: currentPrice,
-        targetPrice: targetEstimate,
-        qty: qty,
-        action: action,
-        segment: bot.assetCategory || 'NSE F&O'
-      });
-
-      if (!guardrail.isApproved) {
-        return; // Guardrail protects capital: aborted prior to execution
-      }
-
-      // 2. Calculate exact statutory breakdown: GST, STT, Brokerage, SEBI, Stamp Duty
-      const pnlRate = Number((Math.random() * 2.5 + 0.6).toFixed(2));
-      const grossPnlAmount = Math.round((pnlRate / 100) * (currentPrice * qty));
-      const charges = calculateTradeCharges({
-        price: currentPrice,
-        qty: qty,
-        action: action,
-        segment: bot.assetCategory || 'NSE F&O',
-        grossPnl: grossPnlAmount
-      });
-
-      const executedTrade = {
-        id: `auto_${Date.now()}`,
-        botId: bot.id,
-        bot: bot.name,
-        botName: bot.name,
-        symbol: bot.asset,
-        action: action,
-        type: action,
-        price: Number((currentPrice * (1 + (Math.random() * 0.002 - 0.001))).toFixed(2)),
-        entryPrice: Number((currentPrice * 0.998).toFixed(2)),
-        exitPrice: Number((currentPrice * 1.006).toFixed(2)),
-        qty: qty,
-        strategy: bot.strategy?.split('.')[0] || 'Peer Quorum Momentum',
-        quorum: `${approvals}/14 Approved`,
-        consensusRate: `${Math.round((approvals / 14) * 100)}%`,
-        executionMode: executionMode,
-        latency: `${(Math.random() * 1.8 + 1.2).toFixed(1)}ms IPC`,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        pnl: charges.netPnl,
-        grossPnl: grossPnlAmount,
-        netPnl: charges.netPnl,
-        charges: charges.totalCharges,
-        brokerage: charges.brokerage,
-        stt: charges.stt,
-        gst: charges.gst,
-        exchangeTurnover: charges.exchangeTurnover,
-        sebiCharges: charges.sebiCharges,
-        stampDuty: charges.stampDuty,
-        netProfitGuaranteed: true,
-        pnlPercent: Number(((charges.netPnl / (currentPrice * qty)) * 100).toFixed(2)),
-        status: 'Closed',
-        market: bot.assetCategory || 'NSE F&O',
-        duration: `${Math.floor(Math.random() * 8) + 1}m ${Math.floor(Math.random() * 50) + 10}s`
-      };
-
-      // Add to recent trades
-      setRecentTrades((prev) => [executedTrade, ...prev.slice(0, 19)]);
-
-      // Dispatch neon cyan toast alert
-      toastEmitter.emitTradeExecution(executedTrade);
-    }, 28000); // Emits every 28 seconds
-
-    return () => clearInterval(interval);
-  }, [allBotsRunning, bots, executionMode]);
+  // Authentic Trade Ingestion: Strictly driven by backend paper session engine via WebSocket
+  // No synthetic mock timers permitted
 
   // Global Start/Stop All Bots
   const handleStartAllBots = () => {
@@ -862,10 +795,38 @@ export default function App() {
     return true;
   });
 
+  // Visual Terminal Theme State (Dark Neumorphic Terminal vs Light Professional)
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem('chintu_theme') || 'dark';
+    } catch (e) {
+      return 'dark';
+    }
+  });
+
+  const handleToggleTheme = () => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('chintu_theme', theme);
+    } catch (e) {}
+    if (theme === 'light') {
+      document.documentElement.classList.add('light');
+      document.documentElement.classList.remove('dark');
+    } else {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
+    }
+  }, [theme]);
+
   return (
-    <div className="min-h-screen bg-[#05070b] text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200">
+    <div className="min-h-screen bg-[#05070b] text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200 w-full max-w-[100vw] overflow-x-hidden">
       {/* 1. Top Navigation Bar */}
       <TopNavbar
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
         tickers={tickers}
         userProfile={userProfile}
         onOpenProfile={() => setIsProfileModalOpen(true)}
@@ -879,6 +840,7 @@ export default function App() {
         activeBrokerName={brokerConnections.find((b) => b.status === 'Connected')?.name || ''}
         positions={positions}
         bots={bots}
+        recentTrades={recentTrades}
         onSquareOffAll={handleSquareOffAll}
         onResetEmergencyStop={fetchPositions}
         brokerConnections={brokerConnections}
@@ -888,7 +850,7 @@ export default function App() {
       />
 
       {/* Main Container with Sidebar + Content */}
-      <div className="flex-1 flex w-full">
+      <div className="flex-1 flex w-full min-w-0 overflow-x-hidden">
         {/* 2. Interactive Left Sidebar with exact 18 items */}
         <Sidebar
           activeTab={activeTab}
@@ -906,6 +868,8 @@ export default function App() {
               {activeTab === 'dashboard' && (
                 <MasterDashboardView
                   bots={bots || []}
+                  positions={positions || []}
+                  tickers={tickers || []}
                   allBotsRunning={allBotsRunning}
                   onStartAllBots={handleStartAllBots}
                   onStopAllBots={handleStopAllBots}
@@ -914,6 +878,7 @@ export default function App() {
                   onSelectBot={(bot) => setSelectedBotForModal(bot)}
                   onNavigateTab={(tab) => setActiveTab(tab)}
                   executionMode={executionMode}
+                  isBrokerConnected={brokerConnections.some((b) => b.status === 'Connected')}
                 />
               )}
 
@@ -937,6 +902,11 @@ export default function App() {
               brokerConnections={brokerConnections || []}
               onUpdateBroker={(updated) => setBrokerConnections(updated)}
             />
+          )}
+
+          {/* DEDICATED VIEW: CONNECTIONS & VAULT (Multi-User Integrations) */}
+          {activeTab === 'connections' && (
+            <ConnectionsView />
           )}
 
           {/* Dedicated View: Bots Monitor */}
@@ -1277,17 +1247,6 @@ export default function App() {
         setIsHelpOpen={setIsShortcutsHelpOpen}
       />
 
-      {/* Persistent Institutional Emergency Stop Floating Action Button */}
-      <EmergencyStopFAB
-        positions={positions}
-        onSquareOffAll={handleSquareOffAll}
-        brokerConnections={brokerConnections}
-        allBotsRunning={allBotsRunning}
-        onStopAllBots={handleStopAllBots}
-        onStartAllBots={handleStartAllBots}
-        executionMode={executionMode}
-        onResetEmergencyStop={fetchPositions}
-      />
     </div>
   );
 }

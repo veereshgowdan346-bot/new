@@ -701,8 +701,8 @@ export default function PortfolioRebalancer({ onExecuteTradeOrder = null }) {
 
       {/* Custom Weights Configuration Modal */}
       {showCustomModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn">
-          <div className="bg-[#05070b] border border-[#1e3a6e] rounded-2xl w-full max-w-lg p-5 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 animate-fadeIn">
+          <div className="bg-[#05070b] border border-[#1e3a6e] rounded-2xl w-full max-w-lg p-5 space-y-4 shadow-2xl my-auto max-h-[calc(100vh-2rem)] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#16294a] pb-3">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Sliders className="w-4 h-4 text-cyan-400" />

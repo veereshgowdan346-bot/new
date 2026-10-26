@@ -214,7 +214,6 @@ ${recentTradesSummary}
 
 COMMUNICATION CHANNELS:
 • Telegram Commander Bot: ${telegramConfig.enabled ? '24/7 Active (@' + (telegramConfig.bot_username || 'chintu_jarvis_veer_bot') + ')' : 'Standby / Configured'}
-• WhatsApp / CallMeBot Gateway: ${alertSettings.phone ? `${alertSettings.countryCode} ${alertSettings.phone}` : 'Configured'}
 
 ${isKannada ? `
 CRITICAL BILINGUAL MANDATE (ಕನ್ನಡ / KANNADA):

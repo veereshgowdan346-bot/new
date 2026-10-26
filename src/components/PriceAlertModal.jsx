@@ -150,8 +150,8 @@ export default function PriceAlertModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-3xl max-h-[90vh] bg-[#070d1d] border border-cyan-500/40 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-slate-100">
+    <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+      <div className="relative w-full max-w-3xl my-auto max-h-[calc(100vh-2rem)] bg-[#070d1d] border border-cyan-500/40 rounded-2xl shadow-2xl flex flex-col overflow-hidden text-slate-100">
         {/* Modal Header */}
         <div className="p-4 border-b border-[#16294a] flex items-center justify-between bg-gradient-to-r from-[#070d1d] via-[#09152e] to-[#070d1d]">
           <div className="flex items-center gap-2.5">

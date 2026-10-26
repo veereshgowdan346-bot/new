@@ -30,7 +30,21 @@ __pycache__/
 *.pyc
 server/*.db
 *.db
+*.db-wal
+*.db-shm
 server/logs/
 server/data/*.json
 !server/data/scrip_master_meta.json
+server/data/backups/
+*.backup*
 scratch/
+
+# Cryptographic Vault Master Keys
+*.key
+server/secure_keys/
+server/data/.vault_master.key
+
+# Local external binaries & tools
+tools/
+*.exe
+test_results.json
