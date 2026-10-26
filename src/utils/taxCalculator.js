@@ -322,16 +322,6 @@ export function calculateTradeCharges({
   // 6. Stamp Duty (Payable ONLY on BUY side):
   const stampDuty = isBuy ? orderValue * (rates.stampDutyBuy || 0.0) : 0.0;
 
-  // 7. GST (18% strictly on service fees: Brokerage + Exchange Turnover + IPFT + SEBI):
-  // NOTE: STT/CTT and Stamp Duty are Government taxes, NOT services, so GST is NOT levied on them.
-  const serviceFees = rates.gstIncludesSebi === false
-    ? (brokerage + exchangeTurnover)
-    : (brokerage + exchangeTurnover + ipft + sebiCharges);
-  const gst = 0.18 * serviceFees;
-
-  // 8. Execution Slippage:
-  const slippage = includeSlippage ? orderValue * (rates.slippageRate || 0.0) : 0.0;
-
   const round2 = (val) => Math.round((Number(val || 0) + Number.EPSILON) * 100) / 100;
 
   // Statutory roundings to 2 decimal places using IEEE-754 epsilon protection
@@ -341,8 +331,16 @@ export function calculateTradeCharges({
   const ip = round2(ipft);
   const sebi = round2(sebiCharges);
   const stmp = round2(stampDuty);
-  const g = round2(gst);
-  const slip = round2(slippage);
+
+  // 7. GST (18% strictly on billed Taxable Value of Supply: Brokerage + Exchange Turnover + IPFT + SEBI as per Section 15 CGST Act & Rule 46):
+  // NOTE: STT/CTT and Stamp Duty are Government taxes, NOT services, so GST is NOT levied on them.
+  const taxableServiceFees = rates.gstIncludesSebi === false
+    ? round2(brk + ex)
+    : round2(brk + ex + ip + sebi);
+  const g = round2(taxableServiceFees * (rates.gstRate || 0.18));
+
+  // 8. Execution Slippage:
+  const slip = round2(includeSlippage ? orderValue * (rates.slippageRate || 0.0) : 0.0);
 
   const totalCharges = round2(brk + s + ex + ip + sebi + stmp + g + slip);
   const netPnl = Math.round(((Number(grossPnl) || 0) - totalCharges) * 100) / 100;

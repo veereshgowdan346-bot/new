@@ -155,13 +155,13 @@ To eliminate cross-report rounding inconsistencies (such as ₹100.99 vs ₹101.
 - **Turnover:** Buy Premium = $50 \times 120 = ₹6,000$; Sell Premium = $50 \times 150 = ₹7,500$. Total Premium = $₹13,500$.
 - **Gross P&L:** $50 \times (150 - 120) = +₹1,500.00$.
 
-#### 2.1 Reconciliation of the ₹21.88 vs ₹64.31 Options Variance
+#### 2.1 Reconciliation of the ₹21.88 vs ₹64.32 Options Variance
 - **Root Cause Identified:** The legacy narrative mistakenly applied the **equity intraday percentage rule** ($\min(20, \text{Turnover} \times 0.03\%)$) to options contracts, arriving at ₹1.80 Buy brokerage and ₹2.25 Sell brokerage (Total Brokerage ₹4.05, GST ₹1.59, Total ₹21.88).
 - **Statutory & Broker Truth:** Indian discount brokers (Angel One, Zerodha, Upstox) charge **flat ₹20.00 per executed order** for F&O Options (`isFlatBrokerage: true`).
-- **Exact Variance:**
-  - Brokerage variance: $₹40.00 (\text{flat}) - ₹4.05 (\text{percentage}) = \mathbf{+₹35.95}$
-  - GST variance: $18\% \times ₹35.95 = \mathbf{+₹6.47}$
-  - Total variance: $₹35.95 + ₹6.47 = \mathbf{+₹42.42} \implies ₹21.88 + ₹42.43 = \mathbf{₹64.31}$.
+- **GST Standard (Taxable Value of Supply):** Under Section 15 of the CGST Act 2017 & Rule 46 of CGST Rules, GST (18%) is levied on the billed Taxable Value of Supply on each leg's contract note:
+  - Buy Leg: $\text{Taxable Base} = ₹20.00 + ₹2.10 + ₹0.03 + ₹0.01 = \mathbf{₹22.14} \implies \text{GST} = \text{round2}(22.14 \times 0.18) = \mathbf{₹3.99}$.
+  - Sell Leg: $\text{Taxable Base} = ₹20.00 + ₹2.63 + ₹0.04 + ₹0.01 = \mathbf{₹22.68} \implies \text{GST} = \text{round2}(22.68 \times 0.18) = \mathbf{₹4.08}$.
+  - Total GST: $3.99 + 4.08 = \mathbf{₹8.07}$.
 
 #### 2.2 Independent Contract-Note Breakdown (Flat ₹20 Options Standard w.e.f. April 1, 2026)
 
@@ -173,9 +173,9 @@ To eliminate cross-report rounding inconsistencies (such as ₹100.99 vs ₹101.
 | **IPFT** | ₹0.03 | ₹0.04 | **₹0.07** | 0.0005% on options premium |
 | **SEBI Turnover** | ₹0.01 | ₹0.01 | **₹0.02** | 0.0001% (₹10 per crore turnover) |
 | **Stamp Duty** | ₹0.18 | ₹0.00 | **₹0.18** | 0.003% on Buy premium strictly ($6,000 \times 0.00003$) |
-| **GST (18%)** | ₹3.98 | ₹4.08 | **₹8.06** | 18% on service fees ($18\% \times 22.14$ and $18\% \times 22.68$) |
-| **Total Leg Charges**| **₹26.30** | **₹38.01** | **₹64.31** | Sum of rounded components per independent leg |
-| **Net Realized P&L** | — | — | **₹1,435.69** | $\text{Gross P\&L} (₹1,500.00) - \text{Total Charges} (₹64.31) = \mathbf{₹1,435.69}$ |
+| **GST (18%)** | ₹3.99 | ₹4.08 | **₹8.07** | 18% on Taxable Value ($18\% \times 22.14 = ₹3.99$ and $18\% \times 22.68 = ₹4.08$) |
+| **Total Leg Charges**| **₹26.31** | **₹38.01** | **₹64.32** | Sum of rounded components per independent leg |
+| **Net Realized P&L** | — | — | **₹1,435.68** | $\text{Gross P\&L} (₹1,500.00) - \text{Total Charges} (₹64.32) = \mathbf{₹1,435.68}$ |
 
 #### 2.3 Date-Effective Options STT Comparison on ₹7,500 Sell Premium
 
@@ -185,8 +185,8 @@ To eliminate cross-report rounding inconsistencies (such as ₹100.99 vs ₹101.
 | **STT Amount** | ₹4.69 | ₹7.50 | **₹11.25** | Calculated on ₹7,500 Sell Premium |
 | **Exchange Rate** | 0.0500% | 0.03503% | **0.03503%** | NSE Circular NSE/F&A/63784 |
 | **Exchange Amount** | ₹6.75 | ₹4.73 | **₹4.73** | Calculated on ₹13,500 Premium |
-| **Total Charges** | ₹60.31 | ₹60.56 | **₹64.31** | Complete roundtrip deductions |
-| **Net Realized P&L** | ₹1,439.69 | ₹1,439.44 | **₹1,435.69** | Pure realized trader gain |
+| **Total Charges** | ₹60.31 | ₹60.56 | **₹64.32** | Complete roundtrip deductions |
+| **Net Realized P&L** | ₹1,439.69 | ₹1,439.44 | **₹1,435.68** | Pure realized trader gain |
 
 ---
 
@@ -265,12 +265,12 @@ Under Finance Bill 2026 and official Income Tax Department Budget 2026 FAQs, STT
   - **IPFT (0.0001%):** Buy: $₹0.08$, Sell: $₹0.08$. Total = **₹0.16**.
   - **SEBI Fee (0.0001%):** Buy: $₹0.08$, Sell: $₹0.08$. Total = **₹0.16**.
   - **Stamp Duty (0.002% on Buy):** Buy: $₹1.50$, Sell: $₹0.00$. Total = **₹1.50**.
-  - **GST (18% on service fees):** Buy: $₹3.91$, Sell: $₹3.91$. Total = **₹7.82**.
+  - **GST (18% on Taxable Value of Supply):** Buy: $18\% \times 21.74 = \mathbf{₹3.91}$; Sell: $18\% \times 21.75 = \mathbf{₹3.92}$. Total = **₹7.83**.
 - **Leg Totals:**
   - Buy Leg Total: $20.00 + 0.00 + 1.58 + 0.08 + 0.08 + 1.50 + 3.91 = \mathbf{₹27.15}$.
-  - Sell Leg Total: $20.00 + 7.55 + 1.59 + 0.08 + 0.08 + 0.00 + 3.91 = \mathbf{₹33.21}$.
-- **Roundtrip Total Charges:** $27.15 + 33.21 = \mathbf{₹60.36}$.
-- **Net Realized P&L:** $500.00 - 60.36 = \mathbf{₹439.64}$.
+  - Sell Leg Total: $20.00 + 7.55 + 1.59 + 0.08 + 0.08 + 0.00 + 3.92 = \mathbf{₹33.22}$.
+- **Roundtrip Total Charges:** $27.15 + 33.22 = \mathbf{₹60.37}$.
+- **Net Realized P&L:** $500.00 - 60.37 = \mathbf{₹439.63}$.
 
 ---
 

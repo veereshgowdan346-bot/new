@@ -114,11 +114,15 @@ $$\text{Net Realized P\&L} = \text{Gross P\&L} - \text{Roundtrip Charges}$$
 - **Order Turnover:** Buy Premium ₹6,000; Sell Premium ₹7,500. Total Premium: ₹13,500.
 - **Gross P&L:** $50 \times (150 - 120) = \mathbf{+₹1,500.00}$.
 - **Brokerage Standard:** Discount Broker F&O Standard: **Flat ₹20.00 per executed order** (`isFlatBrokerage: true`).
+- **GST Standard (Taxable Value of Supply):** Under Section 15 of the CGST Act 2017 & Rule 46 of CGST Rules, GST (18%) is levied on the billed Taxable Value of Supply on the contract note:
+  - Buy Leg Taxable Base = $20.00 (\text{Brokerage}) + 2.10 (\text{Exchange Txn}) + 0.03 (\text{IPFT}) + 0.01 (\text{SEBI Fee}) = \mathbf{₹22.14} \implies 18\% \times 22.14 = 3.9852 \xrightarrow{\text{round2}} \mathbf{₹3.99}$.
+  - Sell Leg Taxable Base = $20.00 (\text{Brokerage}) + 2.63 (\text{Exchange Txn}) + 0.04 (\text{IPFT}) + 0.01 (\text{SEBI Fee}) = \mathbf{₹22.68} \implies 18\% \times 22.68 = 4.0824 \xrightarrow{\text{round2}} \mathbf{₹4.08}$.
+  - Total GST = $3.99 + 4.08 = \mathbf{₹8.07}$.
 - **Per-Leg Contract Note Breakdown (Finance Act 2026 w.e.f. 1 April 2026):**
-  - **Buy Leg (Premium ₹6,000):** Brokerage ₹20.00 + STT ₹0.00 + Exchange (0.03503%) ₹2.10 + IPFT (0.0005%) ₹0.03 + SEBI ₹0.01 + Stamp Duty (0.003%) ₹0.18 + GST (18%) ₹3.98 = **₹26.30**.
+  - **Buy Leg (Premium ₹6,000):** Brokerage ₹20.00 + STT ₹0.00 + Exchange (0.03503%) ₹2.10 + IPFT (0.0005%) ₹0.03 + SEBI ₹0.01 + Stamp Duty (0.003%) ₹0.18 + GST (18%) ₹3.99 = **₹26.31**.
   - **Sell Leg (Premium ₹7,500):** Brokerage ₹20.00 + STT (0.15% under Finance Act 2026) ₹11.25 + Exchange (0.03503%) ₹2.63 + IPFT (0.0005%) ₹0.04 + SEBI ₹0.01 + Stamp Duty ₹0.00 + GST (18%) ₹4.08 = **₹38.01**.
-- **Roundtrip Total Deductions:** $26.30 + 38.01 = \mathbf{₹64.31}$ *(Reconciled: legacy 0.03% percentage brokerage yielded ₹21.88; official flat ₹20 options brokerage yields strictly ₹64.31)*.
-- **Net Realized P&L:** ₹1,500.00 - ₹64.31 = **₹1,435.69** (Verified: PASS)
+- **Roundtrip Total Deductions:** $26.31 + 38.01 = \mathbf{₹64.32}$ *(Reconciled: legacy 0.03% percentage brokerage yielded ₹21.88; official flat ₹20 options brokerage with contract-note taxable supply GST yields strictly ₹64.32)*.
+- **Net Realized P&L:** ₹1,500.00 - ₹64.32 = **₹1,435.68** (Verified: PASS)
 
 ---
 
@@ -160,11 +164,14 @@ $$\text{Net Realized P\&L} = \text{Gross P\&L} - \text{Roundtrip Charges}$$
 - **Segment:** `COMMODITY_FUTURES` (MCX Gold)
 - **Turnover:** Buy ₹75,000; Sell ₹75,500. Total Turnover: ₹1,50,500.
 - **Gross P&L:** $1 \times (75,500 - 75,000) = \mathbf{+₹500.00}$.
+- **GST Standard (Taxable Value of Supply):**
+  - Buy Leg Taxable Base = $20.00 + 1.58 + 0.08 + 0.08 = \mathbf{₹21.74} \implies 18\% \times 21.74 = 3.9132 \to \mathbf{₹3.91}$.
+  - Sell Leg Taxable Base = $20.00 + 1.59 + 0.08 + 0.08 = \mathbf{₹21.75} \implies 18\% \times 21.75 = 3.9150 \to \mathbf{₹3.92}$.
 - **Per-Leg Contract Note Breakdown:**
   - **Buy Leg (₹75,000):** Brokerage ₹20.00 + CTT ₹0.00 + Exchange (0.0021%) ₹1.58 + IPFT ₹0.08 + SEBI ₹0.08 + Stamp Duty (0.002%) ₹1.50 + GST (18%) ₹3.91 = **₹27.15**.
-  - **Sell Leg (₹75,500):** Brokerage ₹20.00 + CTT (0.01%) ₹7.55 + Exchange (0.0021%) ₹1.59 + IPFT ₹0.08 + SEBI ₹0.08 + Stamp Duty ₹0.00 + GST (18%) ₹3.91 = **₹33.21**.
-- **Roundtrip Total Deductions:** $27.15 + 33.21 = \mathbf{₹60.36}$.
-- **Net Realized P&L:** ₹500.00 - ₹60.36 = **₹439.64** (Verified: PASS).
+  - **Sell Leg (₹75,500):** Brokerage ₹20.00 + CTT (0.01%) ₹7.55 + Exchange (0.0021%) ₹1.59 + IPFT ₹0.08 + SEBI ₹0.08 + Stamp Duty ₹0.00 + GST (18%) ₹3.92 = **₹33.22**.
+- **Roundtrip Total Deductions:** $27.15 + 33.22 = \mathbf{₹60.37}$.
+- **Net Realized P&L:** ₹500.00 - ₹60.37 = **₹439.63** (Verified: PASS).
 
 ---
 

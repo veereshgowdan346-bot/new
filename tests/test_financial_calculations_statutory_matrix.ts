@@ -435,7 +435,7 @@ describe('CHINTU AI — AUTHORITATIVE INDIAN REGULATORY FINANCIAL CALCULATIONS A
       const grossPnl = 1500.00;
       const netPnl = Math.round((grossPnl - roundtripFees) * 100) / 100;
 
-      // Entry: 26.30, Exit: 38.01 -> Total: 64.31
+      // Entry: 26.31, Exit: 38.01 -> Total: 64.32
       assert.equal(entry.orderValue, 6000.00);
       assert.equal(entry.brokerage, 20.00, 'Options brokerage is flat ₹20.00 per order');
       assert.equal(entry.stt, 0.00);
@@ -443,8 +443,9 @@ describe('CHINTU AI — AUTHORITATIVE INDIAN REGULATORY FINANCIAL CALCULATIONS A
       assert.equal(entry.ipft, 0.03);
       assert.equal(entry.sebiCharges, 0.01);
       assert.equal(entry.stampDuty, 0.18);
-      assert.equal(entry.gst, 3.98);
-      assert.equal(entry.totalCharges, 26.30);
+      // Contract-Note Taxable Value: 20.00 + 2.10 + 0.03 + 0.01 = 22.14 -> GST = round2(22.14 * 0.18) = 3.99
+      assert.equal(entry.gst, 3.99);
+      assert.equal(entry.totalCharges, 26.31);
 
       assert.equal(exit.orderValue, 7500.00);
       assert.equal(exit.brokerage, 20.00, 'Options brokerage is flat ₹20.00 per order');
@@ -453,11 +454,12 @@ describe('CHINTU AI — AUTHORITATIVE INDIAN REGULATORY FINANCIAL CALCULATIONS A
       assert.equal(exit.ipft, 0.04);
       assert.equal(exit.sebiCharges, 0.01);
       assert.equal(exit.stampDuty, 0.00);
+      // Contract-Note Taxable Value: 20.00 + 2.63 + 0.04 + 0.01 = 22.68 -> GST = round2(22.68 * 0.18) = 4.08
       assert.equal(exit.gst, 4.08);
       assert.equal(exit.totalCharges, 38.01);
 
-      assert.equal(roundtripFees, 64.31, 'Roundtrip options charges must equal ₹64.31');
-      assert.equal(netPnl, 1435.69, 'Net options P&L must equal ₹1,435.69');
+      assert.equal(roundtripFees, 64.32, 'Roundtrip options charges must equal ₹64.32');
+      assert.equal(netPnl, 1435.68, 'Net options P&L must equal ₹1,435.68');
     });
 
     it('should reconcile NIFTY Futures Intraday on 31 March 2026 (50 qty @ ₹24,000 Buy, ₹24,100 Sell) with exact delta = 0', () => {
@@ -551,20 +553,22 @@ describe('CHINTU AI — AUTHORITATIVE INDIAN REGULATORY FINANCIAL CALCULATIONS A
       const grossPnl = 500.00;
       const netPnl = Math.round((grossPnl - roundtripFees) * 100) / 100;
 
-      // Entry: 27.15, Exit: 33.21 -> Total: 60.36
+      // Entry: 27.15, Exit: 33.22 -> Total: 60.37
       assert.equal(entry.brokerage, 20.00);
       assert.equal(entry.stt, 0.00);
       assert.equal(entry.exchangeTurnover, 1.58, 'MCX Futures exchange fee = 0.0021% = ₹1.58');
       assert.equal(entry.stampDuty, 1.50, 'MCX stamp duty = 0.002% = ₹1.50');
+      assert.equal(entry.gst, 3.91, 'MCX Buy GST = 18% on (20 + 1.58 + 0.08 + 0.08 = 21.74) = ₹3.91');
       assert.equal(entry.totalCharges, 27.15);
 
       assert.equal(exit.brokerage, 20.00);
       assert.equal(exit.stt, 7.55, 'MCX CTT = 0.01% = ₹7.55');
       assert.equal(exit.exchangeTurnover, 1.59);
-      assert.equal(exit.totalCharges, 33.21);
+      assert.equal(exit.gst, 3.92, 'MCX Sell GST = 18% on (20 + 1.59 + 0.08 + 0.08 = 21.75) = ₹3.92');
+      assert.equal(exit.totalCharges, 33.22);
 
-      assert.equal(roundtripFees, 60.36);
-      assert.equal(netPnl, 439.64);
+      assert.equal(roundtripFees, 60.37);
+      assert.equal(netPnl, 439.63);
     });
   });
 });
