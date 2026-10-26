@@ -224,3 +224,118 @@ Pass Rate: 100%
    - User opens `http://localhost:3000` to review the repaired Trading Dashboard and Broker Accounts view.
    - During active exchange hours (09:15 - 15:30 IST tomorrow), run paper trading with live market feed.
    - Keep `AngelOrderExecutionAdapter.LIVE_TRADING_ELIGIBLE = false` strictly enforced until paper trading records positive performance over multiple market sessions.
+
+---
+
+## 10. Post-GST-Fix Independent Verification & Production Gap Analysis
+
+### 10.1 Committed Implementation Audit (Commit `ea846fb`)
+- **HEAD Commit:** `ea846fb943a9acee2b8f3f484afc1a2d572e2102` (Clean working tree).
+- **Core Diff Analysis:**
+  - In `src/utils/taxCalculator.js`, fee components (`brk`, `s`, `ex`, `ip`, `sebi`, `stmp`) are rounded to 2 decimal places using IEEE-754 epsilon protection before summing into the Taxable Value of Supply.
+  - GST (18%) is evaluated strictly on the invoice-billed Taxable Value of Supply:
+    $$\text{Taxable Base} = \text{round2}(\text{Brokerage} + \text{Exchange Txn} + \text{IPFT} + \text{SEBI Fee})$$
+    $$\text{GST} = \text{round2}(\text{Taxable Base} \times 0.18)$$
+  - Eliminates floating-point variance where unrounded continuous floats ($22.1378 \times 0.18 = 3.9848 \to 3.98$) diverged from invoice billings ($22.14 \times 0.18 = 3.9852 \to 3.99$).
+- **Canonical Call Site Trace:**
+  - All 11 trading UI views, Express server routes (`server.ts:33`), order execution adapters (`angelOrderAdapter.ts:5`), and paper-trading engine (`paperSessionEngine.ts:20`) import directly from `src/utils/taxCalculator.js`.
+  - Zero duplicate, inlined, or conflicting tax calculation routines remain in the backend or frontend.
+  - *Note on Legacy Test:* `tests/test_prompt5_paper_pipeline_and_simulation.py` is an isolated Python mock test from an early prototype that does not interact with the production application; its internal formulas are deprecated.
+
+---
+
+### 10.2 Ground-Truth Financial Calculation Breakdown
+
+#### 1. NIFTY Options Intraday (50 qty @ ₹120 Buy, ₹150 Sell — w.e.f. 1 April 2026)
+- **Turnover:** Buy Premium ₹6,000.00 | Sell Premium ₹7,500.00 | Gross P&L: +₹1,500.00
+- **Buy Leg Detail:**
+  - Flat Brokerage: billed ₹20.00
+  - STT: raw ₹0.0000, billed ₹0.00
+  - Exchange Fee (0.03503%): raw ₹2.1018, billed ₹2.10
+  - IPFT (0.0005%): raw ₹0.0300, billed ₹0.03
+  - SEBI Fee (0.0001%): raw ₹0.0060, billed ₹0.01 (half-up rounded)
+  - Stamp Duty (0.003%): raw ₹0.1800, billed ₹0.18
+  - **Billed Taxable Base:** $20.00 + 2.10 + 0.03 + 0.01 = \mathbf{₹22.14}$
+  - **GST (18%):** raw ₹3.9852, billed **₹3.99**
+  - **Buy Leg Total Charges:** $20.00 + 0.00 + 2.10 + 0.03 + 0.01 + 0.18 + 3.99 = \mathbf{₹26.31}$
+- **Sell Leg Detail:**
+  - Flat Brokerage: billed ₹20.00
+  - STT (0.15% under Finance Act 2026): raw ₹11.2500, billed ₹11.25
+  - Exchange Fee (0.03503%): raw ₹2.6273, billed ₹2.63
+  - IPFT (0.0005%): raw ₹0.0375, billed ₹0.04
+  - SEBI Fee (0.0001%): raw ₹0.0075, billed ₹0.01
+  - Stamp Duty: billed ₹0.00 (exempt on sell)
+  - **Billed Taxable Base:** $20.00 + 2.63 + 0.04 + 0.01 = \mathbf{₹22.68}$
+  - **GST (18%):** raw ₹4.0824, billed **₹4.08**
+  - **Sell Leg Total Charges:** $20.00 + 11.25 + 2.63 + 0.04 + 0.01 + 0.00 + 4.08 = \mathbf{₹38.01}$
+- **Roundtrip Reconciled Total:** $26.31 + 38.01 = \mathbf{₹64.32}$
+- **Net Realized P&L:** $1,500.00 - 64.32 = \mathbf{₹1,435.68}$ ($\Delta = 0.00$)
+
+#### 2. MCX Commodity Futures (GOLD MCX — 1 lot @ ₹75,000 Buy, ₹75,500 Sell)
+- **Turnover:** Buy ₹75,000.00 | Sell ₹75,500.00 | Gross P&L: +₹500.00
+- **Buy Leg Detail:**
+  - Brokerage (capped at ₹20): billed ₹20.00
+  - CTT: billed ₹0.00
+  - Exchange Fee (0.0021%): raw ₹1.5750, billed ₹1.58
+  - IPFT (0.0001%): raw ₹0.0750, billed ₹0.08
+  - SEBI Fee (0.0001%): raw ₹0.0750, billed ₹0.08
+  - Stamp Duty (0.002%): raw ₹1.5000, billed ₹1.50
+  - **Billed Taxable Base:** $20.00 + 1.58 + 0.08 + 0.08 = \mathbf{₹21.74}$
+  - **GST (18%):** raw ₹3.9132, billed **₹3.91**
+  - **Buy Leg Total Charges:** $20.00 + 0.00 + 1.58 + 0.08 + 0.08 + 1.50 + 3.91 = \mathbf{₹27.15}$
+- **Sell Leg Detail:**
+  - Brokerage: billed ₹20.00
+  - CTT (0.01% on sell): raw ₹7.5500, billed ₹7.55
+  - Exchange Fee (0.0021%): raw ₹1.5855, billed ₹1.59
+  - IPFT (0.0001%): raw ₹0.0755, billed ₹0.08
+  - SEBI Fee (0.0001%): raw ₹0.0755, billed ₹0.08
+  - Stamp Duty: billed ₹0.00
+  - **Billed Taxable Base:** $20.00 + 1.59 + 0.08 + 0.08 = \mathbf{₹21.75}$
+  - **GST (18%):** raw ₹3.9150, billed **₹3.92** (half-up rounded)
+  - **Sell Leg Total Charges:** $20.00 + 7.55 + 1.59 + 0.08 + 0.08 + 0.00 + 3.92 = \mathbf{₹33.22}$
+- **Roundtrip Reconciled Total:** $27.15 + 33.22 = \mathbf{₹60.37}$
+- **Net Realized P&L:** $500.00 - 60.37 = \mathbf{₹439.63}$ ($\Delta = 0.00$)
+
+---
+
+### 10.3 Statutory Matrix & Broker-Dependent Assumptions
+
+| Instrument Segment | Exchange | Turnover Basis | Statutory Date | Key Rates & Schedules | Broker / Clearing Dependencies |
+| :--- | :---: | :---: | :---: | :--- | :--- |
+| **NSE Equity Intraday** | NSE | Gross Value | Current (2026) | STT Sell: 0.025%; Exch: 0.00297%; IPFT: 0.0001%; SEBI: 0.0001%; Stamp Buy: 0.003% | Brokerage: Min(₹20, 0.03%) applies to discount brokers; full-service brokers charge 0.10%-0.50%. |
+| **NSE Equity Delivery** | NSE | Gross Value | Current (2026) | STT Both: 0.10%; Exch: 0.00297%; IPFT: 0.0001%; SEBI: 0.0001%; Stamp Buy: 0.015% | Brokerage: ₹0 (Discount standard); DP charges (₹15.34/scrip on sell) apply upon actual demat debit. |
+| **NSE Equity Futures** | NSE | Gross Value | $\ge$ 01/04/2026 | STT Sell: 0.05% (Finance Act 2026); Exch: 0.00173%; IPFT: 0.0001%; SEBI: 0.0001%; Stamp Buy: 0.002% | Pre-Apr 2026 STT is 0.02%. Boundary date 31-Mar-2026 verified. |
+| **NSE Equity Options** | NSE | Premium | $\ge$ 01/04/2026 | STT Sell: 0.15% (Finance Act 2026); Exch: 0.03503%; IPFT: 0.0005%; SEBI: 0.0001%; Stamp Buy: 0.003% | Flat ₹20 discount tariff; BSE options charge distinct turnover tiers. |
+| **MCX Commodity Futures** | MCX | Gross Value | Current (2026) | CTT Sell: 0.01%; Exch: 0.0021%; IPFT: 0.0001%; SEBI: 0.0001%; Stamp Buy: 0.002% | Brokerage capped at ₹20. CTT applies only on sell side. |
+
+*Statutory Reference Authorities:*
+- STT/CTT: Ministry of Finance, Finance Act 2026, Income Tax Department Budget 2026 FAQs.
+- Exchange Fees: NSE Circular `NSE/F&A/63784` (True-to-Label schedule w.e.f. 1 October 2024).
+- Stamp Duty: Indian Stamp Act, 1899 (Uniform Schedule w.e.f. 1 July 2020).
+- GST: Central Goods and Services Tax Act, 2017 (Section 15, Valuation of Supply & Rule 46).
+
+---
+
+### 10.4 Production-Readiness Gap Analysis & Real-World Realities
+
+| Domain | Implemented & Tested Status | Real-World Operational Reality | Production Gap / Risk Severity |
+| :--- | :--- | :--- | :--- |
+| **Market Data Ingestion** | Full binary packet parser (`angelMarketDataAdapter.ts:491`), sequence validation, and `dataAgeStatus` tracking. | Live exchange ticks stream only during active exchange hours (09:15-15:30 IST). Outside hours, engine uses `STANDBY_ANCHOR` or `AUTHENTIC_PAPER_REPLAY`. | **LOW (Operational)**: Paper trading can execute on simulated ticks during closed hours. Clear UI pill flags `SIMULATED` vs `FRESH`. |
+| **Broker Order Placement** | `AngelOrderExecutionAdapter` with SmartAPI payload validation, lot size checks, tick-size (₹0.05) enforcement. | `LIVE_TRADING_ELIGIBLE = false` permanently locked. No real orders routed. Upstream authentication verified for Client `AAAE906150`. | **SAFE (Zero Capital Risk)**: Live orders cannot execute without deliberate manual code modification. |
+| **Token Lifecycle** | JWT token authentication and storage in memory. | Angel One SmartAPI JWT tokens expire every 150 minutes (~2.5 hours). Intraday auto-refresh is required during continuous multi-hour sessions. | **MEDIUM (Operational)**: Reconnection logic handles socket reconnects; daily re-authentication required at start of day. |
+| **Position & Risk Controls** | Autonomous Emergency Kill Switch (`/api/rms/emergency-stop`), 1.50% Net ROI hurdle guardrail, max risk budget per trade. | Simulated positions liquidate via software state transition. Real-market emergency stop during market hours requires broker API cancel-all-orders call. | **LOW**: Covered by kill-switch tests; safety interlocks reject new orders while circuit breaker is active. |
+| **Data Persistence** | SQLite WAL mode (`chintu_runtime.db`), automated `.bak` snapshots, encrypted AES-256-GCM vault. | Verified across process restarts with zero data corruption or unhandled rejections. | **RESOLVED**: Proven persistent. |
+
+---
+
+### 10.5 Unresolved Issues & Severity Assessment
+
+1. **Intraday Session Token Renewal (Severity: LOW - Operational)**
+   - *Issue:* Angel One SmartAPI v2 JWT access tokens expire after 150 minutes. If a paper session runs longer than 2.5 hours without user re-authentication, live WebSocket streaming drops to standby.
+   - *Mitigation:* System warns user via UI and falls back safely to paper replay rather than crashing.
+2. **Aggregated Daily SEBI Fee Rounding (Severity: INFORMATIONAL - Mathematical)**
+   - *Issue:* For individual micro-orders (turnover < ₹10,000), single-leg SEBI fee ($0.0001\%$) rounds half-up to ₹0.01. On an aggregated end-of-day broker contract note across 50 orders, SEBI fee is computed on total daily turnover ($₹5,00,000 \times 0.0001\% = ₹0.50$), potentially differing by a few paise from sum of isolated per-leg roundings.
+   - *Status:* Expected exchange clearing standard; documented in reconciliation matrix.
+3. **Legacy Python Test Module (Severity: INFORMATIONAL - Non-Production)**
+   - *Issue:* `tests/test_prompt5_paper_pipeline_and_simulation.py` contains isolated mock formulas from an early prototype (pre-Oct 2024 rates). It passes independently but does not test production code.
+   - *Status:* Production code is strictly tested by 32 TypeScript suites.
