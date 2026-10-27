@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Bot, Bell, Settings, Search, User, ShieldCheck, Keyboard, Sun, Moon, Lock, Contrast } from 'lucide-react';
+import { Bot, Bell, Settings, Search, User, ShieldCheck, Keyboard, Sun, Moon, Lock, Contrast, Sparkles } from 'lucide-react';
 import EmergencyKillSwitch from './EmergencyKillSwitch';
 import RealtimePnlTracker from './RealtimePnlTracker';
 
@@ -172,6 +172,11 @@ export default function TopNavbar({
             <>
               <Moon className="w-3.5 h-3.5 text-cyan-400" />
               <span className="text-[10px] font-mono text-cyan-300 hidden sm:inline">Dark</span>
+            </>
+          ) : theme === 'bright' ? (
+            <>
+              <Sparkles className="w-3.5 h-3.5 text-fuchsia-400 animate-pulse" />
+              <span className="text-[10px] font-mono text-fuchsia-300 hidden sm:inline">Bright</span>
             </>
           ) : theme === 'dim' ? (
             <>

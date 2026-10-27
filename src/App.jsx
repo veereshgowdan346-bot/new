@@ -813,8 +813,8 @@ export default function App() {
 
   const handleToggleTheme = () => {
     setTheme((prev) => {
-      if (prev === 'dark') return 'dim';
-      if (prev === 'dim') return 'light';
+      if (prev === 'dark') return 'bright';
+      if (prev === 'bright') return 'light';
       return 'dark';
     });
   };
@@ -823,11 +823,11 @@ export default function App() {
     try {
       localStorage.setItem('chintu_theme', theme);
     } catch (e) {}
-    document.documentElement.classList.remove('dark', 'dim', 'light');
+    document.documentElement.classList.remove('dark', 'dim', 'light', 'bright');
     document.documentElement.classList.add(theme);
     const metaTheme = document.querySelector('meta[name="theme-color"]');
     if (metaTheme) {
-      metaTheme.setAttribute('content', theme === 'light' ? '#F5F7FA' : (theme === 'dim' ? '#0B0F19' : '#0F1117'));
+      metaTheme.setAttribute('content', theme === 'light' ? '#F5F7FA' : (theme === 'bright' ? '#0B1021' : (theme === 'dim' ? '#0B0F19' : '#0F1117')));
     }
   }, [theme]);
 

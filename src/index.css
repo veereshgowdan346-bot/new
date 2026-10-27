@@ -110,6 +110,42 @@ html.light, body.light {
   --shadow-glow-negative: 0 0 12px rgba(198, 40, 40, 0.18);
 }
 
+html.bright, body.bright {
+  /* =========================================================================
+     CHINTU AI — ADVANCED COLOR MORPHISM & BRIGHT VIBRANT PALETTE (BRIGHT THEME)
+     ========================================================================= */
+  --bg-main: #0B1021;
+  --bg-secondary: rgba(16, 24, 48, 0.85);
+  --surface-card: rgba(23, 34, 68, 0.70);
+  --surface-elevated: rgba(30, 48, 96, 0.82);
+  --surface-overlay: rgba(11, 16, 33, 0.90);
+  --accent-cyan: #00F0FF;
+  --accent-cyan-rgb: 0, 240, 255;
+  --accent-violet: #A855F7;
+  --accent-violet-rgb: 168, 85, 247;
+  --color-positive: #10B981;
+  --color-negative: #F43F5E;
+  --color-warning: #F59E0B;
+  --color-info: #06B6D4;
+  --text-primary: #FFFFFF;
+  --text-secondary: #E0E7FF;
+  --text-muted: #94A3B8;
+  --border-subtle: rgba(99, 102, 241, 0.35);
+  --border-highlight: rgba(0, 240, 255, 0.6);
+  --border-card: rgba(129, 140, 248, 0.4);
+  --surface-hover: rgba(49, 46, 129, 0.5);
+  --surface-selected: rgba(67, 56, 202, 0.6);
+
+  /* Color Morphism & Glassmorphic 3D Depth Tokens */
+  --shadow-neumorph-card: 0 8px 32px 0 rgba(0, 240, 255, 0.15), inset 0 1px 0 0 rgba(255, 255, 255, 0.25), inset 0 -1px 0 0 rgba(0, 0, 0, 0.4);
+  --shadow-neumorph-elevated: 0 12px 40px 0 rgba(168, 85, 247, 0.25), inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
+  --shadow-neumorph-inset: inset 0 2px 6px 0 rgba(0, 0, 0, 0.5);
+  --shadow-neumorph-button: 0 4px 14px 0 rgba(0, 240, 255, 0.3), inset 0 1px 0 0 rgba(255, 255, 255, 0.3);
+  --shadow-glow-cyan: 0 0 24px rgba(0, 240, 255, 0.55);
+  --shadow-glow-positive: 0 0 24px rgba(16, 185, 129, 0.55);
+  --shadow-glow-negative: 0 0 24px rgba(244, 63, 94, 0.55);
+}
+
 @layer base {
   * {
     border-color: var(--border-subtle);
