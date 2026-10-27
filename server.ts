@@ -32,6 +32,9 @@ import { browserOperator } from './src/utils/browserOperator';
 import { jarvisMasterController } from './src/utils/jarvisMasterController';
 import { calculateTradeStatutoryCharges } from './src/utils/taxCalculator';
 import { centralExecutionEngine } from './src/utils/centralExecutionEngine';
+import { multiBrokerManager } from './src/utils/multiBrokerManager';
+import { profitOptimizationEngine } from './src/utils/profitOptimizationEngine';
+import { getAssetCapitalPartition, DEFAULT_PARTITION_RATIOS } from './src/utils/capitalConfig';
 import { selfHealingBackend } from './src/utils/selfHealingBackend';
 import { evaluate14BotQuorumConsensus } from './src/utils/quorumConsensusEngine';
 
@@ -449,6 +452,62 @@ app.post('/api/admin/mode-switch', (req: Request, res: Response) => {
     mode: result.mode,
     message: result.message
   });
+});
+
+// 2b. Manual Admin Activation: Idle-Until-Admin-Start Policy
+app.post('/api/admin/start-trading', (req: Request, res: Response) => {
+  const token = req.body.adminAuthToken || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.substring(7) : '') || String(req.headers['x-chintu-auth'] || '');
+  const result = centralExecutionEngine.startTradingByAdmin(token);
+  if (!result.success) {
+    return res.status(403).json({ status: 'error', code: 'ADMIN_SUPREMACY_REQUIRED', message: result.message });
+  }
+  return res.json({ status: 'success', message: result.message, state: result.state });
+});
+
+app.post('/api/admin/pause-trading', (req: Request, res: Response) => {
+  const token = req.body.adminAuthToken || (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.substring(7) : '') || String(req.headers['x-chintu-auth'] || '');
+  const result = centralExecutionEngine.pauseTradingByAdmin(token);
+  if (!result.success) {
+    return res.status(403).json({ status: 'error', code: 'ADMIN_SUPREMACY_REQUIRED', message: result.message });
+  }
+  return res.json({ status: 'success', message: result.message, state: result.state });
+});
+
+// 2c. Multi-Broker Status & Intelligent Routing
+app.get('/api/brokers/status', (_req: Request, res: Response) => {
+  res.json({
+    status: 'success',
+    brokers: multiBrokerManager.getBrokersStatus()
+  });
+});
+
+app.post('/api/brokers/route-plan', (req: Request, res: Response) => {
+  const { symbol = 'NIFTY 50' } = req.body;
+  const plan = multiBrokerManager.determineRouting(symbol);
+  res.json({ status: 'success', plan });
+});
+
+// 2d. Seed Capital Partitioning (Gold, Silver, Indices, Equities)
+app.get('/api/capital/partitions', (req: Request, res: Response) => {
+  const symbol = req.query.symbol ? String(req.query.symbol) : 'NIFTY 50';
+  const partition = getAssetCapitalPartition(symbol);
+  res.json({
+    status: 'success',
+    defaultRatios: DEFAULT_PARTITION_RATIOS,
+    symbolPartition: partition
+  });
+});
+
+// 2e. 70%-80% Profit Optimization & Continuous Self-Correction Engine
+app.post('/api/optimization/run', (req: Request, res: Response) => {
+  const maxIterations = Number(req.body.maxIterations) || 8;
+  const metrics = profitOptimizationEngine.executeIterativeSelfCorrection(maxIterations);
+  res.json({ status: 'success', metrics });
+});
+
+app.get('/api/optimization/metrics', (_req: Request, res: Response) => {
+  const metrics = profitOptimizationEngine.getMetrics();
+  res.json({ status: 'success', metrics });
 });
 
 // 3. Admin Supremacy: Status & Telemetry
