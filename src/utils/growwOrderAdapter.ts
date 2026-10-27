@@ -48,13 +48,14 @@ export class GrowwOrderAdapter {
   /**
    * Retrieves Groww credentials from the secure Vault.
    */
-  public getCredentials(userId = 'usr_veeresh_master'): { apiKey: string; apiSecret: string; authToken?: string } | null {
+  public getCredentials(userId = 'usr_veeresh_master'): { apiKey: string; apiSecret: string; authToken?: string; clientCode?: string } | null {
     const creds = connectionVault.getDecryptedCredentials(userId, 'groww');
-    if (!creds || !creds.apiKey) return null;
+    if (!creds || (!creds.apiKey && !creds.authToken && !creds.apiToken)) return null;
     return {
-      apiKey: creds.apiKey,
+      apiKey: creds.apiKey || '',
       apiSecret: creds.apiSecret || creds.secret || '',
-      authToken: creds.authToken || creds.token || ''
+      authToken: creds.authToken || creds.apiToken || creds.token || '',
+      clientCode: creds.clientCode || creds.clientId || ''
     };
   }
 
@@ -94,17 +95,60 @@ export class GrowwOrderAdapter {
       };
     }
 
-    const orderId = `GROWW_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    return {
-      success: true,
-      orderId,
-      status: 'SUCCESS',
-      message: `Groww order placed: ${req.action} ${req.quantity}x ${req.symbol} on ${req.exchange}.`,
-      broker: 'GROWW',
-      timestamp,
-      charges
-    };
+    // 5. Real Groww Trade API Dispatch
+    try {
+      const response = await fetch(`${this.baseUrl}/order/create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${creds.authToken || creds.apiKey}`,
+          'X-Client-Code': creds.clientCode || 'GROWW_DEFAULT'
+        },
+        body: JSON.stringify({
+          symbol: req.symbol,
+          exchange: req.exchange,
+          action: req.action,
+          order_type: req.orderType,
+          product: req.product,
+          quantity: req.quantity,
+          price: req.price || 0
+        })
+      });
+
+      const resJson = await response.json() as any;
+      if (resJson && (resJson.status === 'SUCCESS' || resJson.order_id || resJson.orderId)) {
+        const orderId = resJson.order_id || resJson.orderId || `GROWW_${Date.now()}`;
+        return {
+          success: true,
+          orderId,
+          status: 'SUCCESS',
+          message: `Groww live order submitted: ${req.action} ${req.quantity}x ${req.symbol}. Order ID: ${orderId}`,
+          broker: 'GROWW',
+          timestamp,
+          charges
+        };
+      } else {
+        return {
+          success: false,
+          status: 'REJECTED',
+          message: `Groww API Error: ${resJson?.message || 'Order rejected by Groww Trade API.'}`,
+          broker: 'GROWW',
+          timestamp,
+          charges
+        };
+      }
+    } catch (err: any) {
+      return {
+        success: false,
+        status: 'FAILED',
+        message: `Network communication error with Groww Trade API: ${err.message}`,
+        broker: 'GROWW',
+        timestamp,
+        charges
+      };
+    }
   }
 }
 
 export const growwOrderAdapter = GrowwOrderAdapter.getInstance();
+

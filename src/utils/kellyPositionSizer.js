@@ -23,16 +23,16 @@ export const CAPITAL_TIERS = {
 
 /**
  * Calculates optimal position size and leverage using Dynamic Half-Kelly Criterion.
- * @param {object} params
- * @param {number} params.capital - Total available portfolio capital in INR (e.g. 500, 6000, 250000)
- * @param {number} params.assetPrice - Current asset price
- * @param {number} params.lotSize - Minimum contract lot size (e.g. 50 for Nifty, 30 for BankNifty, 1 for Equities)
- * @param {string} params.segment - 'NSE Equity', 'NSE F&O Options', 'NSE F&O Futures', 'MCX Commodity'
- * @param {number} params.winRate - Historical bot/system win rate (0.0 to 1.0, default 0.68)
- * @param {number} params.winLossRatio - Payoff ratio (Avg Win / Avg Loss, default 1.75)
- * @param {number} params.currentATR - Current asset ATR volatility in INR
- * @param {number} params.targetVolatility - Baseline expected volatility in INR
- * @param {number} params.stopLossPoints - Stop-loss distance in INR points
+ * @param {object} [params]
+ * @param {number} [params.capital] - Total available portfolio capital in INR
+ * @param {number} [params.assetPrice] - Current asset price
+ * @param {number} [params.lotSize] - Minimum contract lot size
+ * @param {string} [params.segment] - 'NSE Equity', 'NSE F&O Options', 'NSE F&O Futures', 'MCX Commodity'
+ * @param {number} [params.winRate] - Historical bot/system win rate
+ * @param {number} [params.winLossRatio] - Payoff ratio
+ * @param {number} [params.currentATR] - Current asset ATR volatility in INR
+ * @param {number} [params.targetVolatility] - Baseline expected volatility in INR
+ * @param {number} [params.stopLossPoints] - Stop-loss distance in INR points
  */
 export function calculateDynamicKellyPositionSize({
   capital = 25000,

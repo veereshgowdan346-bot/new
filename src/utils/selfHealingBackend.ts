@@ -178,13 +178,25 @@ export class SelfHealingBackendSentinel {
    */
   public getTelemetry(): SelfHealingTelemetry {
     const mem = process.memoryUsage();
+    let dbStatus: 'HEALTHY' | 'DEGRADED' = 'HEALTHY';
+    try {
+      const db = runtimeDb.getDb();
+      if (!db) {
+        dbStatus = 'DEGRADED';
+      } else {
+        db.prepare('SELECT 1').get();
+      }
+    } catch {
+      dbStatus = 'DEGRADED';
+    }
+    const unresolvedHazards = this.hazards.filter((h) => !h.resolved);
     return {
-      isHealthy: true,
-      activeHazardsCount: 0,
+      isHealthy: dbStatus === 'HEALTHY' && unresolvedHazards.length === 0,
+      activeHazardsCount: unresolvedHazards.length,
       resolvedHazardsCount: this.resolvedHazardsCount,
       autoRecoveryCount: this.autoRecoveryCount,
       lastAuditTime: new Date().toLocaleTimeString(),
-      databaseStatus: 'HEALTHY',
+      databaseStatus: dbStatus,
       memoryUsageMb: Math.round(mem.heapUsed / 1024 / 1024),
       uptimeSeconds: Math.round(process.uptime()),
       hazards: this.hazards.slice(0, 15)

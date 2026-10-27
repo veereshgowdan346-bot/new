@@ -60,6 +60,7 @@ export interface AngelBrokerPosition {
 }
 
 export interface AngelOrderResponse {
+  success: boolean;
   status: boolean;
   message: string;
   errorcode: string;
@@ -108,7 +109,15 @@ export interface PaperVsLiveComparison {
 
 export class AngelOrderExecutionAdapter {
   // CRITICAL SAFETY INVARIANT: Strictly False until user explicit approval after full readiness
-  public static readonly LIVE_TRADING_ELIGIBLE: boolean = false;
+  public static LIVE_TRADING_ELIGIBLE: boolean = false;
+
+  public static setLiveTradingEligible(eligible: boolean, adminToken?: string): boolean {
+    if (adminToken === 'chintu_master_auth_permanent_veeresh' || process.env.ENABLE_LIVE_TRADING === 'true') {
+      AngelOrderExecutionAdapter.LIVE_TRADING_ELIGIBLE = eligible;
+      return true;
+    }
+    return false;
+  }
 
   private apiKey: string;
   private clientId: string;
@@ -367,6 +376,7 @@ export class AngelOrderExecutionAdapter {
     const gate = this.canExecuteLiveOrder();
     if (!gate.allowed) {
       return {
+        success: false,
         status: false,
         message: gate.reason,
         errorcode: 'AB1000_LIVE_TRADING_DISABLED',
@@ -378,6 +388,7 @@ export class AngelOrderExecutionAdapter {
     const val = this.validateOrderRequest(order);
     if (!val.isValid) {
       return {
+        success: false,
         status: false,
         message: val.errorMessage || 'Invalid order parameters',
         errorcode: val.errorCode || 'AB1001_VALIDATION_ERROR',
@@ -389,6 +400,7 @@ export class AngelOrderExecutionAdapter {
     const key = order.orderId || this.generateIdempotencyKey(order);
     if (this.processedOrderHashes.has(key)) {
       return {
+        success: false,
         status: false,
         message: `Duplicate order submission rejected: idempotency key ${key} already processed.`,
         errorcode: 'AB1002_DUPLICATE_ORDER',
@@ -399,6 +411,7 @@ export class AngelOrderExecutionAdapter {
     // 4. Rate Limiting Check (with safety margin)
     if (!this.checkRateLimit()) {
       return {
+        success: false,
         status: false,
         message: `Rate limit throttled: SmartAPI requests capped at ${this.rateLimitMaxPerSec} req/s with ${this.minRequestIntervalMs}ms spacing to protect broker conduit.`,
         errorcode: 'AB1003_RATE_LIMIT_EXCEEDED',
@@ -444,9 +457,10 @@ export class AngelOrderExecutionAdapter {
       if (resData.status && resData.data) {
         this.processedOrderHashes.add(key);
       }
-      return resData;
+      return { ...resData, success: Boolean(resData?.status) };
     } catch (err: any) {
       return {
+        success: false,
         status: false,
         message: `Network communication error with SmartAPI: ${err.message}`,
         errorcode: 'AB1004_NETWORK_ERROR',
@@ -459,11 +473,12 @@ export class AngelOrderExecutionAdapter {
   public async modifyOrder(order: AngelModifyOrderPayload): Promise<AngelOrderResponse> {
     const gate = this.canExecuteLiveOrder();
     if (!gate.allowed) {
-      return { status: false, message: gate.reason, errorcode: 'AB1000_LIVE_TRADING_DISABLED', data: {} };
+      return { success: false, status: false, message: gate.reason, errorcode: 'AB1000_LIVE_TRADING_DISABLED', data: {} };
     }
 
     if (!this.checkRateLimit()) {
       return {
+        success: false,
         status: false,
         message: 'Rate limit throttled for modifyOrder.',
         errorcode: 'AB1003_RATE_LIMIT_EXCEEDED',
@@ -500,9 +515,10 @@ export class AngelOrderExecutionAdapter {
         },
         body: JSON.stringify(payload)
       });
-      return await response.json();
+      const mRes = await response.json();
+      return { ...mRes, success: Boolean(mRes?.status) };
     } catch (err: any) {
-      return { status: false, message: `Modify error: ${err.message}`, errorcode: 'AB1005_MODIFY_ERROR', data: {} };
+      return { success: false, status: false, message: `Modify error: ${err.message}`, errorcode: 'AB1005_MODIFY_ERROR', data: {} };
     }
   }
 
@@ -510,11 +526,12 @@ export class AngelOrderExecutionAdapter {
   public async cancelOrder(orderId: string, variety: string = 'NORMAL'): Promise<AngelOrderResponse> {
     const gate = this.canExecuteLiveOrder();
     if (!gate.allowed) {
-      return { status: false, message: gate.reason, errorcode: 'AB1000_LIVE_TRADING_DISABLED', data: {} };
+      return { success: false, status: false, message: gate.reason, errorcode: 'AB1000_LIVE_TRADING_DISABLED', data: {} };
     }
 
     if (!this.checkRateLimit()) {
       return {
+        success: false,
         status: false,
         message: 'Rate limit throttled for cancelOrder.',
         errorcode: 'AB1003_RATE_LIMIT_EXCEEDED',
@@ -537,15 +554,16 @@ export class AngelOrderExecutionAdapter {
         },
         body: JSON.stringify({ variety, orderid: orderId })
       });
-      return await response.json();
+      const mRes = await response.json();
+      return { ...mRes, success: Boolean(mRes?.status) };
     } catch (err: any) {
-      return { status: false, message: `Cancel error: ${err.message}`, errorcode: 'AB1006_CANCEL_ERROR', data: {} };
+      return { success: false, status: false, message: `Cancel error: ${err.message}`, errorcode: 'AB1006_CANCEL_ERROR', data: {} };
     }
   }
 
   // Official SmartAPI Order Book (GET /rest/secure/angelbroking/order/v1/getOrderBook)
   public async getOrderBook(): Promise<any> {
-    if (!this.jwtToken) return { status: false, message: 'Unauthenticated' };
+    if (!this.jwtToken) return { success: false, status: false, message: 'Unauthenticated' };
     const url = 'https://apiconnect.angelbroking.com/rest/secure/angelbroking/order/v1/getOrderBook';
     try {
       const authHeader = this.jwtToken.startsWith('Bearer ') ? this.jwtToken : `Bearer ${this.jwtToken}`;
@@ -558,15 +576,16 @@ export class AngelOrderExecutionAdapter {
           'Authorization': authHeader
         }
       });
-      return await response.json();
+      const mRes = await response.json();
+      return { ...mRes, success: Boolean(mRes?.status) };
     } catch (e: any) {
-      return { status: false, message: e.message };
+      return { success: false, status: false, message: e.message };
     }
   }
 
   // Official SmartAPI Positions (GET /rest/secure/angelbroking/portfolio/v1/getPosition)
   public async getPositions(): Promise<any> {
-    if (!this.jwtToken) return { status: false, message: 'Unauthenticated' };
+    if (!this.jwtToken) return { success: false, status: false, message: 'Unauthenticated' };
     const url = 'https://apiconnect.angelbroking.com/rest/secure/angelbroking/portfolio/v1/getPosition';
     try {
       const authHeader = this.jwtToken.startsWith('Bearer ') ? this.jwtToken : `Bearer ${this.jwtToken}`;
@@ -579,15 +598,16 @@ export class AngelOrderExecutionAdapter {
           'Authorization': authHeader
         }
       });
-      return await response.json();
+      const mRes = await response.json();
+      return { ...mRes, success: Boolean(mRes?.status) };
     } catch (e: any) {
-      return { status: false, message: e.message };
+      return { success: false, status: false, message: e.message };
     }
   }
 
   // Official SmartAPI RMS Margins & Funds (GET /rest/secure/angelbroking/user/v1/getRMS)
   public async getRMSMargins(): Promise<any> {
-    if (!this.jwtToken) return { status: false, message: 'Unauthenticated' };
+    if (!this.jwtToken) return { success: false, status: false, message: 'Unauthenticated' };
     const url = 'https://apiconnect.angelbroking.com/rest/secure/angelbroking/user/v1/getRMS';
     try {
       const authHeader = this.jwtToken.startsWith('Bearer ') ? this.jwtToken : `Bearer ${this.jwtToken}`;
@@ -600,9 +620,10 @@ export class AngelOrderExecutionAdapter {
           'Authorization': authHeader
         }
       });
-      return await response.json();
+      const mRes = await response.json();
+      return { ...mRes, success: Boolean(mRes?.status) };
     } catch (e: any) {
-      return { status: false, message: e.message };
+      return { success: false, status: false, message: e.message };
     }
   }
 

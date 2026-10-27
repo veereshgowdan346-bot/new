@@ -480,6 +480,22 @@ export class CentralExecutionEngine {
         timestamp
       };
       runtimeDb.saveTrade(tradeRec);
+      if (action === 'BUY') {
+        runtimeDb.upsertPosition({
+          id: orderId,
+          symbol,
+          bot: tradeRec.bot,
+          action: 'BUY',
+          qty: adjustedQty,
+          entryPrice: executionPrice,
+          ltp: executionPrice,
+          pnl: 0,
+          pnlPct: 0,
+          charges: statutoryCharges.totalCharges,
+          openedAt: new Date().toLocaleTimeString(),
+          status: 'OPEN'
+        });
+      }
     } catch (e) {
       // Non-fatal ledger save log
     }

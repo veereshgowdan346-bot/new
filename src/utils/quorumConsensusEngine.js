@@ -166,13 +166,13 @@ export const QUORUM_DECISION_TYPES = {
 
 /**
  * Evaluates the 14-Bot Quorum Consensus for any given proposed trade.
- * @param {object} params
- * @param {string} params.symbol - Target asset symbol
- * @param {string} params.action - 'BUY' or 'SELL'
- * @param {number} params.price - Current market price
- * @param {Array} params.candles - Historical candlestick data
- * @param {object} params.orderBookDepth - Optional L2 depth { bids, asks }
- * @param {object} params.customMarketState - Optional ticker state override
+ * @param {object} [params]
+ * @param {string} [params.symbol] - Target asset symbol
+ * @param {string} [params.action] - 'BUY' or 'SELL'
+ * @param {number} [params.price] - Current market price
+ * @param {Array} [params.candles] - Historical candlestick data
+ * @param {object} [params.orderBookDepth] - Optional L2 depth { bids, asks }
+ * @param {object} [params.customMarketState] - Optional ticker state override
  */
 export function evaluate14BotQuorumConsensus({
   symbol = 'NIFTY 50',
@@ -234,7 +234,7 @@ export function evaluate14BotQuorumConsensus({
     const assetState = customMarketState[bot.asset] || {};
     const assetChangePct = typeof assetState.changePercent === 'number'
       ? assetState.changePercent
-      : (Math.sin(bot.id * 1.4) * 0.45);
+      : ((confluence.indicators?.rsi ? (confluence.indicators.rsi - 50) : (techScore - 50)) * 0.04);
 
     // Bot specific algorithmic reasoning
     switch (bot.id) {

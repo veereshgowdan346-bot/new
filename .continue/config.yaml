@@ -1,0 +1,27 @@
+name: Chintu AI & Local LLM Config (Workspace)
+version: 1.0.0
+schema: v1
+models:
+  - name: Chintu AI Quant Core (Port 3042)
+    provider: openai
+    model: chintu-ai-quant
+    apiBase: http://127.0.0.1:3042/v1
+    apiKey: chintu_master_auth_permanent_veeresh
+    contextLength: 128000
+  - name: Local Ollama (Autodetect / Llama 3)
+    provider: ollama
+    model: llama3
+    apiBase: http://127.0.0.1:11434
+  - name: DeepSeek Coder
+    provider: deepseek
+    model: deepseek-coder
+    apiKey: ${DEEPSEEK_API_KEY:-placeholder_key}
+    contextLength: 128000
+tabAutocompleteModel:
+  name: Chintu Tab Autocomplete
+  provider: openai
+  model: chintu-ai-quant
+  apiBase: http://127.0.0.1:3042/v1
+  apiKey: chintu_master_auth_permanent_veeresh
+allowAnonymousTelemetry: false
+

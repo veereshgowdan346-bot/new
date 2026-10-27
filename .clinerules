@@ -1,0 +1,14 @@
+# Chintu AI — Roo Code Autonomous Engineering Rules
+
+## Direct Extension Integration
+- Local AI Bridge is active on port 3042 (`http://127.0.0.1:3042/v1`).
+- Master Administrator Authentication Token: `chintu_master_auth_permanent_veeresh`.
+- The Express backend and React application support hot reload and dual-port socket binding (Port 3000 for UI, Port 3042 for Local AI Bridge).
+
+## Core Architectural Invariants
+1. 14-Board Analytical Voting Consensus: All quantitative trades require >= 9/14 supermajority votes.
+2. Single Central Execution Engine: Orders must route through `centralExecutionEngine.executeTrade()`.
+3. Multi-Broker Routing: Angel One (MCX Bullion), Zerodha (F&O Options), Groww (Equities Cash).
+4. Strict Idle-on-Startup: Cold boot state must remain `IDLE_WAITING_ADMIN_START`. Only Master Administrator Veeresh can initiate trading.
+5. Mathematical Accuracy: Zero fake modulo formulas, zero `Math.random()` simulation shortcuts in live or paper trading.
+

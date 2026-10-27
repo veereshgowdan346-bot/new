@@ -138,21 +138,67 @@ export class ZerodhaOrderAdapter {
       };
     }
 
-    // 5. Order Placement Dispatch
-    const orderId = `KITE_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    return {
-      success: true,
-      order_id: orderId,
-      status: 'SUBMITTED',
-      message: `Zerodha order placed: ${req.transaction_type} ${req.quantity}x ${req.tradingsymbol} on ${req.exchange}.`,
-      broker: 'ZERODHA',
-      timestamp,
-      charges
-    };
+    // 5. Real Zerodha Kite Connect HTTP Dispatch
+    const authHeader = creds.enctoken ? `enctoken ${creds.enctoken}` : `token ${creds.apiKey}:${creds.enctoken || creds.apiSecret}`;
+    const formParams = new URLSearchParams({
+      exchange: req.exchange,
+      tradingsymbol: req.tradingsymbol,
+      transaction_type: req.transaction_type,
+      order_type: req.order_type,
+      quantity: String(req.quantity),
+      product: req.product,
+      validity: req.validity || 'DAY',
+      price: req.price ? String(req.price) : '0',
+      trigger_price: req.trigger_price ? String(req.trigger_price) : '0',
+      tag: req.tag || 'chintu_ai'
+    });
+
+    try {
+      const response = await fetch(`${this.baseUrl}/orders/regular`, {
+        method: 'POST',
+        headers: {
+          'X-Kite-Version': '3',
+          'Authorization': authHeader,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: formParams.toString()
+      });
+
+      const resJson = await response.json() as any;
+      if (resJson && resJson.status === 'success' && resJson.data?.order_id) {
+        return {
+          success: true,
+          order_id: resJson.data.order_id,
+          status: 'SUBMITTED',
+          message: `Zerodha live order submitted: ${req.transaction_type} ${req.quantity}x ${req.tradingsymbol}. Order ID: ${resJson.data.order_id}`,
+          broker: 'ZERODHA',
+          timestamp,
+          charges
+        };
+      } else {
+        return {
+          success: false,
+          status: 'REJECTED',
+          message: `Zerodha API Error: ${resJson?.message || 'Order rejected by Kite Connect.'}`,
+          broker: 'ZERODHA',
+          timestamp,
+          charges
+        };
+      }
+    } catch (err: any) {
+      return {
+        success: false,
+        status: 'FAILED',
+        message: `Network communication error with Zerodha Kite Connect: ${err.message}`,
+        broker: 'ZERODHA',
+        timestamp,
+        charges
+      };
+    }
   }
 
   /**
-   * Retrieves available margins and cash balances from Zerodha.
+   * Retrieves available margins and cash balances from Zerodha via Kite Connect API.
    */
   public async getMargins(userId = 'usr_veeresh_master'): Promise<ZerodhaMarginInfo> {
     const creds = this.getCredentials(userId);
@@ -166,14 +212,38 @@ export class ZerodhaOrderAdapter {
       };
     }
 
+    try {
+      const authHeader = creds.enctoken ? `enctoken ${creds.enctoken}` : `token ${creds.apiKey}:${creds.enctoken || creds.apiSecret}`;
+      const response = await fetch(`${this.baseUrl}/user/margins`, {
+        headers: {
+          'X-Kite-Version': '3',
+          'Authorization': authHeader
+        }
+      });
+      const data = await response.json() as any;
+      if (data && data.status === 'success' && data.data?.equity) {
+        const eq = data.data.equity;
+        return {
+          enabled: true,
+          netAvailable: Number(eq.net || 0),
+          utilizedMargin: Number(eq.utilised?.debits || 0),
+          cashBalance: Number(eq.available?.cash || 0),
+          collateral: Number(eq.available?.collateral || 0)
+        };
+      }
+    } catch (e) {
+      // Disconnected or unauthenticated
+    }
+
     return {
-      enabled: true,
-      netAvailable: 150000,
-      utilizedMargin: 25000,
-      cashBalance: 125000,
+      enabled: false,
+      netAvailable: 0,
+      utilizedMargin: 0,
+      cashBalance: 0,
       collateral: 0
     };
   }
 }
 
 export const zerodhaOrderAdapter = ZerodhaOrderAdapter.getInstance();
+

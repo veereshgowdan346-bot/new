@@ -118,6 +118,9 @@ export interface SessionMetrics {
   initialCapital: number;
   availableCash: number;
   allocatedMargin: number;
+  allocatedCapital: number;
+  availableMargin: number;
+  currentCapital?: number;
   realizedPnl: number;
   unrealizedPnl: number;
   totalBrokerage: number;
@@ -337,7 +340,7 @@ export class PaperSessionEngine {
    * Stop the active paper-trading session.
    * Halts new entries, applies exit policy to open positions, confirms flat state.
    */
-  public async stopSession(exitPolicy: 'MARKET_CLOSE' | 'LEAVE_OPEN' = 'MARKET_CLOSE'): Promise<{
+  public async stopSession(exitPolicy: 'MARKET_CLOSE' | 'LEAVE_OPEN' | 'EMERGENCY_STOP_RMS_ENGAGED' | string = 'MARKET_CLOSE'): Promise<{
     success: boolean;
     message: string;
     session: SessionMetrics;
@@ -481,7 +484,7 @@ export class PaperSessionEngine {
         price: currentPrice,
         availableCapital: this.availableCash
       });
-      const topStratSignals = (stratEval?.results || []).map(r => ({
+      const topStratSignals = (stratEval?.signals || (stratEval as any)?.results || []).map(r => ({
         strategyId: r.strategyId,
         strategyName: r.strategyName,
         action: r.action,
@@ -1016,6 +1019,10 @@ export class PaperSessionEngine {
   // 3. METRICS, GETTERS & TELEMETRY
   // ==========================================================================
 
+  public isSessionActive(): boolean {
+    return this.status === 'PAPER_TRADING' || (this.status as any) === 'ACTIVE' || (this.status as any) === 'RUNNING';
+  }
+
   public getSessionMetrics(): SessionMetrics {
     const unrealized = Array.from(this.openPositions.values()).reduce((sum, p) => sum + p.unrealizedPnl, 0);
     const totalDeductions = Number((this.totalBrokerage + this.totalStatutoryTaxes + this.totalSlippage).toFixed(2));
@@ -1036,6 +1043,9 @@ export class PaperSessionEngine {
       initialCapital: this.initialCapital,
       availableCash: this.availableCash,
       allocatedMargin: this.allocatedMargin,
+      allocatedCapital: this.allocatedMargin,
+      availableMargin: this.availableCash,
+      currentCapital: Number((this.initialCapital + netPnl).toFixed(2)),
       realizedPnl: this.realizedPnl,
       unrealizedPnl: Number(unrealized.toFixed(2)),
       totalBrokerage: this.totalBrokerage,

@@ -38,6 +38,7 @@ export interface TelegramAlertPayload {
   observedEvidence: string;
   recommendedAction: string;
   metadata?: Record<string, any>;
+  force?: boolean;
 }
 
 export interface TelegramAlertRecord {
@@ -74,7 +75,7 @@ export class TelegramAlertManager {
   public async dispatchAlert(
     payload: TelegramAlertPayload,
     options?: { force?: boolean; botToken?: string; chatId?: string }
-  ): Promise<{ success: boolean; delivered: boolean; alertRecord: TelegramAlertRecord }> {
+  ): Promise<{ success: boolean; delivered: boolean; alertRecord: TelegramAlertRecord; cooldownActive?: boolean }> {
     const alertId = `tlg_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
     const now = Date.now();
     const signature = `${payload.eventType}_${payload.component}`;

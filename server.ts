@@ -37,6 +37,11 @@ import { profitOptimizationEngine } from './src/utils/profitOptimizationEngine';
 import { getAssetCapitalPartition, DEFAULT_PARTITION_RATIOS } from './src/utils/capitalConfig';
 import { selfHealingBackend } from './src/utils/selfHealingBackend';
 import { evaluate14BotQuorumConsensus } from './src/utils/quorumConsensusEngine';
+import {
+  aiBridgeCorsMiddleware,
+  registerLocalAiBridgeRoutes,
+  startAuxiliaryAiBridge
+} from './src/utils/localAiBridge';
 
 const app = express();
 const server = http.createServer(app);
@@ -1028,7 +1033,7 @@ app.post('/api/market/alerts/from-plan', (req: Request, res: Response) => {
 });
 
 app.get('/api/analyst/facts/:symbol', (req: Request, res: Response) => {
-  const symbol = req.params.symbol;
+  const symbol = String(req.params.symbol);
   const facts = indianFundamentalAnalyst.getCompanyFacts(symbol);
   if (!facts) {
     return res.status(404).json({
@@ -1166,7 +1171,15 @@ app.post('/api/order/place', (req: Request, res: Response) => {
   }
 
   // Pre-calculate exact statutory charges
-  const estimatedGrossPnl = action === 'SELL' ? 1450 : 0;
+  let estimatedGrossPnl = 0;
+  if (action === 'SELL') {
+    const openPos = livePositions.find((p) => p.symbol === (symbol || 'NIFTY 50')) || runtimeDb.getOpenPositions().find((p) => p.symbol === (symbol || 'NIFTY 50'));
+    if (openPos) {
+      estimatedGrossPnl = Math.max(0, Number(((fillPrice - openPos.entryPrice) * orderQty).toFixed(2)));
+    } else {
+      estimatedGrossPnl = customTarget ? Math.max(0, Number(((fillPrice - customTarget) * orderQty).toFixed(2))) : 0;
+    }
+  }
   const charges = calculateTradeStatutoryCharges(fillPrice, orderQty, action, seg, estimatedGrossPnl);
 
   const newOrder = {
@@ -1180,6 +1193,7 @@ app.post('/api/order/place', (req: Request, res: Response) => {
     bot: bot || 'Manual Commander',
     status: 'FILLED',
     time: new Date().toLocaleTimeString(),
+    timestamp: new Date().toISOString(),
     pnl: charges.netPnl,
     grossPnl: estimatedGrossPnl,
     netPnl: charges.netPnl,
@@ -1856,20 +1870,23 @@ function evaluateQuorumConsensus(symbol: string, action: string, bypassQuorum: b
     };
   }
 
-  // Calculate vote consensus across running bot nodes
-  const activeBots = defaultBots.filter((b) => b.worker_running);
-  const positiveVotes = Math.max(9, Math.min(14, Math.floor(Math.random() * 3) + 11)); // 11-13 approvals
-  const approved = positiveVotes >= 9;
+  const quote = angelMarketDataAdapter.getQuote(symbol) || angelMarketDataAdapter.getQuote('NIFTY 50');
+  const price = quote?.price || 25000;
+  const quorumResult = evaluate14BotQuorumConsensus({
+    symbol,
+    action: (action || 'BUY').toUpperCase() as 'BUY' | 'SELL',
+    price
+  });
 
   return {
-    approved,
-    votes: positiveVotes,
+    approved: quorumResult.isApproved,
+    votes: quorumResult.matchingVotes,
     totalBots: 14,
-    consensusPct: `${((positiveVotes / 14) * 100).toFixed(1)}%`,
+    consensusPct: `${((quorumResult.matchingVotes / 14) * 100).toFixed(1)}%`,
     bypassed: false,
-    reason: approved
-      ? `Multi-indicator confluence verified: ${positiveVotes}/14 bot algorithms approved ${action} on ${symbol}.`
-      : `Order vetoed by Decision Network: Only ${positiveVotes}/14 algorithms approved (minimum 9 required).`
+    reason: quorumResult.decisionReason || (quorumResult.isApproved
+      ? `Multi-indicator confluence verified: ${quorumResult.matchingVotes}/14 bot algorithms approved ${action} on ${symbol}.`
+      : `Order vetoed by Decision Network: Only ${quorumResult.matchingVotes}/14 algorithms approved (minimum 9 required).`)
   };
 }
 
@@ -1952,7 +1969,7 @@ app.post('/api/broker/zerodha/order', (req: Request, res: Response) => {
   if (action === 'BUY') {
     const newPos = {
       id: `pos_kite_${Date.now()}`,
-      symbol: targetSymbol,
+      symbol: symbol || 'NIFTY 50',
       bot: 'Zerodha Kite Autonomous Executor',
       action: 'BUY',
       qty,
@@ -1972,7 +1989,7 @@ app.post('/api/broker/zerodha/order', (req: Request, res: Response) => {
     runtimeDb.saveTrade({
       id: orderId,
       orderId,
-      symbol: targetSymbol,
+      symbol: symbol || 'NIFTY 50',
       bot: 'Zerodha Kite Direct DMA',
       action,
       qty,
@@ -1996,6 +2013,7 @@ app.post('/api/broker/zerodha/order', (req: Request, res: Response) => {
     bot: 'Zerodha Kite Direct DMA',
     status: 'FILLED',
     time: new Date().toLocaleTimeString(),
+    timestamp: new Date().toISOString(),
     netPnl: 0,
     charges: charges.totalCharges,
     netProfitGuaranteed: true
@@ -2399,7 +2417,7 @@ app.post('/api/broker/angel/order', (req: Request, res: Response) => {
   if (action === 'BUY') {
     const newPos = {
       id: `pos_angel_${Date.now()}`,
-      symbol: targetSymbol,
+      symbol: symbol || 'NIFTY 50',
       bot: 'Angel One SmartAPI Autonomous Node',
       action: 'BUY',
       qty,
@@ -2419,7 +2437,7 @@ app.post('/api/broker/angel/order', (req: Request, res: Response) => {
     runtimeDb.saveTrade({
       id: orderId,
       orderId,
-      symbol: targetSymbol,
+      symbol: symbol || 'NIFTY 50',
       bot: 'Angel One SmartAPI DMA',
       action,
       qty,
@@ -2443,6 +2461,7 @@ app.post('/api/broker/angel/order', (req: Request, res: Response) => {
     bot: 'Angel One SmartAPI DMA',
     status: 'FILLED',
     time: new Date().toLocaleTimeString(),
+    timestamp: new Date().toISOString(),
     netPnl: 0,
     charges: charges.totalCharges,
     netProfitGuaranteed: true
@@ -2630,7 +2649,7 @@ app.post('/api/broker/upstox/order', (req: Request, res: Response) => {
     runtimeDb.saveTrade({
       id: orderId,
       orderId,
-      symbol: targetSymbol,
+      symbol: symbol || 'NIFTY 50',
       bot: 'Upstox Pro Conduits',
       action,
       qty,
@@ -2654,6 +2673,7 @@ app.post('/api/broker/upstox/order', (req: Request, res: Response) => {
     bot: 'Upstox Pro Conduits',
     status: 'FILLED',
     time: new Date().toLocaleTimeString(),
+    timestamp: new Date().toISOString(),
     netPnl: 0,
     charges: charges.totalCharges,
     netProfitGuaranteed: true
@@ -3060,8 +3080,10 @@ app.post(['/api/telegram/command', '/api/telegram/execute-command'], (req: Reque
     const fillPrice = sym.includes('BANK') ? bankNiftyBase : niftyBase;
 
     // 1. Quorum check: 9/14 required
-    const simulatedApprovals = Math.floor(Math.random() * 3) + 11; // 11 to 13
-    const meetsQuorum = simulatedApprovals >= 9;
+    const currentPrice = sym.includes('BANK') ? bankNiftyBase : niftyBase;
+    const quorumRes = evaluate14BotQuorumConsensus({ symbol: sym, action: 'BUY', price: currentPrice });
+    const simulatedApprovals = quorumRes.matchingVotes;
+    const meetsQuorum = quorumRes.isApproved;
 
     if (!meetsQuorum) {
       return res.json({
@@ -3586,7 +3608,7 @@ app.get('/api/dashboard/stats', (_req: Request, res: Response) => {
   const adapterStatus = angelMarketDataAdapter.getStatus();
   const marketDataStatus = adapterStatus.isLiveStreaming ? 'LIVE_DATA_CONNECTED' : 'STANDBY';
   const sessionMetrics = paperSessionEngine.getSessionMetrics();
-  const paperTradingStatus = (sessionMetrics.status === 'RUNNING' || (sessionMetrics.status as any) === 'PAPER_TRADING')
+  const paperTradingStatus = paperSessionEngine.isSessionActive()
     ? 'PAPER_TRADING_RUNNING'
     : 'NOT_STARTED';
 
@@ -4549,6 +4571,9 @@ async function startServer() {
     console.log(`[CHINTU AI] Active URL: http://localhost:${boundPort}`);
     console.log(`[CHINTU AI] WebSocket Live Feed: ws://localhost:${boundPort}/chintu-feed`);
     console.log(`[CHINTU AI] ========================================================`);
+
+    // Dedicated Local AI Bridge & VS Code Extension Socket (Port 3042)
+    startAuxiliaryAiBridge(app, boundPort);
   } catch (err: any) {
     console.error('[CHINTU AI Startup Error]:', err?.message || err);
     process.exit(1);

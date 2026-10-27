@@ -464,6 +464,44 @@ class NewsSentimentEngine {
     });
   }
 
+  async fetchLiveMarketNews() {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const res = await fetch('https://news.google.com/rss/search?q=NSE+Nifty+Stock+Market+India&hl=en-IN&gl=IN&ceid=IN:en', {
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (res.ok) {
+        const xml = await res.text();
+        const items = [];
+        const itemRegex = /<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<pubDate>(.*?)<\/pubDate>[\s\S]*?<\/item>/g;
+        let match;
+        while ((match = itemRegex.exec(xml)) !== null && items.length < 15) {
+          const rawTitle = match[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim();
+          items.push({
+            id: `live-rss-${Date.now()}-${items.length}`,
+            headline: rawTitle,
+            source: 'Live Financial Market Feed',
+            category: 'Macro & Markets',
+            timestamp: match[2] || 'Just now',
+            epoch: Date.now(),
+            impactAsset: rawTitle.includes('Bank') ? 'BANKNIFTY' : (rawTitle.includes('Gold') ? 'GOLD' : 'NIFTY 50'),
+            sentiment: analyzeHeadlineSentiment(rawTitle)
+          });
+        }
+        if (items.length > 0) {
+          this.newsList = [...items, ...this.newsList].slice(0, 30);
+          this.notify();
+          return items;
+        }
+      }
+    } catch (e) {
+      // Network sandboxed or offline fallback
+    }
+    return [this.simulateIncomingNews()];
+  }
+
   simulateIncomingNews() {
     const item = INCOMING_HEADLINES_POOL[this.incomingIndex % INCOMING_HEADLINES_POOL.length];
     this.incomingIndex += 1;

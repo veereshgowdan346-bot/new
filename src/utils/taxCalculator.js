@@ -488,6 +488,7 @@ export function validateNetProfitGuardrail({
   return {
     isApproved,
     rejectionReason,
+    recommendation: rejectionReason || 'Approved under institutional net profit guardrail.',
     entryPrice: p,
     targetPrice: effTarget,
     qty: q,

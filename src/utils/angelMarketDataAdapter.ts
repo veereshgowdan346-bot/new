@@ -239,6 +239,10 @@ export class AngelMarketDataAdapter {
     };
   }
 
+  public injectTick(quote: MarketQuote): void {
+    this.dispatchTick(quote);
+  }
+
   private dispatchTick(quote: MarketQuote): void {
     this.quotes[quote.symbol] = quote;
     this.tickListeners.forEach((fn) => {
@@ -601,8 +605,26 @@ export class AngelMarketDataAdapter {
     }
   }
 
-  // Resilient High-Fidelity Paper Feed Replay
+  private paperModeEnabled: boolean = false;
+
+  public setPaperTradingMode(enabled: boolean): void {
+    this.paperModeEnabled = enabled;
+    if (!enabled && this.simulationInterval) {
+      clearInterval(this.simulationInterval);
+      this.simulationInterval = null;
+    }
+  }
+
+  public isPaperTradingMode(): boolean {
+    return this.paperModeEnabled;
+  }
+
+  // High-Fidelity Paper Feed Replay: STRICTLY gated by explicit paperModeEnabled
   public startPaperFeedReplay(): void {
+    if (!this.paperModeEnabled) {
+      console.log('[MARKET DATA] Strict Live Feed Invariant: Simulated drifts disabled. Direct exchange feed strictly required.');
+      return;
+    }
     if (this.simulationInterval) return;
 
     this.simulationInterval = setInterval(() => {

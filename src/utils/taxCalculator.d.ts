@@ -90,6 +90,7 @@ export interface NetProfitGuardrailParams {
 export interface NetProfitGuardrailResult {
   isApproved: boolean;
   rejectionReason: string | null;
+  recommendation?: string;
   entryPrice: number;
   targetPrice: number;
   qty: number;

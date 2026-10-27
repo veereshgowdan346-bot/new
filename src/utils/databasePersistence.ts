@@ -36,6 +36,8 @@ export interface TradeRecord {
   status: string;
   timestamp: string;
   time?: string;
+  createdAt?: string;
+  created_at?: string;
   breakdown?: any;
 }
 
@@ -46,6 +48,8 @@ export interface ChatMessageRecord {
   content: string;
   timestamp: string;
   time?: string;
+  createdAt?: string;
+  created_at?: string;
   sessionId?: string;
 }
 
@@ -85,8 +89,8 @@ export interface UserRecord {
 export interface UserConnectionRecord {
   id: string;
   userId: string;
-  provider: 'angel_one' | 'telegram' | 'google';
-  status: 'NOT_CONFIGURED' | 'CONNECTING' | 'CONNECTED' | 'EXPIRED' | 'ERROR' | 'DISCONNECTED';
+  provider: 'angel_one' | 'telegram' | 'google' | 'ollama' | 'zerodha' | 'groww' | string;
+  status: 'NOT_CONFIGURED' | 'SAVED' | 'AUTHENTICATING' | 'CONNECTING' | 'CONNECTED' | 'AUTH_FAILED' | 'SESSION_EXPIRED' | 'EXPIRED' | 'RATE_LIMITED' | 'DISCONNECTED' | 'ERROR' | string;
   encryptedCredentials?: string;
   sanitizedConfig: string;
   lastVerifiedAt?: string | null;
@@ -147,6 +151,8 @@ export class DatabasePersistenceService {
       this.db.exec(`
         PRAGMA journal_mode = WAL;
         PRAGMA synchronous = NORMAL;
+        PRAGMA busy_timeout = 5000;
+        PRAGMA foreign_keys = ON;
 
         CREATE TABLE IF NOT EXISTS positions (
           id TEXT PRIMARY KEY,
@@ -745,11 +751,35 @@ export class DatabasePersistenceService {
     }
   }
 
+  public saveAuditLog(userIdOrEntry: string | AuditLogRecord, action?: string, details?: string, ipAddress?: string): void {
+    if (typeof userIdOrEntry === 'object' && userIdOrEntry !== null) {
+      this.logAudit(userIdOrEntry);
+      return;
+    }
+    const record: AuditLogRecord = {
+      id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      userId: String(userIdOrEntry || 'system'),
+      action: action || 'AUDIT_EVENT',
+      details: details || '',
+      ipAddress: ipAddress || undefined,
+      timestamp: new Date().toISOString()
+    };
+    this.logAudit(record);
+  }
+
   public getAuditLogs(userId: string, limit = 50): AuditLogRecord[] {
     if (!this.db) return [];
     try {
       const stmt = this.db.prepare('SELECT * FROM user_audit_log WHERE user_id = ? ORDER BY rowid DESC LIMIT ?');
-      return stmt.all(userId, limit) as any[];
+      const rows = stmt.all(userId, limit) as any[];
+      return rows.map(r => ({
+        id: r.id,
+        userId: r.user_id || r.userId,
+        action: r.action,
+        details: r.details,
+        ipAddress: r.ip_address || r.ipAddress,
+        timestamp: r.timestamp
+      }));
     } catch (e) {
       console.warn('[DB] Failed to load audit logs:', e);
       return [];
@@ -789,6 +819,10 @@ export class DatabasePersistenceService {
     } catch (e) {
       console.warn(`[DB] Failed to set setting '${key}':`, e);
     }
+  }
+
+  public saveSetting(key: string, value: any): void {
+    this.setSetting(key, value);
   }
 
   public getAllSettings(): Record<string, any> {

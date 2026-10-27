@@ -417,24 +417,7 @@ export default function TradingDashboard({
         return [...prev.slice(0, -1), updatedLast];
       });
 
-      // Also gently tick LTP on open positions
-      setLocalPositions((prev) =>
-        prev.map((pos) => {
-          const ltpChange = Number(((Math.random() - 0.48) * (pos.ltp * 0.002)).toFixed(2));
-          const updatedLtp = Number((pos.ltp + ltpChange).toFixed(2));
-          const qty = Number(pos.qty) || 1;
-          const entry = Number(pos.entryPrice || pos.avgPrice) || updatedLtp;
-          const newPnl = Number(((updatedLtp - entry) * (pos.action === 'SELL' ? -1 : 1) * qty).toFixed(2));
-          const newPnlPct = Number((((updatedLtp - entry) / entry) * 100 * (pos.action === 'SELL' ? -1 : 1)).toFixed(2));
-
-          return {
-            ...pos,
-            ltp: updatedLtp,
-            pnl: newPnl,
-            pnlPct: newPnlPct
-          };
-        })
-      );
+      // Positions strictly updated from authoritative WebSocket ticks (zero synthetic drift)
     }, 3200);
 
     return () => clearInterval(interval);
