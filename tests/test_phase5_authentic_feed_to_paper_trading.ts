@@ -291,7 +291,7 @@ describe('CHINTU AI — PHASE 5: AUTHENTIC FEED TO PAPER-TRADING END-TO-END VERI
       tradingsymbol: 'NIFTY 50',
       symboltoken: '26000',
       quantity: 1,
-      exchange: rawExchange,
+      exchange: rawExchange as 'NSE',
       price: 25840
     };
 
